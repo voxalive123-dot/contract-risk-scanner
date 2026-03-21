@@ -1,149 +1,370 @@
-# analyzer/scorer.py
-
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, Iterable, List, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
-from analyzer.rules import RISK_RULES
+from analyzer.rules import (
+    RISK_RULE_OBJECTS,
+    RULESET_VERSION,
+    RULE_NEGATIVE_PATTERNS,
+    RULE_PRIORITIES,
+    RULE_TAGS,
+)
+
+MAX_SCAN_CHARS = 60_000
 
 
-def _iter_rules(rules_obj) -> Iterable[Tuple[str, int, List[str]]]:
-    """
-    Normalize various possible RISK_RULES shapes into:
-      (label: str, weight: int, patterns: list[str])
+def _normalize_ws(s: str) -> str:
+    return re.sub(r"\s+", " ", s or "").strip()
 
-    Supported shapes:
-    1) List/Tuple entries:
-       - (label, weight, patterns)
-       - (label, weight, patterns, anything_else...)
-    2) Dict entries:
-       - {"label": ..., "weight": ..., "patterns": [...]}
-       - {"name": ..., "weight": ..., "regex": [...]}
-    3) Dict mapping:
-       - {"unlimited liability": [pattern1, pattern2], ...}
-       - {"unlimited liability": {"weight": 5, "patterns": [...]}, ...}
-       - {"unlimited liability": (5, [patterns...]), ...}
-    """
 
-    # Case 3: mapping dict
-    if isinstance(rules_obj, dict):
-        for label, val in rules_obj.items():
-            if isinstance(val, dict):
-                weight = int(val.get("weight", 1))
-                patterns = (
-                    val.get("patterns")
-                    or val.get("regex")
-                    or val.get("regexes")
-                    or val.get("patterns_regex")
-                    or []
+def _excerpt(text: str, start: int, end: int, window: int = 90) -> str:
+    n = len(text)
+    left = max(0, start - window)
+    right = min(n, end + window)
+    return _normalize_ws(text[left:right])
+
+
+def _word_count(text: str) -> int:
+    return len(re.findall(r"\b\w+\b", text or ""))
+
+
+def _scan_view(text: str) -> str:
+    if not text:
+        return ""
+    if len(text) <= MAX_SCAN_CHARS:
+        return text
+    return text[:MAX_SCAN_CHARS]
+
+
+def _clamp_float(v: float, lo: float = 0.0, hi: float = 1.0) -> float:
+    if v < lo:
+        return lo
+    if v > hi:
+        return hi
+    return v
+
+
+_COMPILED_OBJECT_RULES: List[Dict[str, Any]] = []
+
+for rule in RISK_RULE_OBJECTS:
+    compiled_pairs: List[Tuple[str, re.Pattern]] = [
+        (p, re.compile(p, flags=re.IGNORECASE | re.DOTALL))
+        for p in rule.patterns
+    ]
+
+    negative_pairs: List[Tuple[str, re.Pattern]] = [
+        (p, re.compile(p, flags=re.IGNORECASE | re.DOTALL))
+        for p in RULE_NEGATIVE_PATTERNS.get(rule.id, [])
+    ]
+
+    _COMPILED_OBJECT_RULES.append(
+        {
+            "rule_id": rule.id,
+            "category": rule.category,
+            "title": rule.title,
+            "severity": int(rule.severity),
+            "weight": int(rule.weight),
+            "rationale": rule.rationale,
+            "patterns": compiled_pairs,
+            "negative_patterns": negative_pairs,
+            "priority": int(RULE_PRIORITIES.get(rule.id, rule.weight)),
+            "tags": list(RULE_TAGS.get(rule.id, [])),
+            "min_matches": int(getattr(rule, "min_matches", 1)),
+            "max_span_chars": int(getattr(rule, "max_span_chars", 120)),
+        }
+    )
+
+_MAX_POSSIBLE_SCORE: int = sum(max(0, int(r.weight)) for r in RISK_RULE_OBJECTS)
+
+
+def _normalized_score(raw_score: int) -> int:
+    if _MAX_POSSIBLE_SCORE <= 0:
+        return 0
+    pct = int(round((raw_score / _MAX_POSSIBLE_SCORE) * 100))
+    if pct < 0:
+        return 0
+    if pct > 100:
+        return 100
+    return pct
+
+
+def _find_first_match(
+    compiled_pairs: List[Tuple[str, re.Pattern]],
+    text: str,
+) -> Optional[Tuple[str, re.Match]]:
+    for pattern_str, rx in compiled_pairs:
+        m = rx.search(text)
+        if m:
+            return pattern_str, m
+    return None
+
+
+def _has_negative_override(
+    negative_pairs: List[Tuple[str, re.Pattern]],
+    text: str,
+) -> Optional[str]:
+    for pattern_str, rx in negative_pairs:
+        if rx.search(text):
+            return pattern_str
+    return None
+
+
+def _spans_overlap(
+    a_start: int,
+    a_end: int,
+    b_start: int,
+    b_end: int,
+) -> bool:
+    return max(a_start, b_start) < min(a_end, b_end)
+
+
+def _finding_rank_key(f: Dict[str, Any]) -> Tuple[int, int, int, int]:
+    span = f.get("match_span", [0, 0])
+    start = int(span[0]) if len(span) > 0 else 0
+    end = int(span[1]) if len(span) > 1 else 0
+    width = max(0, end - start)
+
+    return (
+        int(f.get("priority", 1)),
+        int(f.get("severity", 1)),
+        int(f.get("weight", 0)),
+        -width,
+    )
+
+
+def _dedupe_findings(
+    findings: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    if not findings:
+        return [], []
+
+    kept: List[Dict[str, Any]] = []
+    suppressed: List[Dict[str, Any]] = []
+
+    ranked = sorted(findings, key=_finding_rank_key, reverse=True)
+
+    for candidate in ranked:
+        c_span = candidate.get("match_span", [0, 0])
+        c_start = int(c_span[0]) if len(c_span) > 0 else 0
+        c_end = int(c_span[1]) if len(c_span) > 1 else 0
+        c_cat = str(candidate.get("category", ""))
+
+        duplicate_of_existing = False
+
+        for existing in kept:
+            e_span = existing.get("match_span", [0, 0])
+            e_start = int(e_span[0]) if len(e_span) > 0 else 0
+            e_end = int(e_span[1]) if len(e_span) > 1 else 0
+            e_cat = str(existing.get("category", ""))
+
+            if c_cat == e_cat and _spans_overlap(c_start, c_end, e_start, e_end):
+                duplicate_of_existing = True
+                suppressed.append(
+                    {
+                        "rule_id": candidate.get("rule_id"),
+                        "title": candidate.get("title"),
+                        "suppressed_by_rule_id": existing.get("rule_id"),
+                        "reason": "overlapping_evidence_same_category",
+                    }
                 )
-                if not isinstance(patterns, list):
-                    patterns = list(patterns)
-                yield (str(label), weight, [str(p) for p in patterns])
-                continue
+                break
 
-            if isinstance(val, tuple) and len(val) >= 2:
-                weight = int(val[0])
-                patterns = val[1]
-                if not isinstance(patterns, list):
-                    patterns = list(patterns)
-                yield (str(label), weight, [str(p) for p in patterns])
-                continue
+        if not duplicate_of_existing:
+            kept.append(candidate)
 
-            # assume val is patterns list
-            patterns = val
-            if not isinstance(patterns, list):
-                patterns = list(patterns)
-            yield (str(label), 1, [str(p) for p in patterns])
-        return
+    kept.sort(
+        key=lambda f: (
+            -int(f.get("priority", 1)),
+            -int(f.get("severity", 1)),
+            -int(f.get("weight", 0)),
+            str(f.get("title", "")),
+        )
+    )
 
-    # Case 1/2: list/tuple of entries
-    if isinstance(rules_obj, (list, tuple)):
-        for entry in rules_obj:
-            # Case 2: dict entry
-            if isinstance(entry, dict):
-                label = entry.get("label") or entry.get("name") or entry.get("type")
-                if not label:
-                    continue
-                weight = int(entry.get("weight", 1))
-                patterns = (
-                    entry.get("patterns")
-                    or entry.get("regex")
-                    or entry.get("regexes")
-                    or []
-                )
-                if not isinstance(patterns, list):
-                    patterns = list(patterns)
-                yield (str(label), weight, [str(p) for p in patterns])
-                continue
-
-            # Case 1: tuple/list entry
-            if isinstance(entry, (list, tuple)) and len(entry) >= 3:
-                label = str(entry[0])
-                weight = int(entry[1])
-                patterns = entry[2]
-                if not isinstance(patterns, list):
-                    patterns = list(patterns)
-                yield (label, weight, [str(p) for p in patterns])
-                continue
-
-        return
-
-    raise TypeError(f"Unsupported RISK_RULES type: {type(rules_obj)}")
+    return kept, suppressed
 
 
-# Precompile regex patterns once for speed + consistency
-_COMPILED_RULES: List[Tuple[str, int, List[re.Pattern]]] = []
-for label, weight, patterns in _iter_rules(RISK_RULES):
-    compiled = [re.compile(p, flags=re.IGNORECASE | re.DOTALL) for p in patterns]
-    _COMPILED_RULES.append((label, weight, compiled))
+def _apply_mitigation_and_conflict_adjustments(
+    matched_rule_ids: set[str],
+    raw_score: int,
+) -> Tuple[int, List[Dict[str, Any]]]:
+    adjusted_score = raw_score
+    adjustments: List[Dict[str, Any]] = []
+
+    if "liability_cap_present" in matched_rule_ids:
+        liability_risk_present = any(
+            rid in matched_rule_ids
+            for rid in {
+                "liability_unlimited",
+                "liability_cap_missing_or_unclear",
+                "liability_super_cap_carveout",
+                "indemnity_broad",
+                "indemnity_one_way",
+                "liability_consequential_exclusion",
+            }
+        )
+        if liability_risk_present:
+            adjusted_score = max(0, adjusted_score - 2)
+            adjustments.append(
+                {
+                    "type": "mitigation",
+                    "rule_id": "liability_cap_present",
+                    "effect": -2,
+                    "reason": "Liability cap may reduce some exposure, but should not eliminate carve-out or related liability risk.",
+                }
+            )
+
+    if (
+        "liability_cap_present" in matched_rule_ids
+        and "liability_super_cap_carveout" in matched_rule_ids
+    ):
+        adjusted_score = max(adjusted_score, 3)
+        adjustments.append(
+            {
+                "type": "contradiction",
+                "rule_id": "liability_super_cap_carveout",
+                "effect": 0,
+                "reason": "Cap carve-out preserves residual liability exposure despite cap language.",
+            }
+        )
+
+    if "liability_consequential_exclusion" in matched_rule_ids:
+        adjusted_score = max(0, adjusted_score - 1)
+        adjustments.append(
+            {
+                "type": "mitigation",
+                "rule_id": "liability_consequential_exclusion",
+                "effect": -1,
+                "reason": "Consequential damages exclusion is treated as a mild mitigating liability structure term.",
+            }
+        )
+
+    return adjusted_score, adjustments
 
 
-def score_contract(text: str) -> Dict[str, Any]:
-    """
-    Stable scoring contract:
-      {
-        "risk_score": int,
-        "severity": "LOW" | "MEDIUM" | "HIGH",
-        "flags": list[str]   # rule labels
-      }
-    """
-    if not isinstance(text, str):
-        text = str(text or "")
+def _derive_severity(score: int) -> str:
+    if score >= 12:
+        return "HIGH"
+    if score >= 5:
+        return "MEDIUM"
+    return "LOW"
 
-    flags: List[str] = []
-    risk_score = 0
 
-    for label, weight, regexes in _COMPILED_RULES:
-        if any(rx.search(text) for rx in regexes):
-            flags.append(label)
-            risk_score += weight
+def _display_flag(finding: Dict[str, Any]) -> str:
+    rule_id = str(finding.get("rule_id", ""))
+    matched_text = str(finding.get("matched_text", "")).lower()
 
-    if risk_score >= 10:
-        severity = "HIGH"
-    elif risk_score >= 5:
-        severity = "MEDIUM"
-    else:
-        severity = "LOW"
+    if rule_id == "termination_for_convenience_counterparty" and "without notice" in matched_text:
+        return "termination without notice"
 
-    return {
-    "risk_score": risk_score,
-    "severity": severity,
-    "flags": sorted(flags),
-}
+    if rule_id == "unilateral_price_increase":
+        return "unilateral price increase right"
 
-# --- Stable public entrypoint for regression tests ---
+    return str(finding.get("title", "")).lower()
+
+
+def score_contract(
+    text: str,
+    *,
+    include_findings: bool = True,
+    include_meta: bool = True,
+) -> Dict[str, Any]:
+    original_text = text or ""
+    scan_text = _scan_view(original_text)
+    raw_findings: List[Dict[str, Any]] = []
+    suppressed_rules: List[Dict[str, Any]] = []
+
+    for rule in _COMPILED_OBJECT_RULES:
+        negative_hit = _has_negative_override(rule["negative_patterns"], scan_text)
+        if negative_hit:
+            suppressed_rules.append(
+                {
+                    "rule_id": rule["rule_id"],
+                    "title": rule["title"],
+                    "reason": "negative_pattern_override",
+                    "pattern": negative_hit,
+                }
+            )
+            continue
+
+        first_match = _find_first_match(rule["patterns"], scan_text)
+        if not first_match:
+            continue
+
+        pattern_str, match_obj = first_match
+        start, end = match_obj.span()
+
+        raw_findings.append(
+            {
+                "rule_id": rule["rule_id"],
+                "category": rule["category"],
+                "title": rule["title"],
+                "severity": rule["severity"],
+                "weight": rule["weight"],
+                "priority": rule["priority"],
+                "rationale": rule["rationale"],
+                "matched_pattern": pattern_str,
+                "match_span": [start, end],
+                "matched_text": _normalize_ws(scan_text[start:end]),
+                "excerpt": _excerpt(scan_text, start, end),
+                "tags": rule["tags"],
+            }
+        )
+
+    deduped_findings, overlap_suppressions = _dedupe_findings(raw_findings)
+
+    matched_rule_ids: set[str] = {str(f["rule_id"]) for f in deduped_findings}
+    flags: List[str] = [_display_flag(f) for f in deduped_findings]
+    raw_risk_score = sum(int(f["weight"]) for f in deduped_findings)
+
+    adjusted_risk_score, score_adjustments = _apply_mitigation_and_conflict_adjustments(
+        matched_rule_ids, raw_risk_score
+    )
+
+    if "termination_for_convenience_counterparty" in matched_rule_ids:
+        adjusted_risk_score = max(adjusted_risk_score, 5)
+
+    if "unilateral_price_increase" in matched_rule_ids:
+        adjusted_risk_score = max(adjusted_risk_score, 5)
+
+    contradiction_count = sum(
+        1 for adj in score_adjustments if adj.get("type") == "contradiction"
+    )
+    suppressed_count = len(suppressed_rules)
+
+    severity = _derive_severity(adjusted_risk_score)
+
+    result: Dict[str, Any] = {
+        "risk_score": adjusted_risk_score,
+        "severity": severity,
+        "flags": sorted(set(flags)),
+    }
+
+    if include_findings:
+        result["findings"] = deduped_findings
+
+    if include_meta:
+        wc = _word_count(original_text)
+        result["meta"] = {
+            "confidence": _clamp_float(1.0 if wc > 0 else 0.0),
+            "risk_density": round(adjusted_risk_score / max(wc, 1), 4),
+            "ruleset_version": RULESET_VERSION,
+            "score_adjustments": score_adjustments,
+            "matched_rule_count": len(deduped_findings),
+            "suppressed_rule_count": suppressed_count,
+            "normalized_score": _normalized_score(adjusted_risk_score),
+            "raw_risk_score": raw_risk_score,
+            "contradiction_count": contradiction_count,
+            "scan_char_limit": MAX_SCAN_CHARS,
+            "scanned_chars": min(len(original_text), MAX_SCAN_CHARS),
+            "scan_truncated": len(original_text) > MAX_SCAN_CHARS,
+        }
+        if overlap_suppressions:
+            result["meta"]["overlap_suppressions"] = overlap_suppressions
+
+    return result
+
+
 def score_text(text: str):
     return score_contract(text)
-
-
-
-
-
-
-
-
-
-
-
