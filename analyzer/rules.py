@@ -1,90 +1,392 @@
-# analyzer/rules.py
+from __future__ import annotations
 
-RISK_RULES = [
+from analyzer.risk_schema import RiskRule
 
-    {
-        "label": "unlimited liability",
-        "weight": 5,
-        "description": "Liability is not capped or limited.",
-        "impact": "Unlimited financial exposure.",
-        "patterns": [
-            # direct phrase
-            r"\bunlimited\s+liabilit(y|ies)\b",
 
-            # allow words between liability and unlimited
-            r"\bliabilit(y|ies)\b[\s\S]{0,80}\bshall\s+be\s+unlimited\b",
-            r"\bliabilit(y|ies)\b[\s\S]{0,80}\bis\s+unlimited\b",
+RULESET_VERSION = "1.2.3"
 
-            # no cap phrasing
-            r"\bliabilit(y|ies)\b[\s\S]{0,80}\bshall\s+not\s+be\s+capped\b",
-            r"\bno\s+limit(?:ation)?\s+of\s+liabilit(y|ies)\b",
+
+RISK_RULE_OBJECTS = [
+    RiskRule(
+        id="liability_unlimited",
+        category="liability",
+        title="Unlimited liability",
+        severity=5,
+        weight=5,
+        rationale="Liability is not capped, exposing a party to potentially unlimited financial risk.",
+        patterns=[
+            r"\bunlimited\s+liabilit(?:y|ies)\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bunlimited\b",
+            r"\bunlimited\b.{0,80}\bliabilit(?:y|ies)\b",
+            r"\bno\s+cap\s+on\s+liabilit(?:y|ies)\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bno\s+cap\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bshall\s+not\s+be\s+capped\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\buncapped\b",
+            r"\bwithout\s+limitation\s+of\s+liabilit(?:y|ies)\b",
         ],
-    },
-
-    {
-        "label": "indemnification",
-        "weight": 4,
-        "description": "One party must indemnify the other.",
-        "impact": "May create broad financial obligations.",
-        "patterns": [
-            r"\bindemnif(?:y|ies|ied|ication)\b",
+        negative_patterns=[
+            r"\bliabilit(?:y|ies)\b.{0,80}\bcap(?:ped)?\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\blimited\s+to\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bshall\s+be\s+limited\s+to\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["financial_risk", "high_impact"],
+    ),
+    RiskRule(
+        id="liability_cap_missing_or_unclear",
+        category="liability",
+        title="Missing or unclear liability cap",
+        severity=5,
+        weight=5,
+        rationale="Absence of a clear liability cap can expose a party to unlimited or unpredictable financial risk.",
+        patterns=[
+            r"\bliabilit(?:y|ies)\b.{0,80}\b(unlimited|uncapped|no\s+limit)\b",
+            r"\bunlimited\s+liabilit(?:y|ies)\b",
+            r"\bno\s+cap\s+on\s+liabilit(?:y|ies)\b",
+        ],
+        negative_patterns=[
+            r"\bliabilit(?:y|ies)\b.{0,80}\bcap(?:ped)?\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\blimit(?:ed|ation)?\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["financial_risk", "high_impact"],
+    ),
+    RiskRule(
+        id="liability_cap_present",
+        category="liability",
+        title="Liability cap present",
+        severity=2,
+        weight=1,
+        rationale="A defined liability cap can mitigate some financial exposure, but should not erase meaningful carve-out exposure.",
+        patterns=[
+            r"\bliabilit(?:y|ies)\b.{0,100}\bshall\s+not\s+exceed\b",
+            r"\bliabilit(?:y|ies)\b.{0,100}\bshall\s+be\s+limited\s+to\b",
+            r"\bliabilit(?:y|ies)\b.{0,100}\bcap(?:ped)?\s+at\b",
+            r"\baggregate\s+liabilit(?:y|ies)\b.{0,100}\b(?:shall\s+not\s+exceed|limited\s+to)\b",
+            r"\btotal\s+liabilit(?:y|ies)\b.{0,100}\b(?:shall\s+not\s+exceed|limited\s+to)\b",
+            r"\bliability\s+cap\b",
+            r"\bliability\s+is\s+capped\b",
+        ],
+        negative_patterns=[
+            r"\bunlimited\s+liabilit(?:y|ies)\b",
+            r"\bno\s+cap\s+on\s+liabilit(?:y|ies)\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\buncapped\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["mitigation", "financial_risk"],
+    ),
+    RiskRule(
+        id="liability_super_cap_carveout",
+        category="liability",
+        title="Liability cap carve-out or super-cap exposure",
+        severity=5,
+        weight=5,
+        rationale="A liability cap may be materially weakened by carve-outs or super-cap language that preserves unlimited or heightened exposure for key risk categories.",
+        patterns=[
+            r"\bnothing\s+in\s+this\s+agreement\s+shall\s+limit\b.{0,140}\bliabilit(?:y|ies)\b",
+            r"\bliability\s+cap\b.{0,140}\bshall\s+not\s+apply\b",
+            r"\bcap\b.{0,140}\bshall\s+not\s+apply\b",
+            r"\bnothing\s+excludes?\s+or\s+limits?\b.{0,140}\bliabilit(?:y|ies)\b.{0,140}\b(?:fraud|wilful\s+misconduct|gross\s+negligence|confidentiality|data\s+breach|intellectual\s+property|ip\s+infringement)\b",
+            r"\bliabilit(?:y|ies)\b.{0,140}\b(?:fraud|wilful\s+misconduct|gross\s+negligence|confidentiality|data\s+breach|intellectual\s+property|ip\s+infringement)\b.{0,140}\bshall\s+not\s+be\s+limited\b",
+            r"\bliabilit(?:y|ies)\b.{0,140}\bshall\s+not\s+be\s+limited\b.{0,140}\b(?:fraud|wilful\s+misconduct|gross\s+negligence|confidentiality|data\s+breach|intellectual\s+property|ip\s+infringement)\b",
+            r"\bliabilit(?:y|ies)\b.{0,120}\bcapped\b.{0,120}\bexcept\b.{0,80}\b(?:fraud|gross\s+negligence|wilful\s+misconduct)\b",
+            r"\bliabilit(?:y|ies)\b.{0,120}\blimited\b.{0,120}\bexcept\b.{0,80}\b(?:fraud|gross\s+negligence|wilful\s+misconduct)\b",
+            r"\bliability\s+is\s+capped\b.{0,120}\bexcept\b.{0,80}\b(?:fraud|gross\s+negligence|wilful\s+misconduct)\b",
+            r"\bliabilit(?:y|ies)\b.{0,100}\bexcept\s+in\s+cases?\s+of\b.{0,80}\b(?:fraud|gross\s+negligence|wilful\s+misconduct)\b",
+        ],
+        negative_patterns=[],
+        min_matches=1,
+        max_span_chars=200,
+        tags=["carveout", "financial_risk", "high_impact"],
+    ),
+    RiskRule(
+        id="indemnity_broad",
+        category="indemnity",
+        title="Broad indemnity obligation",
+        severity=5,
+        weight=5,
+        rationale="Broad indemnity obligations may shift substantial third-party or direct loss exposure onto one party.",
+        patterns=[
+            r"\bindemnif(?:y|ies|ication)\b.{0,100}\ball\s+claims\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,100}\bany\s+and\s+all\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,100}\ball\s+losses\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,100}\ball\s+damages\b",
             r"\bhold\s+harmless\b",
-            r"\bhold\s+harmless\b[\s\S]{0,80}\ball\s+claims\b"
+            r"\bdefend,\s*indemnify\s+and\s+hold\s+harmless\b",
         ],
-    },
-
-    {
-        "label": "termination without notice",
-        "weight": 5,
-        "description": "Contract can be terminated without notice.",
-        "impact": "Sudden business disruption risk.",
-        "patterns": [
-            # allow words between terminate and without notice
-            r"\bterminate(?:d|s|ing)?\b[\s\S]{0,80}\bwithout\s+notice\b",
-            r"\btermination\b[\s\S]{0,80}\bwithout\s+notice\b",
-
-            # immediate termination variants
-            r"\bterminate(?:d|s|ing)?\b[\s\S]{0,80}\bimmediate(?:ly)?\b",
-            r"\bimmediate(?:ly)?\s+termination\b",
+        negative_patterns=[
+            r"\bto\s+the\s+extent\s+caused\s+by\b",
+            r"\bsolely\s+to\s+the\s+extent\b",
+            r"\bexcept\s+to\s+the\s+extent\b",
+            r"\bsubject\s+to\s+the\s+liability\s+cap\b",
         ],
-    },
-
-    {
-        "label": "automatic renewal",
-        "weight": 3,
-        "description": "Contract renews automatically.",
-        "impact": "May lock parties into unwanted extension.",
-        "patterns": [
-            r"\bautomatic\s+renewal\b",
-            r"\brenew\s+automatically\b",
-            r"\bshall\s+renew\b[\s\S]{0,40}\bsuccessive\s+terms\b"
+        min_matches=1,
+        max_span_chars=140,
+        tags=["financial_risk", "third_party_risk"],
+    ),
+    RiskRule(
+        id="indemnity_one_way",
+        category="indemnity",
+        title="One-way indemnity",
+        severity=4,
+        weight=4,
+        rationale="A one-way indemnity structure may allocate risk asymmetrically and heavily in favor of the counterparty.",
+        patterns=[
+            r"\bcustomer\s+shall\s+indemnif(?:y|ies)\b",
+            r"\bclient\s+shall\s+indemnif(?:y|ies)\b",
+            r"\byou\s+shall\s+indemnif(?:y|ies)\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,80}\bsupplier\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,80}\bprovider\b",
+            r"\bindemnif(?:y|ies|ication)\b.{0,80}\bcompany\b",
         ],
-    },
-
-    {
-        "label": "jurisdiction clause",
-        "weight": 2,
-        "description": "Specifies governing law or court location.",
-        "impact": "May require litigation in foreign location.",
-        "patterns": [
-            r"\bjurisdiction\b",
-            r"\bgoverned\s+by\s+the\s+laws\s+of\b",
-            r"\bcourts?\s+of\b"
+        negative_patterns=[
+            r"\bmutual\s+indemn(?:it(?:y|ies)|ification)\b",
+            r"\beach\s+party\s+shall\s+indemnif(?:y|ies)\b",
+            r"\bboth\s+parties\s+shall\s+indemnif(?:y|ies)\b",
         ],
-    },
-
-    {
-        "label": "waiver of rights",
-        "weight": 5,
-        "description": "A party waives certain legal rights.",
-        "impact": "Loss of legal protection or remedies.",
-        "patterns": [
-            r"\bwaive(?:r|s|d|ing)?\b",
-            r"\bwaiver\s+of\s+rights\b"
+        min_matches=1,
+        max_span_chars=120,
+        tags=["asymmetry", "counterparty_favoring"],
+    ),
+    RiskRule(
+        id="termination_for_convenience_counterparty",
+        category="termination",
+        title="Counterparty termination for convenience",
+        severity=4,
+        weight=4,
+        rationale="Termination for convenience gives the counterparty broad exit rights and weakens commercial certainty.",
+        patterns=[
+            r"\bmay\s+terminate\b.{0,80}\bfor\s+convenience\b",
+            r"\bterminate\b.{0,80}\bat\s+any\s+time\b",
+            r"\bterminate\b.{0,40}\bwithout\s+notice\b",
+            r"\bterminate\b.{0,80}\bwithout\s+cause\b",
+            r"\bsupplier\s+may\s+terminate\b",
+            r"\bprovider\s+may\s+terminate\b",
+            r"\bcompany\s+may\s+terminate\b",
         ],
-    }
-
+        negative_patterns=[
+            r"\beither\s+party\s+may\s+terminate\b.{0,80}\bfor\s+convenience\b",
+            r"\bmutual(?:ly)?\s+terminate\b",
+            r"\bupon\s+material\s+breach\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["exit_risk", "asymmetry"],
+    ),
+    RiskRule(
+        id="auto_renewal_silent",
+        category="termination",
+        title="Silent or automatic renewal",
+        severity=3,
+        weight=3,
+        rationale="Automatic renewal can lock parties into repeated terms unless cancellation windows are monitored closely.",
+        patterns=[
+            r"\bautomatically\s+renew(?:s|ed|al)?\b",
+            r"\bauto-?renew(?:s|ed|al)?\b",
+            r"\brenew(?:s|ed|al)?\s+automatically\b",
+            r"\bshall\s+renew\s+for\s+successive\s+terms\b",
+            r"\bunless\s+terminated\s+before\s+the\s+end\s+of\s+the\s+then-current\s+term\b",
+        ],
+        negative_patterns=[
+            r"\bwill\s+not\s+automatically\s+renew\b",
+            r"\bnon-?renew(?:al)?\s+notice\b.{0,80}\bprominent\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["commercial_lockin", "renewal_risk"],
+    ),
+    RiskRule(
+        id="unilateral_price_increase",
+        category="payment",
+        title="Unilateral price increase right",
+        severity=4,
+        weight=4,
+        rationale="A unilateral fee increase right permits the counterparty to change pricing without balanced renegotiation rights.",
+        patterns=[
+            r"\bmay\s+increase\s+(?:the\s+)?fees\b",
+            r"\bfees?\s+may\s+be\s+increased\b",
+            r"\bprice(?:s)?\s+may\s+be\s+changed\b",
+            r"\bwe\s+may\s+change\s+our\s+fees\b",
+            r"\bsupplier\s+may\s+revise\s+pricing\b",
+            r"\bprovider\s+may\s+increase\s+charges\b",
+        ],
+        negative_patterns=[
+            r"\bsubject\s+to\s+customer\s+consent\b",
+            r"\bonly\s+upon\s+renewal\b",
+            r"\bwith\s+the\s+customer'?s\s+agreement\b",
+            r"\bby\s+mutual\s+agreement\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["commercial_risk", "price_risk"],
+    ),
+    RiskRule(
+        id="service_suspension_right",
+        category="service",
+        title="Service suspension right",
+        severity=4,
+        weight=4,
+        rationale="A unilateral service suspension right can disrupt operations and shift leverage to the counterparty.",
+        patterns=[
+            r"\bservices?\s+may\s+be\s+suspended\b",
+            r"\bmay\s+suspend\s+(?:the\s+)?services?\b",
+            r"\bsuspend\s+access\b",
+            r"\bsuspension\s+without\s+liabilit(?:y|ies)\b",
+            r"\bprovider\s+may\s+suspend\b",
+            r"\bsupplier\s+may\s+suspend\b",
+        ],
+        negative_patterns=[
+            r"\bonly\s+after\s+reasonable\s+notice\b",
+            r"\bexcept\s+where\s+required\s+by\s+law\b",
+            r"\bmutual\s+agreement\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["operational_risk", "counterparty_control"],
+    ),
+    RiskRule(
+        id="broad_sublicensing_right",
+        category="licensing",
+        title="Broad sublicensing right",
+        severity=4,
+        weight=4,
+        rationale="A broad sublicensing right can dilute control over the licensed rights and expand downstream risk.",
+        patterns=[
+            r"\bmay\s+sublicense\b",
+            r"\bright\s+to\s+sublicense\b",
+            r"\bmay\s+grant\s+sublicenses\b",
+            r"\bsublicense\s+its\s+rights\b",
+            r"\bsublicens(?:e|ing)\b.{0,80}\bwithout\s+restriction\b",
+        ],
+        negative_patterns=[
+            r"\bsubject\s+to\s+customer\s+consent\b",
+            r"\bonly\s+to\s+affiliates\b",
+            r"\bwith\s+prior\s+written\s+consent\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["control_risk", "ip_risk"],
+    ),
+    RiskRule(
+        id="broad_warranty_disclaimer",
+        category="warranty",
+        title="Broad warranty disclaimer",
+        severity=4,
+        weight=4,
+        rationale="A broad warranty disclaimer shifts quality and performance risk away from the provider.",
+        patterns=[
+            r"\bas\s+is\b.{0,60}\bwithout\s+warrant(?:y|ies)\b",
+            r"\bprovided\s+as\s+is\b",
+            r"\bwithout\s+warrant(?:y|ies)\s+of\s+any\s+kind\b",
+            r"\bdisclaims?\s+all\s+warrant(?:y|ies)\b",
+            r"\bno\s+warrant(?:y|ies)\b.{0,60}\bexpress\s+or\s+implied\b",
+        ],
+        negative_patterns=[
+            r"\bexcept\s+as\s+expressly\s+set\s+out\b",
+            r"\blimited\s+warranty\b",
+        ],
+        min_matches=1,
+        max_span_chars=120,
+        tags=["quality_risk", "disclaimer"],
+    ),
+    RiskRule(
+        id="broad_customer_data_use",
+        category="data",
+        title="Broad customer data use rights",
+        severity=4,
+        weight=4,
+        rationale="Broad rights to use customer data may create confidentiality, privacy, and commercialization concerns.",
+        patterns=[
+            r"\bmay\s+use\s+customer\s+data\s+for\s+any\s+purpose\b",
+            r"\bcustomer\s+data\b.{0,100}\bfor\s+any\s+purpose\b",
+            r"\buse\s+customer\s+data\b.{0,100}\bcommercial\b",
+            r"\buse\s+data\b.{0,100}\bservice\s+improvement\b",
+            r"\bmay\s+use\s+client\s+data\b.{0,100}\bany\s+purpose\b",
+        ],
+        negative_patterns=[
+            r"\bonly\s+to\s+provide\s+the\s+services\b",
+            r"\bsubject\s+to\s+applicable\s+data\s+protection\s+law\b",
+            r"\banonymi[sz]ed\s+data\s+only\b",
+        ],
+        min_matches=1,
+        max_span_chars=140,
+        tags=["data_risk", "privacy_risk"],
+    ),
+    RiskRule(
+        id="liability_consequential_exclusion",
+        category="liability",
+        title="Consequential damages exclusion",
+        severity=1,
+        weight=1,
+        rationale="An exclusion of consequential or indirect damages is often a market-standard limitation and usually operates as a mild mitigation rather than a core risk trigger.",
+        patterns=[
+            r"\bneither\s+party\s+shall\s+be\s+liable\s+for\s+consequential\s+or\s+indirect\s+damages\b",
+            r"\bno\s+party\s+shall\s+be\s+liable\s+for\s+consequential\s+damages\b",
+            r"\bexcludes?\s+consequential\s+damages\b",
+            r"\bindirect\s+or\s+consequential\s+damages\b",
+        ],
+        negative_patterns=[],
+        min_matches=1,
+        max_span_chars=140,
+        tags=["mitigation", "liability_structure"],
+    ),
 ]
 
 
+RULE_NEGATIVE_PATTERNS = {
+    rule.id: list(getattr(rule, "negative_patterns", []))
+    for rule in RISK_RULE_OBJECTS
+}
 
+RULE_TAGS = {
+    rule.id: list(getattr(rule, "tags", []))
+    for rule in RISK_RULE_OBJECTS
+}
+
+RULE_PRIORITIES = {
+    "liability_unlimited": 100,
+    "liability_cap_missing_or_unclear": 95,
+    "liability_super_cap_carveout": 110,
+    "liability_cap_present": 30,
+    "liability_consequential_exclusion": 20,
+    "indemnity_broad": 90,
+    "indemnity_one_way": 80,
+    "termination_for_convenience_counterparty": 70,
+    "auto_renewal_silent": 50,
+    "unilateral_price_increase": 80,
+    "service_suspension_right": 80,
+    "broad_sublicensing_right": 75,
+    "broad_warranty_disclaimer": 75,
+    "broad_customer_data_use": 85,
+}
+
+
+LABEL_ALIASES = {
+    "liability_unlimited": "unlimited liability",
+    "liability_cap_present": "liability cap present",
+    "liability_cap_missing_or_unclear": "missing liability cap",
+    "liability_super_cap_carveout": "liability carveout",
+    "liability_consequential_exclusion": "consequential exclusion",
+    "indemnity_broad": "broad indemnity",
+    "indemnity_one_way": "one way indemnity",
+    "termination_for_convenience_counterparty": "termination for convenience",
+    "auto_renewal_silent": "auto renewal",
+    "unilateral_price_increase": "price increase",
+    "service_suspension_right": "service suspension",
+    "broad_sublicensing_right": "sublicensing",
+    "broad_warranty_disclaimer": "warranty disclaimer",
+    "broad_customer_data_use": "data use",
+}
+
+
+RISK_RULES = [
+    {
+        "label": LABEL_ALIASES.get(rule.id, rule.id),
+        "weight": int(rule.weight),
+        "patterns": list(rule.patterns),
+    }
+    for rule in RISK_RULE_OBJECTS
+]
