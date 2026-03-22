@@ -1,10 +1,11 @@
+import os
 # analyzer/tests/test_api_contract.py
 
 from fastapi.testclient import TestClient
 from api import app
 
 
-client = TestClient(app)
+client = TestClient(app, headers={"X-API-Key": os.environ["TEST_API_KEY"]})
 
 
 def test_analyze_endpoint_contract():

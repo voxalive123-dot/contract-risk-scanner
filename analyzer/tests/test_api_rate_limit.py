@@ -1,7 +1,8 @@
+import os
 import api
 from fastapi.testclient import TestClient
 
-client = TestClient(api.app)
+client = TestClient(api.app, headers={"X-API-Key": os.environ["TEST_API_KEY"]})
 
 
 def test_rate_limit_trips_when_capacity_low(monkeypatch):

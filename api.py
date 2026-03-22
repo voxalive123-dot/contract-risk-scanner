@@ -5,12 +5,13 @@ import time
 import uuid
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request, Header, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
-from crud import create_scan, create_usage_log
+from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
 from analyzer.scorer import score_contract
+from auth_keys import hash_api_key
 from db import get_db
 
 
@@ -85,18 +86,28 @@ class AnalyzeResponse(BaseModel):
 
 
 # ==========================================================
-# OPTIONAL TEST-SAFE DEPENDENCIES
+# REAL API KEY DEPENDENCY
 # ==========================================================
-class _MockAPIKey:
-    def __init__(self) -> None:
-        self.id = uuid.uuid4()
-        self.api_key_id = self.id
-        self.org_id = uuid.uuid4()
-        self.user_id = uuid.uuid4()
-        self.key = "test-api-key"
+def get_api_key_ctx(
+    x_api_key: str = Header(..., alias="X-API-Key"),
+    db: Session = Depends(get_db),
+):
+    raw_key = (x_api_key or "").strip()
+    if not raw_key:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing API key",
+        )
 
-def optional_api_key() -> _MockAPIKey:
-    return _MockAPIKey()
+    api_key = get_api_key_by_hash(db, hash_api_key(raw_key))
+    if not api_key or not api_key.active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid API key",
+        )
+
+    touch_api_key_last_used(db, api_key)
+    return api_key
 
 
 # ==========================================================
@@ -143,7 +154,7 @@ def analyze(
     request: AnalyzeRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    api_key_ctx: _MockAPIKey = Depends(optional_api_key),
+    api_key_ctx = Depends(get_api_key_ctx),
 ):
     enforce_rate_limit(http_request)
 
@@ -154,7 +165,7 @@ def analyze(
     create_scan(
         db=db,
         org_id=api_key_ctx.org_id if api_key_ctx else None,
-        user_id=None,
+        user_id=api_key_ctx.user_id,
         request_id=req_id,
         risk_score=risk_score,
         risk_density=float(result.get("risk_density", 0.0)),
@@ -165,7 +176,7 @@ def analyze(
     create_usage_log(
         db=db,
         org_id=api_key_ctx.org_id if api_key_ctx else None,
-        user_id=None,
+        user_id=api_key_ctx.user_id,
         api_key_id=getattr(api_key_ctx, "id", None),
         endpoint="/analyze",
         request_id=req_id,
@@ -190,7 +201,7 @@ def analyze_detailed(
     request: AnalyzeRequest,
     http_request: Request,
     db: Session = Depends(get_db),
-    api_key_ctx: _MockAPIKey = Depends(optional_api_key),
+    api_key_ctx = Depends(get_api_key_ctx),
 ):
     enforce_rate_limit(http_request)
 
