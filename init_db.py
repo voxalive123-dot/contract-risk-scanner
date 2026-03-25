@@ -1,9 +1,12 @@
-from db import engine, Base
-from models import *
+from alembic import command
+from alembic.config import Config
 
-def init():
-    Base.metadata.create_all(bind=engine)
+
+def init() -> None:
+    alembic_cfg = Config("alembic.ini")
+    command.upgrade(alembic_cfg, "head")
+
 
 if __name__ == "__main__":
     init()
-    print("DB_INIT_OK")
+    print("DB_MIGRATED_TO_HEAD")
