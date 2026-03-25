@@ -9,8 +9,10 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+
     env:
       DATABASE_URL: sqlite:///./test.db
+      TEST_API_KEY: vxrk_test_ci_key_123456
 
     steps:
       - name: Checkout repository
