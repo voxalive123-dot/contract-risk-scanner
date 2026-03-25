@@ -333,6 +333,22 @@ RISK_RULE_OBJECTS = [
         max_span_chars=140,
         tags=["mitigation", "liability_structure"],
     ),
+
+RiskRule(
+    id="indemnity_broad",
+    category="indemnity",
+    title="Broad indemnity obligation",
+    severity=5,
+    weight=5,
+    rationale="Broad indemnity obligations may expose a party to significant and uncapped liabilities, including third-party claims.",
+    patterns=[
+        r"\bindemnif(y|ies|ication)\b.{0,120}\bany\s+and\s+all\b",
+        r"\bindemnif(y|ies|ication)\b.{0,120}\ball\s+claims\b",
+        r"\bhold\s+harmless\b.{0,120}\bindemnif(y|ies|ication)\b",
+        r"\bindemnif(y|ies|ication)\b.{0,120}\bthird[-\s]?party\b",
+    ],
+),
+
 ]
 
 
