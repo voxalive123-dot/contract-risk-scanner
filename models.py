@@ -151,6 +151,8 @@ class Scan(Base):
 
     ruleset_version: Mapped[str] = mapped_column(String(50), nullable=False)
 
+    scan_input_length: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
