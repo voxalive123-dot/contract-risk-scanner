@@ -3,7 +3,9 @@ from models import Organization, ApiKey
 from auth_keys import hash_api_key
 import uuid
 
-TEST_KEY = "vxrk_2b1HtZqqJGnTniYAxU_n8rpU9-9MWdq5aHNeLiMInH8"
+import os
+
+TEST_KEY = os.getenv("TEST_API_KEY", "vxrk_local_dev_fallback_key")
 
 db = SessionLocal()
 try:
