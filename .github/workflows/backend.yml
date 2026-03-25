@@ -35,6 +35,16 @@ jobs:
           pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Migrate database
+        run: |
+          source .venv/bin/activate
+          python init_db.py
+
+      - name: Seed API key
+        run: |
+          source .venv/bin/activate
+          python seed_api_key.py
+
       - name: Run test suite
         run: |
           source .venv/bin/activate
