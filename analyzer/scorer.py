@@ -240,6 +240,31 @@ def _apply_mitigation_and_conflict_adjustments(
             }
         )
 
+    liability_exposure_rules = {
+        "liability_unlimited",
+        "liability_cap_missing_or_unclear",
+        "liability_super_cap_carveout",
+    }
+    indemnity_rules = {
+        "indemnity_broad",
+        "indemnity_one_way",
+    }
+
+    matched_liability_exposure = liability_exposure_rules.intersection(matched_rule_ids)
+    matched_indemnity = indemnity_rules.intersection(matched_rule_ids)
+
+    if matched_liability_exposure and matched_indemnity:
+        adjusted_score += 2
+        adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "liability_indemnity_cluster",
+                "effect": 2,
+                "reason": "Indemnity obligations combined with uncapped, unclear, or carve-out liability language may materially amplify financial exposure.",
+                "triggered_by": sorted(matched_liability_exposure.union(matched_indemnity)),
+            }
+        )
+
     commercial_control_cluster = {
         "unilateral_price_increase",
         "service_suspension_right",

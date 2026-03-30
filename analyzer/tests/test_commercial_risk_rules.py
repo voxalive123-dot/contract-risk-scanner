@@ -153,3 +153,25 @@ def test_commercial_control_cluster_compound_adjustment():
     )
 
     assert result["risk_score"] == 14
+
+def test_liability_indemnity_cluster_compound_adjustment():
+    text = (
+        "Customer shall defend, indemnify, and hold Supplier harmless against third-party claims. "
+        "Liability shall be unlimited."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = [f["rule_id"] for f in result["findings"]]
+    adjustments = result["meta"].get("score_adjustments", [])
+
+    assert "indemnity_one_way" in rule_ids
+    assert "liability_unlimited" in rule_ids
+
+    assert any(
+        adj.get("type") == "compound_risk"
+        and adj.get("rule_id") == "liability_indemnity_cluster"
+        and adj.get("effect") == 2
+        for adj in adjustments
+    )
+
+    assert result["risk_score"] == 11
