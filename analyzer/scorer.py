@@ -240,6 +240,25 @@ def _apply_mitigation_and_conflict_adjustments(
             }
         )
 
+    commercial_control_cluster = {
+        "unilateral_price_increase",
+        "service_suspension_right",
+        "termination_for_convenience_counterparty",
+    }
+
+    matched_control_rules = commercial_control_cluster.intersection(matched_rule_ids)
+    if len(matched_control_rules) >= 2:
+        adjusted_score += 2
+        adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "commercial_control_cluster",
+                "effect": 2,
+                "reason": "Multiple unilateral commercial control rights may combine to create stronger counterparty leverage than any single clause in isolation.",
+                "triggered_by": sorted(matched_control_rules),
+            }
+        )
+
     return adjusted_score, adjustments
 
 

@@ -255,6 +255,10 @@ def analyze_detailed(
         "scan_char_limit": raw_meta.get("scan_char_limit"),
         "scanned_chars": raw_meta.get("scanned_chars"),
         "confidence": raw_meta.get("confidence", 0.0),
+        "score_adjustments": raw_meta.get("score_adjustments", []),
+        "matched_rule_count": raw_meta.get("matched_rule_count", len(findings)),
+        "suppressed_rule_count": raw_meta.get("suppressed_rule_count", 0),
+        "contradiction_count": raw_meta.get("contradiction_count", 0),
     }
 
     return {

@@ -129,3 +129,27 @@ def test_indemnity_one_way_negative_mutual():
     rule_ids = [f["rule_id"] for f in result["findings"]]
 
     assert "indemnity_one_way" not in rule_ids
+
+def test_commercial_control_cluster_compound_adjustment():
+    text = (
+        "Supplier may increase the fees upon thirty days written notice. "
+        "Supplier may suspend the services at any time without liability. "
+        "Supplier may terminate this Agreement for convenience at any time upon written notice."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = [f["rule_id"] for f in result["findings"]]
+    adjustments = result["meta"].get("score_adjustments", [])
+
+    assert "unilateral_price_increase" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "termination_for_convenience_counterparty" in rule_ids
+
+    assert any(
+        adj.get("type") == "compound_risk"
+        and adj.get("rule_id") == "commercial_control_cluster"
+        and adj.get("effect") == 2
+        for adj in adjustments
+    )
+
+    assert result["risk_score"] == 14
