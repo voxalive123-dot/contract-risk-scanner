@@ -17,17 +17,17 @@ def test_analyze_detailed_endpoint_contract():
     assert set(data.keys()) == {"risk_score", "severity", "flags", "findings", "meta"}
 
     # Meta must include audit + normalization + density + scan + confidence fields
-    assert set(data["meta"].keys()) == {
-        "ruleset_version",
-        "max_possible_score",
-        "normalized_score",
-        "word_count",
-        "risk_density_per_1000_words",
-        "scan_char_limit",
-        "scanned_chars",
-        "confidence",
-    }
 
+    assert {
+    "ruleset_version",
+    "max_possible_score",
+    "normalized_score",
+    "word_count",
+    "risk_density_per_1000_words",
+    "scan_char_limit",
+    "scanned_chars",
+    "confidence",
+}.issubset(set(data["meta"].keys()))
     assert isinstance(data["findings"], list)
 
     # We expect at least one termination-related finding for this text

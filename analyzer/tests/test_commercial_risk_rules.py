@@ -175,3 +175,50 @@ def test_liability_indemnity_cluster_compound_adjustment():
     )
 
     assert result["risk_score"] == 11
+
+def test_liability_indemnity_no_amplification_for_mutual():
+    text = (
+        "Each party shall indemnify, defend, and hold the other harmless against third-party claims. "
+        "Liability shall be unlimited."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = [f["rule_id"] for f in result["findings"]]
+    adjustments = result["meta"].get("score_adjustments", [])
+
+    # Liability still detected
+    assert "liability_unlimited" in rule_ids
+
+    # No one-way indemnity
+    assert "indemnity_one_way" not in rule_ids
+
+    # No compound amplification
+    assert not any(
+        adj.get("rule_id") == "liability_indemnity_cluster"
+        for adj in adjustments
+    )
+
+def test_control_and_termination_composite_behavior():
+    text_risky = (
+        "The Supplier may assign this agreement without consent. "
+        "The Supplier may subcontract the services without prior written consent. "
+        "The Supplier may terminate this agreement for convenience at any time."
+    )
+
+    result_risky = score_contract(text_risky, include_findings=True, include_meta=True)
+
+    assert result_risky["risk_score"] > 0
+    assert "assignment without consent" in result_risky["flags"]
+    assert "subcontracting without consent" in result_risky["flags"]
+    assert "unilateral termination for convenience" in result_risky["flags"]
+
+    text_safe = (
+        "Neither party may assign this agreement without prior written consent. "
+        "The Supplier may subcontract the services only with prior written consent of the Customer. "
+        "Either party may terminate this agreement for convenience upon 30 days notice."
+    )
+
+    result_safe = score_contract(text_safe, include_findings=True, include_meta=True)
+
+    assert result_safe["risk_score"] == 0
+    assert result_safe["flags"] == []

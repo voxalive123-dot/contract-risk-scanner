@@ -102,6 +102,49 @@ RISK_RULE_OBJECTS = [
         max_span_chars=200,
         tags=["carveout", "financial_risk", "high_impact"],
     ),
+
+    RiskRule(
+        id="unilateral_termination_for_convenience",
+        category="termination",
+        title="Unilateral termination for convenience",
+        severity=5,
+        weight=5,
+        rationale="Allowing one party to terminate for convenience without equivalent rights creates commercial imbalance and operational uncertainty.",
+        patterns=[
+            r"\bmay\s+terminate\b.{0,120}\bfor\s+convenience\b",
+            r"\bone\s+party\s+may\s+terminate\b.{0,120}\bfor\s+any\s+reason\b",
+            r"\bterminate\b.{0,120}\bat\s+any\s+time\b",
+    ],
+    negative_patterns=[
+        r"\beither\s+party\s+may\s+terminate\b",
+        r"\bmutual\s+termination\b",
+        r"\bboth\s+parties\s+may\s+terminate\b",
+    ],
+    min_matches=1,
+    max_span_chars=140,
+    tags=["termination", "asymmetry", "commercial_risk"],
+
+    ),
+    RiskRule(
+    id="termination_without_notice",
+    category="termination",
+    title="Termination without notice",
+    severity=5,
+    weight=5,
+    rationale="Termination without notice can cause abrupt operational disruption and financial exposure.",
+    patterns=[
+        r"\bterminate\b.{0,80}\bwithout\s+notice\b",
+        r"\btermination\b.{0,80}\bwithout\s+notice\b",
+    ],
+    negative_patterns=[
+        r"\bwith\s+\d+\s+days?\s+notice\b",
+        r"\bwith\s+prior\s+notice\b",
+        r"\bon\s+notice\b",
+    ],
+    min_matches=1,
+    max_span_chars=120,
+    tags=["termination", "notice", "operational_risk"],
+    ),
     RiskRule(
         id="indemnity_broad",
         category="indemnity",
@@ -259,6 +302,28 @@ RISK_RULE_OBJECTS = [
         max_span_chars=120,
         tags=["control_risk", "ip_risk"],
     ),
+    RiskRule(
+        id="subcontracting_without_consent",
+        category="control",
+        title="Subcontracting without consent",
+        severity=4,
+        weight=4,
+        rationale="Allowing subcontracting without consent may reduce visibility and control over who performs the services, increasing operational, security, and compliance risk.",
+        patterns=[
+            r"\bmay\s+subcontract\b.{0,120}\bwithout\s+(?:prior\s+)?written\s+consent\b",
+            r"\bsubcontract(?:ing)?\b.{0,120}\bwithout\s+(?:prior\s+)?written\s+consent\b",
+            r"\bfreely\s+subcontract\b",
+        ],
+        negative_patterns=[
+            r"\bmay\s+not\s+subcontract\b",
+            r"\bsubcontract(?:ing)?\b.{0,120}\bonly\s+with\s+(?:prior\s+)?written\s+consent\b",
+            r"\bprior\s+written\s+consent\s+required\b",
+    ],
+    min_matches=1,
+    max_span_chars=140,
+    tags=["subcontracting", "control", "third_party_risk"],
+),
+
     RiskRule(
         id="broad_warranty_disclaimer",
         category="warranty",
