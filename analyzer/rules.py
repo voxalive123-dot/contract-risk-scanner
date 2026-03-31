@@ -171,6 +171,26 @@ RISK_RULE_OBJECTS = [
         tags=["financial_risk", "third_party_risk"],
     ),
     RiskRule(
+    id="payment_delay_terms",
+    category="payment",
+    title="Extended payment terms",
+    severity=3,
+    weight=3,
+    rationale="Long payment cycles may negatively impact cash flow and financial stability.",
+    patterns=[
+        r"\bpayment\b.{0,40}\bwithin\s+(60|90|120)\s+days\b",
+        r"\bpay(?:able|ment)?\b.{0,40}\bwithin\s+(60|90|120)\s+days\b",
+        r"\bnet\s+(60|90|120)\b",
+    ],
+    negative_patterns=[
+        r"\bpayment\b.{0,40}\bwithin\s+(7|14|30)\s+days\b",
+        r"\bpay(?:able|ment)?\b.{0,40}\bwithin\s+(7|14|30)\s+days\b",
+    ],
+    min_matches=1,
+    max_span_chars=120,
+    tags=["cash_flow", "payment_risk"],
+),
+     RiskRule(
         id="indemnity_one_way",
         category="indemnity",
         title="One-way indemnity",

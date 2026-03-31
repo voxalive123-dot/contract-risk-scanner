@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import uuid
+from fastapi.middleware.cors import CORSMiddleware
 from typing import Any
 
 from fastapi import Depends, FastAPI, HTTPException, Request, Header, status
@@ -121,6 +122,15 @@ app = FastAPI(
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
 )
 
+from fastapi.middleware.cors import CORSMiddleware
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==========================================================
 # MIDDLEWARE

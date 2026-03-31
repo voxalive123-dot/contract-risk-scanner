@@ -222,3 +222,38 @@ def test_control_and_termination_composite_behavior():
 
     assert result_safe["risk_score"] == 0
     assert result_safe["flags"] == []
+
+def test_mixed_paragraph_balances_safe_and_risky_clauses():
+    text = (
+        "Except as otherwise agreed in writing, neither party may assign this agreement "
+        "without prior written consent of the other party. Supplier may subcontract routine "
+        "support services without prior written consent. Either party may terminate this "
+        "agreement for convenience upon 30 days notice. However, Supplier may terminate "
+        "immediately without notice for any suspected misuse."
+    )
+
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "subcontracting without consent" in result["flags"]
+    assert "termination without notice" in result["flags"]
+    assert "assignment without consent" not in result["flags"]
+    assert "unilateral termination for convenience" not in result["flags"]
+    assert result["risk_score"] > 0
+def test_extended_payment_terms_rule():
+    risky_text = "Payment shall be made within 90 days from invoice date."
+    risky_result = score_contract(risky_text, include_findings=True, include_meta=True)
+
+    assert risky_result["risk_score"] > 0
+    assert "extended payment terms" in risky_result["flags"]
+
+    variant_text = "Invoices are payable within 90 days of receipt."
+    variant_result = score_contract(variant_text, include_findings=True, include_meta=True)
+
+    assert variant_result["risk_score"] > 0
+    assert "extended payment terms" in variant_result["flags"]
+
+    safe_text = "Payment shall be made within 30 days from invoice date."
+    safe_result = score_contract(safe_text, include_findings=True, include_meta=True)
+
+    assert safe_result["risk_score"] == 0
+    assert "extended payment terms" not in safe_result["flags"]
