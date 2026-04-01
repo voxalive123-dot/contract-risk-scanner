@@ -269,6 +269,7 @@ def analyze_detailed(
         "matched_rule_count": raw_meta.get("matched_rule_count", len(findings)),
         "suppressed_rule_count": raw_meta.get("suppressed_rule_count", 0),
         "contradiction_count": raw_meta.get("contradiction_count", 0),
+        "top_risks": raw_meta.get("top_risks", []),
     }
 
     return {
