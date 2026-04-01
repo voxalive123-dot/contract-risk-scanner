@@ -134,36 +134,6 @@ export default function DashboardPage() {
               )}
             </div>
 
-            <div className="rounded-2xl border bg-white p-6 shadow-sm lg:col-span-2">
-              <h2 className="mb-4 text-lg font-semibold text-gray-900">Executive Insight</h2>
-
-              <div className="text-sm leading-7 text-gray-700">
-                {result.severity === "HIGH" && (
-                  <p>
-                    This contract may expose significant financial or operational risk.
-                    Several clauses materially strengthen the counterparty’s position and
-                    deserve close review before acceptance.
-                  </p>
-                )}
-
-                {result.severity === "MEDIUM" && (
-                  <p>
-                    This contract contains notable structural risk. The identified clauses
-                    may affect leverage, flexibility, or downside exposure depending on
-                    negotiation posture and commercial context.
-                  </p>
-                )}
-
-                {result.severity === "LOW" && (
-                  <p>
-                    This contract shows relatively limited structural risk based on the
-                    detected clause patterns. Even so, context-specific drafting and
-                    commercial dependencies may still require review.
-                  </p>
-                )}
-              </div>
-            </div>
-
             <div className="rounded-2xl border bg-white p-6 shadow-sm lg:col-span-3">
               <h2 className="mb-4 text-lg font-semibold text-gray-900">Top Risks</h2>
 
@@ -192,6 +162,36 @@ export default function DashboardPage() {
               ) : (
                 <div className="text-sm text-gray-500">No top risks returned.</div>
               )}
+            </div>
+
+            <div className="rounded-2xl border bg-white p-6 shadow-sm lg:col-span-2">
+              <h2 className="mb-4 text-lg font-semibold text-gray-900">Executive Insight</h2>
+
+              <div className="text-sm leading-7 text-gray-700">
+                {result.severity === "HIGH" && (
+                  <p>
+                    This contract may expose significant financial or operational risk.
+                    Several clauses materially strengthen the counterparty’s position and
+                    deserve close review before acceptance.
+                  </p>
+                )}
+
+                {result.severity === "MEDIUM" && (
+                  <p>
+                    This contract contains notable structural risk. The identified clauses
+                    may affect leverage, flexibility, or downside exposure depending on
+                    negotiation posture and commercial context.
+                  </p>
+                )}
+
+                {result.severity === "LOW" && (
+                  <p>
+                    This contract shows relatively limited structural risk based on the
+                    detected clause patterns. Even so, context-specific drafting and
+                    commercial dependencies may still require review.
+                  </p>
+                )}
+              </div>
             </div>
 
             <div className="rounded-2xl border bg-white p-6 shadow-sm lg:col-span-3">
