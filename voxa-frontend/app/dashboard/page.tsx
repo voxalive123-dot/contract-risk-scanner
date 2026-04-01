@@ -44,6 +44,19 @@ function severityTone(severity?: number) {
   return "Low";
 }
 
+function recommendedFocus(category?: string) {
+  switch (category) {
+    case "jurisdiction":
+      return "Review governing law and align dispute venue with your operating jurisdiction.";
+    case "service":
+      return "Tighten suspension triggers and require notice plus cure rights.";
+    case "payment":
+      return "Limit unilateral pricing changes or require approval and termination rights.";
+    default:
+      return "Review clause wording closely and negotiate narrower counterparty discretion.";
+  }
+}
+
 export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -155,6 +168,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="mt-1 text-sm text-gray-600">
                         Weight: {risk.weight ?? "n/a"}
+                      </div>
+                      <div className="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
+                        Recommended focus: {recommendedFocus(risk.category)}
                       </div>
                     </div>
                   ))}
