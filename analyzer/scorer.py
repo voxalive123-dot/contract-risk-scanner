@@ -379,6 +379,15 @@ def score_contract(
 
     severity = _derive_severity(adjusted_risk_score)
 
+    prioritized_findings = sorted(
+        deduped_findings,
+        key=lambda f: (
+            -int(f.get("severity", 0)),
+            -int(f.get("weight", 0)),
+            str(f.get("title", "")),
+        ),
+    )
+
     result: Dict[str, Any] = {
         "risk_score": adjusted_risk_score,
         "severity": severity,
@@ -386,7 +395,7 @@ def score_contract(
     }
 
     if include_findings:
-        result["findings"] = deduped_findings
+        result["findings"] = prioritized_findings
 
     if include_meta:
         wc = _word_count(original_text)
@@ -404,6 +413,16 @@ def score_contract(
             "scanned_chars": min(len(original_text), MAX_SCAN_CHARS),
             "scan_truncated": len(original_text) > MAX_SCAN_CHARS,
         }
+        result["meta"]["top_risks"] = [
+            {
+                "rule_id": f.get("rule_id"),
+                "title": f.get("title"),
+                "category": f.get("category"),
+                "severity": f.get("severity"),
+                "weight": f.get("weight"),
+            }
+            for f in prioritized_findings[:3]
+        ]
         if overlap_suppressions:
             result["meta"]["overlap_suppressions"] = overlap_suppressions
 
