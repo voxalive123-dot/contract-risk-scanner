@@ -126,6 +126,26 @@ RISK_RULE_OBJECTS = [
 
     ),
     RiskRule(
+    id="foreign_governing_law",
+    category="jurisdiction",
+    title="Foreign governing law",
+    severity=4,
+    weight=4,
+    rationale="Foreign governing law may increase legal complexity, cost, and enforcement risk.",
+    patterns=[
+        r"\bgoverned\s+by\s+the\s+laws\s+of\s+(?!england|wales|uk)[a-z\s]+\b",
+        r"\blaws\s+of\s+(?!england|wales|united\s+kingdom)[a-z\s]+\b",
+    ],
+    negative_patterns=[
+        r"\blaws\s+of\s+england\b",
+        r"\blaws\s+of\s+wales\b",
+        r"\bunited\s+kingdom\b",
+    ],
+    min_matches=1,
+    max_span_chars=120,
+    tags=["jurisdiction", "legal_risk"],
+),
+    RiskRule(
     id="termination_without_notice",
     category="termination",
     title="Termination without notice",
