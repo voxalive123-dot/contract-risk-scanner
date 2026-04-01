@@ -16,6 +16,5 @@ __pycache__/
 test.txt
 
 # Frontend (not in this commit)
-voxa-frontend/
 
 .env
