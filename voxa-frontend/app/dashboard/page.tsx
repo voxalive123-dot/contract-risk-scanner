@@ -57,6 +57,19 @@ function recommendedFocus(category?: string) {
   }
 }
 
+function recommendedAction(category?: string) {
+  switch (category) {
+    case "jurisdiction":
+      return "Negotiate";
+    case "service":
+      return "Negotiate";
+    case "payment":
+      return "Negotiate";
+    default:
+      return "Review";
+  }
+}
+
 export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -171,6 +184,9 @@ export default function DashboardPage() {
                       </div>
                       <div className="mt-3 rounded-lg bg-white px-3 py-2 text-sm text-gray-700">
                         Recommended focus: {recommendedFocus(risk.category)}
+                      </div>
+                      <div className="mt-2 text-sm font-medium text-gray-900">
+                        Recommended action: {recommendedAction(risk.category)}
                       </div>
                     </div>
                   ))}
