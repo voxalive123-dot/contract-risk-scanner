@@ -18,3 +18,7 @@ test.txt
 # Frontend (not in this commit)
 
 .env
+
+# Frontend local build/install junk
+voxa-frontend/node_modules/
+voxa-frontend/.next/

@@ -82,11 +82,10 @@ export default function DashboardPage() {
     setResult(null);
 
     try {
-      const res = await fetch("http://localhost:8000/analyze_detailed", {
+      const res = await fetch("/api/analyze", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": "vxrk_2b1HtZqqJGnTniYAxU_n8rpU9-9MWdq5aHNeLiMInH8",
         },
         body: JSON.stringify({ text }),
       });
@@ -94,7 +93,7 @@ export default function DashboardPage() {
       const textResponse = await res.text();
 
       if (!res.ok) {
-        alert("Backend error: " + textResponse);
+        alert("Analysis error: " + textResponse);
         return;
       }
 
