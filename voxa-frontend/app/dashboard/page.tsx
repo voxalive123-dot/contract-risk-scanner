@@ -69,17 +69,17 @@ function scoreBand(score: number, severity: "LOW" | "MEDIUM" | "HIGH") {
 function recommendedFocus(category?: string) {
   switch (category) {
     case "jurisdiction":
-      return "Align governing law and dispute venue with your operating jurisdiction.";
+      return "Bring governing law and dispute venue back into a forum your business can realistically manage and enforce.";
     case "service":
-      return "Constrain suspension rights and require notice plus cure mechanics.";
+      return "Restrict service suspension to defined triggers, written notice, and a workable cure path before disruption occurs.";
     case "payment":
-      return "Limit unilateral economic changes or preserve a clean exit right.";
+      return "Stop pricing or commercial terms from moving unilaterally after signature unless you retain a practical exit lever.";
     case "liability":
-      return "Rebalance liability exposure and carve-outs before acceptance.";
+      return "Re-cut the liability structure so downside exposure stays proportionate to contract value and operational control.";
     case "termination":
-      return "Reduce one-sided termination discretion and add procedural safeguards.";
+      return "Remove one-sided exit optionality or offset it with notice, cure rights, and planning protection for your side.";
     default:
-      return "Review wording closely and narrow counterparty discretion where possible.";
+      return "Tighten the wording so the counterparty cannot convert broad discretion into commercial leverage later.";
   }
 }
 
