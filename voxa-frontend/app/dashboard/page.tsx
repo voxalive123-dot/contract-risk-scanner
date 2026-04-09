@@ -96,6 +96,23 @@ function recommendedAction(category?: string) {
   }
 }
 
+function consequenceSummary(category?: string) {
+  switch (category) {
+    case "jurisdiction":
+      return "Dispute cost, enforcement friction, and legal leverage may move into a venue that is operationally disadvantageous.";
+    case "service":
+      return "Critical service access could be interrupted with limited warning, creating operational disruption and weak recovery leverage.";
+    case "payment":
+      return "Commercial exposure can widen after signature through price movement, margin erosion, or forced acceptance of new economics.";
+    case "liability":
+      return "A single dispute or failure event could create outsized financial exposure beyond the expected value of the contract.";
+    case "termination":
+      return "The counterparty may retain exit optionality while you remain committed, weakening revenue visibility and planning certainty.";
+    default:
+      return "Unchecked drafting can convert routine commercial dependency into asymmetric leverage against your business.";
+  }
+}
+
 function executiveSummary(severity: "LOW" | "MEDIUM" | "HIGH", riskCount: number) {
   if (severity === "HIGH") {
     return `This contract presents material structural exposure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
@@ -314,6 +331,11 @@ export default function DashboardPage() {
                       <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
                         <div className="text-xs uppercase tracking-wide text-neutral-500">Recommended focus</div>
                         <div className="mt-2 leading-6">{recommendedFocus(risk.category)}</div>
+                      </div>
+
+                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+                        <div className="text-xs uppercase tracking-wide text-neutral-500">Business consequence if ignored</div>
+                        <div className="mt-2 leading-6">{consequenceSummary(risk.category)}</div>
                       </div>
 
                       <div className="mt-4 flex items-center justify-between">
