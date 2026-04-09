@@ -123,6 +123,25 @@ function executiveSummary(severity: "LOW" | "MEDIUM" | "HIGH", riskCount: number
   return `This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.`;
 }
 
+function decisionPosture(severity: "LOW" | "MEDIUM" | "HIGH", topRiskCount: number) {
+  if (severity === "HIGH") {
+    return {
+      label: "Hold / Renegotiate",
+      detail: `Do not accept in current form. Resolve the ${topRiskCount || 1} highest-value exposure point${topRiskCount === 1 ? "" : "s"} before signature.`,
+    };
+  }
+  if (severity === "MEDIUM") {
+    return {
+      label: "Conditional Review",
+      detail: "Proceed only if the exposed clauses are commercially tolerable or can be narrowed with targeted negotiation.",
+    };
+  }
+  return {
+    label: "Proceed with Checks",
+    detail: "No major structural alert is visible on current rule detection, but final acceptance should still depend on business dependency and deal context.",
+  };
+}
+
 export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -174,6 +193,11 @@ export default function DashboardPage() {
   const primarySummary = useMemo(() => {
     if (!result) return "";
     return executiveSummary(result.severity, topRisks.length || findings.length);
+  }, [result, topRisks.length, findings.length]);
+
+  const posture = useMemo(() => {
+    if (!result) return null;
+    return decisionPosture(result.severity, topRisks.length || findings.length);
   }, [result, topRisks.length, findings.length]);
 
   return (
@@ -274,6 +298,14 @@ export default function DashboardPage() {
                     <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-700">
                       {primarySummary}
                     </p>
+
+                    {posture && (
+                      <div className="mt-4 max-w-3xl rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                        <div className="text-xs uppercase tracking-wide text-neutral-500">Decision posture</div>
+                        <div className="mt-2 text-base font-semibold text-neutral-950">{posture.label}</div>
+                        <div className="mt-2 text-sm leading-6 text-neutral-700">{posture.detail}</div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid min-w-[260px] grid-cols-2 gap-3">
