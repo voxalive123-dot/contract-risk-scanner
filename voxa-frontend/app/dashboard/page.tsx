@@ -128,17 +128,20 @@ function decisionPosture(severity: "LOW" | "MEDIUM" | "HIGH", topRiskCount: numb
     return {
       label: "Hold / Renegotiate",
       detail: `Do not accept in current form. Resolve the ${topRiskCount || 1} highest-value exposure point${topRiskCount === 1 ? "" : "s"} before signature.`,
+      nextStep: "Escalate the flagged clauses into a focused redline round before any internal approval.",
     };
   }
   if (severity === "MEDIUM") {
     return {
       label: "Conditional Review",
       detail: "Proceed only if the exposed clauses are commercially tolerable or can be narrowed with targeted negotiation.",
+      nextStep: "Check whether the flagged clauses are acceptable within deal economics, fallback options, and supplier dependency.",
     };
   }
   return {
     label: "Proceed with Checks",
     detail: "No major structural alert is visible on current rule detection, but final acceptance should still depend on business dependency and deal context.",
+    nextStep: "Complete final commercial checks and confirm no off-text dependency changes the practical risk.",
   };
 }
 
@@ -304,6 +307,10 @@ export default function DashboardPage() {
                         <div className="text-xs uppercase tracking-wide text-neutral-500">Decision posture</div>
                         <div className="mt-2 text-base font-semibold text-neutral-950">{posture.label}</div>
                         <div className="mt-2 text-sm leading-6 text-neutral-700">{posture.detail}</div>
+                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+                          <div className="text-xs uppercase tracking-wide text-neutral-500">Immediate next step</div>
+                          <div className="mt-2 text-sm leading-6 text-neutral-700">{posture.nextStep}</div>
+                        </div>
                       </div>
                     )}
                   </div>
