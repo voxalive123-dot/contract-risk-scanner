@@ -86,13 +86,17 @@ function recommendedFocus(category?: string) {
 function recommendedAction(category?: string) {
   switch (category) {
     case "jurisdiction":
+      return "Re-anchor venue";
     case "service":
+      return "Limit suspension";
     case "payment":
+      return "Block unilateral change";
     case "liability":
+      return "Rebalance exposure";
     case "termination":
-      return "Negotiate";
+      return "Constrain exit rights";
     default:
-      return "Review";
+      return "Tighten language";
   }
 }
 
