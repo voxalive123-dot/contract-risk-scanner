@@ -355,9 +355,13 @@ export default function DashboardPage() {
                         {risk.title ?? "Untitled risk"}
                       </div>
 
-                      <div className="mt-3 space-y-2 text-sm text-neutral-600">
-                        <div>Category: <span className="font-medium text-neutral-900">{risk.category ?? "n/a"}</span></div>
-                        <div>Weight: <span className="font-medium text-neutral-900">{risk.weight ?? "n/a"}</span></div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                          {risk.category ?? "n/a"}
+                        </div>
+                        <div className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                          Impact weight {risk.weight ?? "n/a"}
+                        </div>
                       </div>
 
                       <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
