@@ -393,7 +393,7 @@ export default function DashboardPage() {
                   <div className="mt-5 space-y-4">
                     {findings.map((f, i) => (
                       <div key={i} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
-                        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div>
                             <div className="text-lg font-semibold text-neutral-950">
                               {f.title ?? "Untitled finding"}
@@ -402,14 +402,24 @@ export default function DashboardPage() {
                               {f.category ?? "n/a"} · {severityTone(f.severity)} severity
                             </div>
                           </div>
+
+                          <div className="inline-flex rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                            {f.rule_id ?? "rule unavailable"}
+                          </div>
                         </div>
 
-                        <div className="mt-4 text-sm leading-7 text-neutral-700">
-                          {f.rationale ?? "No rationale provided."}
+                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+                          <div className="text-xs uppercase tracking-wide text-neutral-500">Why this matters</div>
+                          <div className="mt-2 text-sm leading-7 text-neutral-700">
+                            {f.rationale ?? "No rationale provided."}
+                          </div>
                         </div>
 
-                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-xs italic leading-6 text-neutral-500">
-                          {f.matched_text ?? "No matched text available."}
+                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+                          <div className="text-xs uppercase tracking-wide text-neutral-500">Clause evidence</div>
+                          <div className="mt-2 text-sm italic leading-6 text-neutral-600">
+                            {f.matched_text ?? "No matched text available."}
+                          </div>
                         </div>
                       </div>
                     ))}
