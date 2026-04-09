@@ -179,21 +179,125 @@ function executiveSummary(
   return "This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.";
 }
 
-function decisionPosture(severity: "LOW" | "MEDIUM" | "HIGH", topRiskCount: number) {
+function decisionPosture(
+  severity: "LOW" | "MEDIUM" | "HIGH",
+  topRiskCount: number,
+  categories: string[],
+) {
+  const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
+  const hasControlRisk =
+    uniqueCategories.includes("service") || uniqueCategories.includes("termination");
+  const hasDisputeRisk = uniqueCategories.includes("jurisdiction");
+  const hasEconomicRisk =
+    uniqueCategories.includes("payment") || uniqueCategories.includes("liability");
+
   if (severity === "HIGH") {
+    if (hasControlRisk && hasEconomicRisk) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. The counterparty appears to hold both operational leverage and disproportionate downside economics across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Escalate the control and economics clauses into a single redline package before any internal approval path starts.",
+      };
+    }
+    if (hasControlRisk && hasDisputeRisk) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. The current drafting weakens both your practical operating position and your dispute leverage across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Push a redline round that rebalances venue, suspension, and termination mechanics before signature.",
+      };
+    }
+    if (uniqueCategories.includes("liability")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Liability allocation appears capable of producing disproportionate downside across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Force a redraft of the liability architecture, including caps, carve-outs, and asymmetry in exposure.",
+      };
+    }
+    if (uniqueCategories.includes("payment")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. The counterparty appears able to move commercial terms after signature across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Redline the pricing and change-control mechanics so economics cannot drift without a real exit option.",
+      };
+    }
+    if (uniqueCategories.includes("termination")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Exit optionality appears to sit disproportionately with the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Rework termination rights, notice, and cure structure before the contract reaches approval.",
+      };
+    }
+    if (uniqueCategories.includes("service")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Service continuity can be disrupted on terms that materially favor the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Tighten suspension triggers, notice standards, and cure mechanics before accepting operational dependency.",
+      };
+    }
+    if (uniqueCategories.includes("jurisdiction")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Venue and enforcement positioning appear structurally unfavorable across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Push governing law and dispute forum back into a venue your business can realistically manage and enforce.",
+      };
+    }
     return {
       label: "Hold / Renegotiate",
       detail: `Do not accept in current form. Resolve the ${topRiskCount || 1} highest-value exposure point${topRiskCount === 1 ? "" : "s"} before signature.`,
       nextStep: "Escalate the flagged clauses into a focused redline round before any internal approval.",
     };
   }
+
   if (severity === "MEDIUM") {
+    if (hasControlRisk && hasEconomicRisk) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if the combined control and economic exposure is commercially acceptable after negotiation or dependency analysis.",
+        nextStep: "Test whether supplier leverage, fallback options, and deal economics justify accepting the current imbalance.",
+      };
+    }
+    if (uniqueCategories.includes("liability")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if the liability structure is proportionate to the deal and does not create open-ended downside.",
+        nextStep: "Check caps, carve-outs, and responsibility allocation against actual contract value and failure scenarios.",
+      };
+    }
+    if (uniqueCategories.includes("payment")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if commercial movement after signature is either constrained or economically tolerable.",
+        nextStep: "Verify whether the pricing mechanics preserve margin, budget certainty, and a realistic exit option.",
+      };
+    }
+    if (uniqueCategories.includes("termination")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if the counterparty's stronger exit rights do not undermine planning certainty or revenue visibility.",
+        nextStep: "Assess whether notice periods, cure rights, and replacement options are enough to absorb early exit risk.",
+      };
+    }
+    if (uniqueCategories.includes("service")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if service interruption rights are sufficiently constrained for your operational dependency profile.",
+        nextStep: "Test the suspension language against real service reliance, escalation paths, and restoration timelines.",
+      };
+    }
+    if (uniqueCategories.includes("jurisdiction")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if the venue and enforcement position remain workable despite being less than ideal.",
+        nextStep: "Check whether dispute cost, enforceability, and practical forum access are acceptable for this deal size.",
+      };
+    }
     return {
       label: "Conditional Review",
       detail: "Proceed only if the exposed clauses are commercially tolerable or can be narrowed with targeted negotiation.",
       nextStep: "Check whether the flagged clauses are acceptable within deal economics, fallback options, and supplier dependency.",
     };
   }
+
   return {
     label: "Proceed with Checks",
     detail: "No major structural alert is visible on current rule detection, but final acceptance should still depend on business dependency and deal context.",
@@ -268,8 +372,12 @@ export default function DashboardPage() {
 
   const posture = useMemo(() => {
     if (!result) return null;
-    return decisionPosture(result.severity, topRisks.length || findings.length);
-  }, [result, topRisks.length, findings.length]);
+    return decisionPosture(
+      result.severity,
+      topRisks.length || findings.length,
+      summaryCategories,
+    );
+  }, [result, topRisks.length, findings.length, summaryCategories]);
 
   return (
     <div className="min-h-screen bg-neutral-100 px-6 py-8 text-neutral-900 md:px-8">
