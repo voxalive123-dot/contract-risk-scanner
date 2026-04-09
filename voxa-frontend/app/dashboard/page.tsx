@@ -117,14 +117,66 @@ function consequenceSummary(category?: string) {
   }
 }
 
-function executiveSummary(severity: "LOW" | "MEDIUM" | "HIGH", riskCount: number) {
+function executiveSummary(
+  severity: "LOW" | "MEDIUM" | "HIGH",
+  riskCount: number,
+  categories: string[],
+) {
+  const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
+  const hasControlRisk =
+    uniqueCategories.includes("service") || uniqueCategories.includes("termination");
+  const hasDisputeRisk = uniqueCategories.includes("jurisdiction");
+  const hasEconomicRisk =
+    uniqueCategories.includes("payment") || uniqueCategories.includes("liability");
+
   if (severity === "HIGH") {
+    if (hasControlRisk && hasDisputeRisk) {
+      return `This contract presents material structural exposure because operational control rights and dispute positioning both appear to favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (hasControlRisk && hasEconomicRisk) {
+      return `This contract presents material structural exposure because the counterparty appears to hold both leverage over operations and disproportionate downside economics. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (uniqueCategories.includes("liability")) {
+      return `This contract presents material downside exposure driven primarily by liability structure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (uniqueCategories.includes("payment")) {
+      return `This contract presents material commercial exposure driven by one-sided economic movement after signature. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (uniqueCategories.includes("termination")) {
+      return `This contract presents material control risk because exit optionality appears to sit disproportionately with the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (uniqueCategories.includes("service")) {
+      return `This contract presents material operational exposure because service continuity can be disrupted on terms that favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
+    if (uniqueCategories.includes("jurisdiction")) {
+      return `This contract presents material dispute exposure because enforcement and venue appear structurally unfavorable. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    }
     return `This contract presents material structural exposure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
   }
+
   if (severity === "MEDIUM") {
-    return `This contract contains meaningful downside exposure. The current drafting should be reviewed with attention to leverage, control, and exit risk.`;
+    if (hasControlRisk && hasEconomicRisk) {
+      return "This contract contains meaningful downside exposure because commercial leverage and control rights appear to accumulate with the counterparty.";
+    }
+    if (uniqueCategories.includes("liability")) {
+      return "This contract contains meaningful downside exposure through liability allocation that may exceed practical deal value.";
+    }
+    if (uniqueCategories.includes("payment")) {
+      return "This contract contains meaningful commercial downside because the economics may shift after signature.";
+    }
+    if (uniqueCategories.includes("termination")) {
+      return "This contract contains meaningful control risk because the counterparty appears to retain stronger exit flexibility.";
+    }
+    if (uniqueCategories.includes("service")) {
+      return "This contract contains meaningful operational risk because service access may be interrupted on aggressive terms.";
+    }
+    if (uniqueCategories.includes("jurisdiction")) {
+      return "This contract contains meaningful dispute risk because forum and enforcement mechanics may work against your operating position.";
+    }
+    return "This contract contains meaningful downside exposure. The current drafting should be reviewed with attention to leverage, control, and exit risk.";
   }
-  return `This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.`;
+
+  return "This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.";
 }
 
 function decisionPosture(severity: "LOW" | "MEDIUM" | "HIGH", topRiskCount: number) {
@@ -189,18 +241,30 @@ export default function DashboardPage() {
   const normalizedScore = result?.meta?.normalized_score ?? result?.risk_score ?? 0;
   const contradictionCount = result?.meta?.contradiction_count ?? 0;
   const adjustments = result?.meta?.score_adjustments ?? [];
-  const findings = result?.findings ?? [];
-  const topRisks = result?.meta?.top_risks ?? [];
+  const findings = useMemo(() => result?.findings ?? [], [result?.findings]);
+  const topRisks = useMemo(() => result?.meta?.top_risks ?? [], [result?.meta?.top_risks]);
   const confidence = result?.meta?.confidence ?? 0;
   const matchedRuleCount = result?.meta?.matched_rule_count ?? findings.length;
   const suppressedRuleCount = result?.meta?.suppressed_rule_count ?? 0;
   const rulesetVersion = result?.meta?.ruleset_version ?? "n/a";
   const wordCount = result?.meta?.word_count ?? 0;
 
+  const summaryCategories = useMemo(
+    () => [
+      ...topRisks.map((risk) => risk.category ?? ""),
+      ...findings.map((finding) => finding.category ?? ""),
+    ],
+    [topRisks, findings],
+  );
+
   const primarySummary = useMemo(() => {
     if (!result) return "";
-    return executiveSummary(result.severity, topRisks.length || findings.length);
-  }, [result, topRisks.length, findings.length]);
+    return executiveSummary(
+      result.severity,
+      topRisks.length || findings.length,
+      summaryCategories,
+    );
+  }, [result, topRisks.length, findings.length, summaryCategories]);
 
   const posture = useMemo(() => {
     if (!result) return null;
