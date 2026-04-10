@@ -66,117 +66,85 @@ function scoreBand(score: number, severity: "LOW" | "MEDIUM" | "HIGH") {
   return score >= 20 ? "Moderate" : "Contained";
 }
 
+const CATEGORY_PROFILES: Record<
+  string,
+  { focus: string; action: string; consequence: string }
+> = {
+  jurisdiction: {
+    focus:
+      "Reposition governing law and dispute forum into a venue your business can afford to use, enforce, and defend.",
+    action: "Reposition dispute forum",
+    consequence:
+      "Dispute cost, enforcement friction, and legal leverage may move into a venue that is operationally disadvantageous.",
+  },
+  service: {
+    focus:
+      "Convert suspension rights from a pressure tool into a controlled remedy with objective triggers, notice, and restoration discipline.",
+    action: "Control suspension mechanics",
+    consequence:
+      "Critical service access could be interrupted with limited warning, creating operational disruption and weak recovery leverage.",
+  },
+  payment: {
+    focus:
+      "Lock the commercial model so price, scope, or charging mechanics cannot drift after signature without your active consent.",
+    action: "Freeze commercial drift",
+    consequence:
+      "Commercial exposure can widen after signature through price movement, margin erosion, or forced acceptance of new economics.",
+  },
+  liability: {
+    focus:
+      "Rebuild the exposure architecture so financial downside stays bounded, insurable, and proportionate to contract value.",
+    action: "Rebuild liability architecture",
+    consequence:
+      "A single dispute or failure event could create outsized financial exposure beyond the expected value of the contract.",
+  },
+  indemnity: {
+    focus:
+      "Narrow indemnity so third-party and direct-loss exposure cannot be transferred onto your side beyond controlled, negotiated boundaries.",
+    action: "Constrain indemnity transfer",
+    consequence:
+      "Third-party claims, losses, or litigation cost may be pushed disproportionately onto your business through one-sided indemnity allocation.",
+  },
+  termination: {
+    focus:
+      "Remove unilateral walk-away leverage or neutralize it with notice runway, cure rights, and transition protection.",
+    action: "Neutralize exit asymmetry",
+    consequence:
+      "The counterparty may retain exit optionality while you remain committed, weakening revenue visibility and planning certainty.",
+  },
+};
+
+const DEFAULT_CATEGORY_PROFILE = {
+  focus:
+    "Narrow broad drafting so discretion cannot later be weaponized into operational or commercial leverage.",
+  action: "Narrow discretionary drafting",
+  consequence:
+    "Unchecked drafting can convert routine commercial dependency into asymmetric leverage against your business.",
+};
+
+const CONTROL_CATEGORIES = new Set(["service", "termination"]);
+const DISPUTE_CATEGORIES = new Set(["jurisdiction"]);
+const ECONOMIC_CATEGORIES = new Set(["payment", "liability", "indemnity"]);
+
+function categoryProfile(category?: string) {
+  if (!category) return DEFAULT_CATEGORY_PROFILE;
+  return CATEGORY_PROFILES[category] ?? DEFAULT_CATEGORY_PROFILE;
+}
+
+function hasAnyCategory(categories: string[], group: Set<string>) {
+  return categories.some((category) => group.has(category));
+}
+
 function recommendedFocus(category?: string) {
-  switch (category) {
-    case "jurisdiction":
-      return "Bring governing law and dispute venue back into a forum your business can realistically manage and enforce.";
-    case "service":
-      return "Restrict service suspension to defined triggers, written notice, and a workable cure path before disruption occurs.";
-    case "payment":
-      return "Stop pricing or commercial terms from moving unilaterally after signature unless you retain a practical exit lever.";
-    case "liability":
-      return "Re-cut the liability structure so downside exposure stays proportionate to contract value and operational control.";
-    case "termination":
-      return "Remove one-sided exit optionality or offset it with notice, cure rights, and planning protection for your side.";
-    default:
-      return "Tighten the wording so the counterparty cannot convert broad discretion into commercial leverage later.";
-  }
+  return categoryProfile(category).focus;
 }
 
 function recommendedAction(category?: string) {
-  switch (category) {
-    case "jurisdiction":
-      return "Re-anchor venue";
-    case "service":
-      return "Limit suspension";
-    case "payment":
-      return "Block unilateral change";
-    case "liability":
-      return "Rebalance exposure";
-    case "termination":
-      return "Constrain exit rights";
-    default:
-      return "Tighten language";
-  }
+  return categoryProfile(category).action;
 }
 
 function consequenceSummary(category?: string) {
-  switch (category) {
-    case "jurisdiction":
-      return "Dispute cost, enforcement friction, and legal leverage may move into a venue that is operationally disadvantageous.";
-    case "service":
-      return "Critical service access could be interrupted with limited warning, creating operational disruption and weak recovery leverage.";
-    case "payment":
-      return "Commercial exposure can widen after signature through price movement, margin erosion, or forced acceptance of new economics.";
-    case "liability":
-      return "A single dispute or failure event could create outsized financial exposure beyond the expected value of the contract.";
-    case "termination":
-      return "The counterparty may retain exit optionality while you remain committed, weakening revenue visibility and planning certainty.";
-    default:
-      return "Unchecked drafting can convert routine commercial dependency into asymmetric leverage against your business.";
-  }
-}
-
-function executiveSummary(
-  severity: "LOW" | "MEDIUM" | "HIGH",
-  riskCount: number,
-  categories: string[],
-) {
-  const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
-  const hasControlRisk =
-    uniqueCategories.includes("service") || uniqueCategories.includes("termination");
-  const hasDisputeRisk = uniqueCategories.includes("jurisdiction");
-  const hasEconomicRisk =
-    uniqueCategories.includes("payment") || uniqueCategories.includes("liability");
-
-  if (severity === "HIGH") {
-    if (hasControlRisk && hasDisputeRisk) {
-      return `This contract presents material structural exposure because operational control rights and dispute positioning both appear to favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (hasControlRisk && hasEconomicRisk) {
-      return `This contract presents material structural exposure because the counterparty appears to hold both leverage over operations and disproportionate downside economics. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (uniqueCategories.includes("liability")) {
-      return `This contract presents material downside exposure driven primarily by liability structure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (uniqueCategories.includes("payment")) {
-      return `This contract presents material commercial exposure driven by one-sided economic movement after signature. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (uniqueCategories.includes("termination")) {
-      return `This contract presents material control risk because exit optionality appears to sit disproportionately with the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (uniqueCategories.includes("service")) {
-      return `This contract presents material operational exposure because service continuity can be disrupted on terms that favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (uniqueCategories.includes("jurisdiction")) {
-      return `This contract presents material dispute exposure because enforcement and venue appear structurally unfavorable. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    return `This contract presents material structural exposure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-  }
-
-  if (severity === "MEDIUM") {
-    if (hasControlRisk && hasEconomicRisk) {
-      return "This contract contains meaningful downside exposure because commercial leverage and control rights appear to accumulate with the counterparty.";
-    }
-    if (uniqueCategories.includes("liability")) {
-      return "This contract contains meaningful downside exposure through liability allocation that may exceed practical deal value.";
-    }
-    if (uniqueCategories.includes("payment")) {
-      return "This contract contains meaningful commercial downside because the economics may shift after signature.";
-    }
-    if (uniqueCategories.includes("termination")) {
-      return "This contract contains meaningful control risk because the counterparty appears to retain stronger exit flexibility.";
-    }
-    if (uniqueCategories.includes("service")) {
-      return "This contract contains meaningful operational risk because service access may be interrupted on aggressive terms.";
-    }
-    if (uniqueCategories.includes("jurisdiction")) {
-      return "This contract contains meaningful dispute risk because forum and enforcement mechanics may work against your operating position.";
-    }
-    return "This contract contains meaningful downside exposure. The current drafting should be reviewed with attention to leverage, control, and exit risk.";
-  }
-
-  return "This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.";
+  return categoryProfile(category).consequence;
 }
 
 function decisionPosture(
@@ -185,11 +153,9 @@ function decisionPosture(
   categories: string[],
 ) {
   const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
-  const hasControlRisk =
-    uniqueCategories.includes("service") || uniqueCategories.includes("termination");
-  const hasDisputeRisk = uniqueCategories.includes("jurisdiction");
-  const hasEconomicRisk =
-    uniqueCategories.includes("payment") || uniqueCategories.includes("liability");
+  const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
+  const hasDisputeRisk = hasAnyCategory(uniqueCategories, DISPUTE_CATEGORIES);
+  const hasEconomicRisk = hasAnyCategory(uniqueCategories, ECONOMIC_CATEGORIES);
 
   if (severity === "HIGH") {
     if (hasControlRisk && hasEconomicRisk) {
@@ -204,6 +170,13 @@ function decisionPosture(
         label: "Hold / Renegotiate",
         detail: `Do not accept in current form. The current drafting weakens both your practical operating position and your dispute leverage across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
         nextStep: "Push a redline round that rebalances venue, suspension, and termination mechanics before signature.",
+      };
+    }
+    if (uniqueCategories.includes("indemnity")) {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Indemnity allocation appears capable of shifting disproportionate claim exposure onto your side across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        nextStep: "Redraft the indemnity so scope, triggers, losses covered, and claim control rights are explicitly constrained.",
       };
     }
     if (uniqueCategories.includes("liability")) {
@@ -254,6 +227,13 @@ function decisionPosture(
         label: "Conditional Review",
         detail: "Proceed only if the combined control and economic exposure is commercially acceptable after negotiation or dependency analysis.",
         nextStep: "Test whether supplier leverage, fallback options, and deal economics justify accepting the current imbalance.",
+      };
+    }
+    if (uniqueCategories.includes("indemnity")) {
+      return {
+        label: "Conditional Review",
+        detail: "Proceed only if indemnity scope is commercially narrow and does not transfer broad third-party or direct-loss exposure onto your side.",
+        nextStep: "Check indemnity scope, excluded losses, control of claims, and whether the allocation matches the real operating risk.",
       };
     }
     if (uniqueCategories.includes("liability")) {
