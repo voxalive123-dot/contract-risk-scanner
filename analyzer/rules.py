@@ -276,6 +276,12 @@ RISK_RULE_OBJECTS = [
             r"\bwe\s+may\s+change\s+our\s+fees\b",
             r"\bsupplier\s+may\s+revise\s+pricing\b",
             r"\bprovider\s+may\s+increase\s+charges\b",
+            r"\bsupplier\s+may\s+increase\s+pricing\b",
+            r"\bmay\s+increase\s+pricing\b",
+            r"\bmay\s+change\s+pricing\b",
+            r"\bmay\s+revise\s+pricing\b",
+            r"\bmay\s+increase\s+charges\b",
+            r"\bpricing\s+may\s+be\s+increased\b",
         ],
         negative_patterns=[
             r"\bsubject\s+to\s+customer\s+consent\b",
