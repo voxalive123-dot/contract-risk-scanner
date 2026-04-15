@@ -3,23 +3,29 @@ from __future__ import annotations
 import os
 import time
 import uuid
-from fastapi.middleware.cors import CORSMiddleware
+from pathlib import Path
+from tempfile import NamedTemporaryFile
 from typing import Any
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Header, status
+import pytesseract
+from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
+from fastapi.middleware.cors import CORSMiddleware
+from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.orm import Session
 
-from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
+from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
 from db import get_db
+from pdf_utils import PdfExtractionError, extract_text_from_pdf
 
 
 # ==========================================================
 # TEST / CONTRACT CONSTANTS
 # ==========================================================
 MAX_TEXT_CHARS = 60_000
+MAX_UPLOAD_BYTES = 15 * 1024 * 1024
 REQUEST_ID_HEADER = "X-Request-ID"
 ENABLE_DOCS = os.getenv("ENABLE_DOCS", "1") == "1"
 
@@ -28,6 +34,13 @@ RATE_LIMIT_CAPACITY = int(os.getenv("RATE_LIMIT_CAPACITY", "60"))
 RATE_LIMIT_REFILL_PER_SEC = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "1.0"))
 
 _BUCKETS: dict[str, dict[str, float]] = {}
+
+ALLOWED_IMAGE_TYPES = {
+    "image/jpeg",
+    "image/jpg",
+    "image/png",
+    "image/webp",
+}
 
 
 def enforce_rate_limit(request: Request) -> None:
@@ -112,117 +125,21 @@ def get_api_key_ctx(
 
 
 # ==========================================================
-# APP
+# HELPERS
 # ==========================================================
-app = FastAPI(
-    title="VoxaRisk_INTELLIGENCE",
-    version="1.0.0",
-    docs_url="/docs" if ENABLE_DOCS else None,
-    redoc_url="/redoc" if ENABLE_DOCS else None,
-    openapi_url="/openapi.json" if ENABLE_DOCS else None,
-)
-
-from fastapi.middleware.cors import CORSMiddleware
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-# ==========================================================
-# MIDDLEWARE
-# ==========================================================
-@app.middleware("http")
-async def add_request_id(request: Request, call_next):
-    request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
-    request.state.request_id = request_id
-
-    response = await call_next(request)
-    response.headers[REQUEST_ID_HEADER] = request_id
-    return response
+def _client_ip(http_request: Request) -> str:
+    return http_request.client.host if http_request.client else "unknown"
 
 
-# ==========================================================
-# HEALTH
-# ==========================================================
-@app.get("/")
-def root(request: Request):
-    return {
-        "status": "Contract Risk API running",
-        "request_id": getattr(request.state, "request_id", None),
-    }
-
-
-# ==========================================================
-# ANALYZE
-# ==========================================================
-@app.post("/analyze", response_model=AnalyzeResponse)
-def analyze(
-    request: AnalyzeRequest,
-    http_request: Request,
-    db: Session = Depends(get_db),
-    api_key_ctx = Depends(get_api_key_ctx),
-):
-    enforce_rate_limit(http_request)
-
-    result = score_contract(request.text)
-    risk_score = int(result.get("risk_score", 0))
-    req_id = getattr(http_request.state, "request_id", "unknown")
-
-    create_scan(
-        db=db,
-        org_id=api_key_ctx.org_id if api_key_ctx else None,
-        user_id=api_key_ctx.user_id,
-        request_id=req_id,
-        risk_score=risk_score,
-        risk_density=float(result.get("risk_density", 0.0)),
-        confidence=float(result.get("confidence", 0.0)),
-        ruleset_version=result.get("ruleset_version", "unknown"),
-    )
-
-    create_usage_log(
-        db=db,
-        org_id=api_key_ctx.org_id if api_key_ctx else None,
-        user_id=api_key_ctx.user_id,
-        api_key_id=getattr(api_key_ctx, "id", None),
-        endpoint="/analyze",
-        request_id=req_id,
-        method="POST",
-        ip=http_request.client.host if http_request.client else "unknown",
-        duration_ms=0,
-        status_code=200,
-    )
-
-    return {
-        "risk_score": risk_score,
-        "severity": str(result.get("severity", "LOW")),
-        "flags": list(result.get("flags", [])),
-    }
-
-
-# ==========================================================
-# ANALYZE DETAILED
-# ==========================================================
-@app.post("/analyze_detailed")
-def analyze_detailed(
-    request: AnalyzeRequest,
-    http_request: Request,
-    db: Session = Depends(get_db),
-    api_key_ctx = Depends(get_api_key_ctx),
-):
-    enforce_rate_limit(http_request)
-
+def _build_detailed_payload(text: str) -> dict[str, Any]:
     result = score_contract(
-        request.text,
+        text,
         include_findings=True,
         include_meta=True,
     )
 
     raw_meta = result.get("meta", {}) or {}
-    word_count = len(request.text.split())
+    word_count = len(text.split())
 
     raw_findings = result.get("findings", []) or []
     findings: list[dict[str, Any]] = []
@@ -279,3 +196,277 @@ def analyze_detailed(
         "findings": findings,
         "meta": meta,
     }
+
+
+def _persist_analysis(
+    *,
+    db: Session,
+    api_key_ctx: Any,
+    http_request: Request,
+    endpoint: str,
+    payload: dict[str, Any],
+) -> None:
+    req_id = getattr(http_request.state, "request_id", "unknown")
+    meta = payload.get("meta", {}) or {}
+
+    create_scan(
+        db=db,
+        org_id=api_key_ctx.org_id if api_key_ctx else None,
+        user_id=api_key_ctx.user_id,
+        request_id=req_id,
+        risk_score=int(payload.get("risk_score", 0)),
+        risk_density=float(meta.get("risk_density_per_1000_words", 0.0)) / 1000.0,
+        confidence=float(meta.get("confidence", 0.0)),
+        ruleset_version=str(meta.get("ruleset_version", "unknown")),
+    )
+
+    create_usage_log(
+        db=db,
+        org_id=api_key_ctx.org_id if api_key_ctx else None,
+        user_id=api_key_ctx.user_id,
+        api_key_id=getattr(api_key_ctx, "id", None),
+        endpoint=endpoint,
+        request_id=req_id,
+        method="POST",
+        ip=_client_ip(http_request),
+        duration_ms=0,
+        status_code=200,
+    )
+
+
+def _write_temp_file(data: bytes, suffix: str) -> Path:
+    with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+        tmp.write(data)
+        return Path(tmp.name)
+
+
+def _extract_text_from_image(image_path: Path) -> tuple[str, float]:
+    try:
+        image = Image.open(image_path)
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Image could not be opened") from exc
+
+    try:
+        text = pytesseract.image_to_string(image).strip()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail="Image OCR failed") from exc
+
+    if not text:
+        raise HTTPException(status_code=400, detail="No readable text detected in image")
+
+    return text, 0.65
+
+
+# ==========================================================
+# APP
+# ==========================================================
+app = FastAPI(
+    title="VoxaRisk_INTELLIGENCE",
+    version="1.0.0",
+    docs_url="/docs" if ENABLE_DOCS else None,
+    redoc_url="/redoc" if ENABLE_DOCS else None,
+    openapi_url="/openapi.json" if ENABLE_DOCS else None,
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ==========================================================
+# MIDDLEWARE
+# ==========================================================
+@app.middleware("http")
+async def add_request_id(request: Request, call_next):
+    request_id = request.headers.get(REQUEST_ID_HEADER) or str(uuid.uuid4())
+    request.state.request_id = request_id
+
+    response = await call_next(request)
+    response.headers[REQUEST_ID_HEADER] = request_id
+    return response
+
+
+# ==========================================================
+# HEALTH
+# ==========================================================
+@app.get("/")
+def root(request: Request):
+    return {
+        "status": "Contract Risk API running",
+        "request_id": getattr(request.state, "request_id", None),
+    }
+
+
+# ==========================================================
+# ANALYZE
+# ==========================================================
+@app.post("/analyze", response_model=AnalyzeResponse)
+def analyze(
+    request: AnalyzeRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    api_key_ctx=Depends(get_api_key_ctx),
+):
+    enforce_rate_limit(http_request)
+
+    result = score_contract(request.text)
+    risk_score = int(result.get("risk_score", 0))
+    req_id = getattr(http_request.state, "request_id", "unknown")
+
+    create_scan(
+        db=db,
+        org_id=api_key_ctx.org_id if api_key_ctx else None,
+        user_id=api_key_ctx.user_id,
+        request_id=req_id,
+        risk_score=risk_score,
+        risk_density=float(result.get("risk_density", 0.0)),
+        confidence=float(result.get("confidence", 0.0)),
+        ruleset_version=result.get("ruleset_version", "unknown"),
+    )
+
+    create_usage_log(
+        db=db,
+        org_id=api_key_ctx.org_id if api_key_ctx else None,
+        user_id=api_key_ctx.user_id,
+        api_key_id=getattr(api_key_ctx, "id", None),
+        endpoint="/analyze",
+        request_id=req_id,
+        method="POST",
+        ip=_client_ip(http_request),
+        duration_ms=0,
+        status_code=200,
+    )
+
+    return {
+        "risk_score": risk_score,
+        "severity": str(result.get("severity", "LOW")),
+        "flags": list(result.get("flags", [])),
+    }
+
+
+# ==========================================================
+# ANALYZE DETAILED
+# ==========================================================
+@app.post("/analyze_detailed")
+def analyze_detailed(
+    request: AnalyzeRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    api_key_ctx=Depends(get_api_key_ctx),
+):
+    enforce_rate_limit(http_request)
+
+    payload = _build_detailed_payload(request.text)
+    _persist_analysis(
+        db=db,
+        api_key_ctx=api_key_ctx,
+        http_request=http_request,
+        endpoint="/analyze_detailed",
+        payload=payload,
+    )
+    return payload
+
+
+# ==========================================================
+# ANALYZE PDF
+# ==========================================================
+@app.post("/analyze_pdf")
+async def analyze_pdf(
+    file: UploadFile = File(...),
+    http_request: Request = None,
+    db: Session = Depends(get_db),
+    api_key_ctx=Depends(get_api_key_ctx),
+):
+    enforce_rate_limit(http_request)
+
+    if file.content_type not in {"application/pdf"}:
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded PDF is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Uploaded PDF exceeds size limit")
+
+    temp_path: Path | None = None
+    try:
+        temp_path = _write_temp_file(data, ".pdf")
+        extraction = extract_text_from_pdf(str(temp_path))
+
+        if not extraction.text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found in PDF")
+
+        payload = _build_detailed_payload(extraction.text)
+        payload["extraction_method"] = extraction.extraction_method
+        payload["confidence_hint"] = extraction.confidence_hint
+        payload["source_type"] = "pdf"
+        payload["page_count"] = extraction.page_count
+        payload["has_extractable_text"] = extraction.has_extractable_text
+
+        _persist_analysis(
+            db=db,
+            api_key_ctx=api_key_ctx,
+            http_request=http_request,
+            endpoint="/analyze_pdf",
+            payload=payload,
+        )
+        return payload
+
+    except PdfExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+
+# ==========================================================
+# ANALYZE IMAGE
+# ==========================================================
+@app.post("/analyze_image")
+async def analyze_image(
+    file: UploadFile = File(...),
+    http_request: Request = None,
+    db: Session = Depends(get_db),
+    api_key_ctx=Depends(get_api_key_ctx),
+):
+    enforce_rate_limit(http_request)
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPG, PNG, and WEBP images are supported",
+        )
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Uploaded image exceeds size limit")
+
+    suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
+
+    temp_path: Path | None = None
+    try:
+        temp_path = _write_temp_file(data, suffix)
+        text, confidence_hint = _extract_text_from_image(temp_path)
+
+        payload = _build_detailed_payload(text)
+        payload["extraction_method"] = "ocr"
+        payload["confidence_hint"] = confidence_hint
+        payload["source_type"] = "image"
+
+        _persist_analysis(
+            db=db,
+            api_key_ctx=api_key_ctx,
+            http_request=http_request,
+            endpoint="/analyze_image",
+            payload=payload,
+        )
+        return payload
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)

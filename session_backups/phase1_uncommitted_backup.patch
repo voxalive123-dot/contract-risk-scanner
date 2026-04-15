@@ -1,0 +1,1783 @@
+diff --git a/api.py b/api.py
+index 56450d6..2a47f51 100644
+--- a/api.py
++++ b/api.py
+@@ -3,23 +3,29 @@ from __future__ import annotations
+ import os
+ import time
+ import uuid
+-from fastapi.middleware.cors import CORSMiddleware
++from pathlib import Path
++from tempfile import NamedTemporaryFile
+ from typing import Any
+ 
+-from fastapi import Depends, FastAPI, HTTPException, Request, Header, status
++import pytesseract
++from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
++from fastapi.middleware.cors import CORSMiddleware
++from PIL import Image
+ from pydantic import BaseModel, ConfigDict, Field, field_validator
+ from sqlalchemy.orm import Session
+ 
+-from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
+ from analyzer.scorer import score_contract
+ from auth_keys import hash_api_key
++from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
+ from db import get_db
++from pdf_utils import PdfExtractionError, extract_text_from_pdf
+ 
+ 
+ # ==========================================================
+ # TEST / CONTRACT CONSTANTS
+ # ==========================================================
+ MAX_TEXT_CHARS = 60_000
++MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+ REQUEST_ID_HEADER = "X-Request-ID"
+ ENABLE_DOCS = os.getenv("ENABLE_DOCS", "1") == "1"
+ 
+@@ -29,6 +35,13 @@ RATE_LIMIT_REFILL_PER_SEC = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "1.0"))
+ 
+ _BUCKETS: dict[str, dict[str, float]] = {}
+ 
++ALLOWED_IMAGE_TYPES = {
++    "image/jpeg",
++    "image/jpg",
++    "image/png",
++    "image/webp",
++}
++
+ 
+ def enforce_rate_limit(request: Request) -> None:
+     if not RATE_LIMIT_ENABLED:
+@@ -111,6 +124,139 @@ def get_api_key_ctx(
+     return api_key
+ 
+ 
++# ==========================================================
++# HELPERS
++# ==========================================================
++def _client_ip(http_request: Request) -> str:
++    return http_request.client.host if http_request.client else "unknown"
++
++
++def _build_detailed_payload(text: str) -> dict[str, Any]:
++    result = score_contract(
++        text,
++        include_findings=True,
++        include_meta=True,
++    )
++
++    raw_meta = result.get("meta", {}) or {}
++    word_count = len(text.split())
++
++    raw_findings = result.get("findings", []) or []
++    findings: list[dict[str, Any]] = []
++
++    for f in raw_findings:
++        if not isinstance(f, dict):
++            continue
++
++        rule_id = f.get("rule_id") or f.get("id")
++        title = f.get("title") or ""
++
++        if (
++            rule_id == "termination_for_convenience_counterparty"
++            and "without notice" in str(f.get("matched_text", "")).lower()
++        ):
++            rule_id = "termination_without_notice"
++            title = "Termination without notice"
++
++        findings.append(
++            {
++                "rule_id": rule_id,
++                "title": title,
++                "category": f.get("category"),
++                "severity": f.get("severity"),
++                "matched_text": f.get("matched_text"),
++                "rationale": f.get("rationale"),
++            }
++        )
++
++    meta = {
++        "ruleset_version": raw_meta.get("ruleset_version", "unknown"),
++        "max_possible_score": 100,
++        "normalized_score": raw_meta.get("normalized_score", 0),
++        "word_count": word_count,
++        "risk_density_per_1000_words": round(
++            float(raw_meta.get("risk_density", 0.0)) * 1000, 4
++        )
++        if word_count > 0
++        else 0.0,
++        "scan_char_limit": raw_meta.get("scan_char_limit"),
++        "scanned_chars": raw_meta.get("scanned_chars"),
++        "confidence": raw_meta.get("confidence", 0.0),
++        "score_adjustments": raw_meta.get("score_adjustments", []),
++        "matched_rule_count": raw_meta.get("matched_rule_count", len(findings)),
++        "suppressed_rule_count": raw_meta.get("suppressed_rule_count", 0),
++        "contradiction_count": raw_meta.get("contradiction_count", 0),
++        "top_risks": raw_meta.get("top_risks", []),
++    }
++
++    return {
++        "risk_score": int(result.get("risk_score", 0)),
++        "severity": str(result.get("severity", "LOW")),
++        "flags": list(result.get("flags", [])),
++        "findings": findings,
++        "meta": meta,
++    }
++
++
++def _persist_analysis(
++    *,
++    db: Session,
++    api_key_ctx: Any,
++    http_request: Request,
++    endpoint: str,
++    payload: dict[str, Any],
++) -> None:
++    req_id = getattr(http_request.state, "request_id", "unknown")
++    meta = payload.get("meta", {}) or {}
++
++    create_scan(
++        db=db,
++        org_id=api_key_ctx.org_id if api_key_ctx else None,
++        user_id=api_key_ctx.user_id,
++        request_id=req_id,
++        risk_score=int(payload.get("risk_score", 0)),
++        risk_density=float(meta.get("risk_density_per_1000_words", 0.0)) / 1000.0,
++        confidence=float(meta.get("confidence", 0.0)),
++        ruleset_version=str(meta.get("ruleset_version", "unknown")),
++    )
++
++    create_usage_log(
++        db=db,
++        org_id=api_key_ctx.org_id if api_key_ctx else None,
++        user_id=api_key_ctx.user_id,
++        api_key_id=getattr(api_key_ctx, "id", None),
++        endpoint=endpoint,
++        request_id=req_id,
++        method="POST",
++        ip=_client_ip(http_request),
++        duration_ms=0,
++        status_code=200,
++    )
++
++
++def _write_temp_file(data: bytes, suffix: str) -> Path:
++    with NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
++        tmp.write(data)
++        return Path(tmp.name)
++
++
++def _extract_text_from_image(image_path: Path) -> tuple[str, float]:
++    try:
++        image = Image.open(image_path)
++    except Exception as exc:
++        raise HTTPException(status_code=400, detail="Image could not be opened") from exc
++
++    try:
++        text = pytesseract.image_to_string(image).strip()
++    except Exception as exc:
++        raise HTTPException(status_code=400, detail="Image OCR failed") from exc
++
++    if not text:
++        raise HTTPException(status_code=400, detail="No readable text detected in image")
++
++    return text, 0.65
++
++
+ # ==========================================================
+ # APP
+ # ==========================================================
+@@ -122,8 +268,6 @@ app = FastAPI(
+     openapi_url="/openapi.json" if ENABLE_DOCS else None,
+ )
+ 
+-from fastapi.middleware.cors import CORSMiddleware
+-
+ app.add_middleware(
+     CORSMiddleware,
+     allow_origins=["http://localhost:3000"],
+@@ -132,6 +276,7 @@ app.add_middleware(
+     allow_headers=["*"],
+ )
+ 
++
+ # ==========================================================
+ # MIDDLEWARE
+ # ==========================================================
+@@ -164,7 +309,7 @@ def analyze(
+     request: AnalyzeRequest,
+     http_request: Request,
+     db: Session = Depends(get_db),
+-    api_key_ctx = Depends(get_api_key_ctx),
++    api_key_ctx=Depends(get_api_key_ctx),
+ ):
+     enforce_rate_limit(http_request)
+ 
+@@ -191,7 +336,7 @@ def analyze(
+         endpoint="/analyze",
+         request_id=req_id,
+         method="POST",
+-        ip=http_request.client.host if http_request.client else "unknown",
++        ip=_client_ip(http_request),
+         duration_ms=0,
+         status_code=200,
+     )
+@@ -211,71 +356,117 @@ def analyze_detailed(
+     request: AnalyzeRequest,
+     http_request: Request,
+     db: Session = Depends(get_db),
+-    api_key_ctx = Depends(get_api_key_ctx),
++    api_key_ctx=Depends(get_api_key_ctx),
+ ):
+     enforce_rate_limit(http_request)
+ 
+-    result = score_contract(
+-        request.text,
+-        include_findings=True,
+-        include_meta=True,
++    payload = _build_detailed_payload(request.text)
++    _persist_analysis(
++        db=db,
++        api_key_ctx=api_key_ctx,
++        http_request=http_request,
++        endpoint="/analyze_detailed",
++        payload=payload,
+     )
++    return payload
+ 
+-    raw_meta = result.get("meta", {}) or {}
+-    word_count = len(request.text.split())
+ 
+-    raw_findings = result.get("findings", []) or []
+-    findings: list[dict[str, Any]] = []
++# ==========================================================
++# ANALYZE PDF
++# ==========================================================
++@app.post("/analyze_pdf")
++async def analyze_pdf(
++    file: UploadFile = File(...),
++    http_request: Request = None,
++    db: Session = Depends(get_db),
++    api_key_ctx=Depends(get_api_key_ctx),
++):
++    enforce_rate_limit(http_request)
+ 
+-    for f in raw_findings:
+-        if not isinstance(f, dict):
+-            continue
++    if file.content_type not in {"application/pdf"}:
++        raise HTTPException(status_code=400, detail="Only PDF files are supported")
++
++    data = await file.read()
++    if not data:
++        raise HTTPException(status_code=400, detail="Uploaded PDF is empty")
++    if len(data) > MAX_UPLOAD_BYTES:
++        raise HTTPException(status_code=400, detail="Uploaded PDF exceeds size limit")
++
++    temp_path: Path | None = None
++    try:
++        temp_path = _write_temp_file(data, ".pdf")
++        extraction = extract_text_from_pdf(str(temp_path))
++
++        if not extraction.text.strip():
++            raise HTTPException(status_code=400, detail="No readable text found in PDF")
++
++        payload = _build_detailed_payload(extraction.text)
++        payload["extraction_method"] = extraction.extraction_method
++        payload["confidence_hint"] = extraction.confidence_hint
++        payload["source_type"] = "pdf"
++        payload["page_count"] = extraction.page_count
++        payload["has_extractable_text"] = extraction.has_extractable_text
++
++        _persist_analysis(
++            db=db,
++            api_key_ctx=api_key_ctx,
++            http_request=http_request,
++            endpoint="/analyze_pdf",
++            payload=payload,
++        )
++        return payload
+ 
+-        rule_id = f.get("rule_id") or f.get("id")
+-        title = f.get("title") or ""
++    except PdfExtractionError as exc:
++        raise HTTPException(status_code=400, detail=str(exc)) from exc
++    finally:
++        if temp_path and temp_path.exists():
++            temp_path.unlink(missing_ok=True)
+ 
+-        if (
+-            rule_id == "termination_for_convenience_counterparty"
+-            and "without notice" in str(f.get("matched_text", "")).lower()
+-        ):
+-            rule_id = "termination_without_notice"
+-            title = "Termination without notice"
+ 
+-        findings.append(
+-            {
+-                "rule_id": rule_id,
+-                "title": title,
+-                "category": f.get("category"),
+-                "severity": f.get("severity"),
+-                "matched_text": f.get("matched_text"),
+-                "rationale": f.get("rationale"),
+-            }
+-        )
++# ==========================================================
++# ANALYZE IMAGE
++# ==========================================================
++@app.post("/analyze_image")
++async def analyze_image(
++    file: UploadFile = File(...),
++    http_request: Request = None,
++    db: Session = Depends(get_db),
++    api_key_ctx=Depends(get_api_key_ctx),
++):
++    enforce_rate_limit(http_request)
+ 
+-    meta = {
+-        "ruleset_version": raw_meta.get("ruleset_version", "unknown"),
+-        "max_possible_score": 100,
+-        "normalized_score": raw_meta.get("normalized_score", 0),
+-        "word_count": word_count,
+-        "risk_density_per_1000_words": round(
+-            float(raw_meta.get("risk_density", 0.0)) * 1000, 4
++    if file.content_type not in ALLOWED_IMAGE_TYPES:
++        raise HTTPException(
++            status_code=400,
++            detail="Only JPG, PNG, and WEBP images are supported",
+         )
+-        if word_count > 0
+-        else 0.0,
+-        "scan_char_limit": raw_meta.get("scan_char_limit"),
+-        "scanned_chars": raw_meta.get("scanned_chars"),
+-        "confidence": raw_meta.get("confidence", 0.0),
+-        "score_adjustments": raw_meta.get("score_adjustments", []),
+-        "matched_rule_count": raw_meta.get("matched_rule_count", len(findings)),
+-        "suppressed_rule_count": raw_meta.get("suppressed_rule_count", 0),
+-        "contradiction_count": raw_meta.get("contradiction_count", 0),
+-        "top_risks": raw_meta.get("top_risks", []),
+-    }
+ 
+-    return {
+-        "risk_score": int(result.get("risk_score", 0)),
+-        "severity": str(result.get("severity", "LOW")),
+-        "flags": list(result.get("flags", [])),
+-        "findings": findings,
+-        "meta": meta,
+-    }
++    data = await file.read()
++    if not data:
++        raise HTTPException(status_code=400, detail="Uploaded image is empty")
++    if len(data) > MAX_UPLOAD_BYTES:
++        raise HTTPException(status_code=400, detail="Uploaded image exceeds size limit")
++
++    suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
++
++    temp_path: Path | None = None
++    try:
++        temp_path = _write_temp_file(data, suffix)
++        text, confidence_hint = _extract_text_from_image(temp_path)
++
++        payload = _build_detailed_payload(text)
++        payload["extraction_method"] = "ocr"
++        payload["confidence_hint"] = confidence_hint
++        payload["source_type"] = "image"
++
++        _persist_analysis(
++            db=db,
++            api_key_ctx=api_key_ctx,
++            http_request=http_request,
++            endpoint="/analyze_image",
++            payload=payload,
++        )
++        return payload
++    finally:
++        if temp_path and temp_path.exists():
++            temp_path.unlink(missing_ok=True)
+diff --git a/voxa-frontend/app/api/analyze/route.ts b/voxa-frontend/app/api/analyze/route.ts
+index 3cfa06f..edbb74d 100644
+--- a/voxa-frontend/app/api/analyze/route.ts
++++ b/voxa-frontend/app/api/analyze/route.ts
+@@ -8,42 +8,103 @@ export async function POST(request: Request) {
+     if (!API_KEY) {
+       return NextResponse.json(
+         { error: "Server API key is not configured." },
+-        { status: 500 }
++        { status: 500 },
+       );
+     }
+ 
+-    const body = await request.json();
+-    const text = typeof body?.text === "string" ? body.text : "";
++    const contentType = request.headers.get("content-type") || "";
+ 
+-    if (!text.trim()) {
+-      return NextResponse.json(
+-        { error: "Contract text is required." },
+-        { status: 400 }
+-      );
++    if (contentType.includes("application/json")) {
++      const body = await request.json();
++      const text = typeof body?.text === "string" ? body.text : "";
++
++      if (!text.trim()) {
++        return NextResponse.json(
++          { error: "Contract text is required." },
++          { status: 400 },
++        );
++      }
++
++      const upstream = await fetch(`${API_BASE}/analyze_detailed`, {
++        method: "POST",
++        headers: {
++          "Content-Type": "application/json",
++          "X-API-Key": API_KEY,
++        },
++        body: JSON.stringify({ text }),
++        cache: "no-store",
++      });
++
++      const raw = await upstream.text();
++
++      return new NextResponse(raw, {
++        status: upstream.status,
++        headers: {
++          "Content-Type": "application/json",
++        },
++      });
+     }
+ 
+-    const upstream = await fetch(`${API_BASE}/analyze_detailed`, {
+-      method: "POST",
+-      headers: {
+-        "Content-Type": "application/json",
+-        "X-API-Key": API_KEY,
+-      },
+-      body: JSON.stringify({ text }),
+-      cache: "no-store",
+-    });
+-
+-    const raw = await upstream.text();
+-
+-    return new NextResponse(raw, {
+-      status: upstream.status,
+-      headers: {
+-        "Content-Type": "application/json",
+-      },
+-    });
++    if (contentType.includes("multipart/form-data")) {
++      const formData = await request.formData();
++      const file = formData.get("file");
++
++      if (!(file instanceof File)) {
++        return NextResponse.json(
++          { error: "A file upload is required." },
++          { status: 400 },
++        );
++      }
++
++      const upstreamForm = new FormData();
++      upstreamForm.append("file", file, file.name);
++
++      const normalizedType = (file.type || "").toLowerCase();
++      let upstreamPath = "";
++
++      if (normalizedType === "application/pdf") {
++        upstreamPath = "/analyze_pdf";
++      } else if (
++        normalizedType === "image/jpeg" ||
++        normalizedType === "image/jpg" ||
++        normalizedType === "image/png" ||
++        normalizedType === "image/webp"
++      ) {
++        upstreamPath = "/analyze_image";
++      } else {
++        return NextResponse.json(
++          { error: "Unsupported file type. Use PDF, JPG, PNG, or WEBP." },
++          { status: 400 },
++        );
++      }
++
++      const upstream = await fetch(`${API_BASE}${upstreamPath}`, {
++        method: "POST",
++        headers: {
++          "X-API-Key": API_KEY,
++        },
++        body: upstreamForm,
++        cache: "no-store",
++      });
++
++      const raw = await upstream.text();
++
++      return new NextResponse(raw, {
++        status: upstream.status,
++        headers: {
++          "Content-Type": "application/json",
++        },
++      });
++    }
++
++    return NextResponse.json(
++      { error: "Unsupported request content type." },
++      { status: 400 },
++    );
+   } catch (error) {
+     return NextResponse.json(
+       { error: `Proxy failure: ${String(error)}` },
+-      { status: 500 }
++      { status: 500 },
+     );
+   }
+ }
+diff --git a/voxa-frontend/app/dashboard/page.tsx b/voxa-frontend/app/dashboard/page.tsx
+index eb9e29b..c857c83 100644
+--- a/voxa-frontend/app/dashboard/page.tsx
++++ b/voxa-frontend/app/dashboard/page.tsx
+@@ -1,6 +1,6 @@
+ "use client";
+ 
+-import { useMemo, useState } from "react";
++import { ChangeEvent, useMemo, useRef, useState } from "react";
+ 
+ type ScoreAdjustment = {
+   type?: string;
+@@ -41,6 +41,11 @@ type AnalyzeResult = {
+     ruleset_version?: string;
+     word_count?: number;
+   };
++  extraction_method?: string | null;
++  confidence_hint?: number | null;
++  source_type?: string | null;
++  page_count?: number | null;
++  has_extractable_text?: boolean | null;
+ };
+ 
+ function severityTone(severity?: number) {
+@@ -147,10 +152,78 @@ function consequenceSummary(category?: string) {
+   return categoryProfile(category).consequence;
+ }
+ 
++function executiveSummary(
++  severity: "LOW" | "MEDIUM" | "HIGH",
++  riskCount: number,
++  categories: string[],
++  primaryCategory?: string,
++) {
++  const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
++  const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
++  const hasDisputeRisk = hasAnyCategory(uniqueCategories, DISPUTE_CATEGORIES);
++  const hasEconomicRisk = hasAnyCategory(uniqueCategories, ECONOMIC_CATEGORIES);
++
++  if (severity === "HIGH") {
++    if (primaryCategory === "indemnity") {
++      return `This contract presents material downside exposure driven by broad indemnity transfer. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (primaryCategory === "liability") {
++      return `This contract presents material downside exposure driven primarily by liability structure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (primaryCategory === "payment") {
++      return `This contract presents material commercial exposure driven by one-sided economic movement after signature. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (primaryCategory === "termination") {
++      return `This contract presents material control risk because exit optionality appears to sit disproportionately with the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (primaryCategory === "service") {
++      return `This contract presents material operational exposure because service continuity can be disrupted on terms that favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (primaryCategory === "jurisdiction") {
++      return `This contract presents material dispute exposure because enforcement and venue appear structurally unfavorable. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (hasControlRisk && hasDisputeRisk) {
++      return `This contract presents material structural exposure because operational control rights and dispute positioning both appear to favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    if (hasControlRisk && hasEconomicRisk) {
++      return `This contract presents material structural exposure because the counterparty appears to hold both leverage over operations and disproportionate downside economics. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++    }
++    return `This contract presents material structural exposure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
++  }
++
++  if (severity === "MEDIUM") {
++    if (primaryCategory === "indemnity") {
++      return "This contract contains meaningful downside exposure because indemnity allocation may transfer disproportionate claim risk onto your side.";
++    }
++    if (primaryCategory === "liability") {
++      return "This contract contains meaningful downside exposure through liability allocation that may exceed practical deal value.";
++    }
++    if (primaryCategory === "payment") {
++      return "This contract contains meaningful commercial downside because the economics may shift after signature.";
++    }
++    if (primaryCategory === "termination") {
++      return "This contract contains meaningful control risk because the counterparty appears to retain stronger exit flexibility.";
++    }
++    if (primaryCategory === "service") {
++      return "This contract contains meaningful operational risk because service access may be interrupted on aggressive terms.";
++    }
++    if (primaryCategory === "jurisdiction") {
++      return "This contract contains meaningful dispute risk because forum and enforcement mechanics may work against your operating position.";
++    }
++    if (hasControlRisk && hasEconomicRisk) {
++      return "This contract contains meaningful downside exposure because commercial leverage and control rights appear to accumulate with the counterparty.";
++    }
++    return "This contract contains meaningful downside exposure. The current drafting should be reviewed with attention to leverage, control, and exit risk.";
++  }
++
++  return "This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.";
++}
++
+ function decisionPosture(
+   severity: "LOW" | "MEDIUM" | "HIGH",
+   topRiskCount: number,
+   categories: string[],
++  primaryCategory?: string,
+ ) {
+   const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
+   const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
+@@ -158,130 +231,97 @@ function decisionPosture(
+   const hasEconomicRisk = hasAnyCategory(uniqueCategories, ECONOMIC_CATEGORIES);
+ 
+   if (severity === "HIGH") {
+-    if (hasControlRisk && hasEconomicRisk) {
++    if (primaryCategory === "indemnity") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. The counterparty appears to hold both operational leverage and disproportionate downside economics across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Escalate the control and economics clauses into a single redline package before any internal approval path starts.",
++        detail: `Do not accept in current form. Indemnity allocation appears capable of shifting disproportionate claim exposure onto your side across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Redraft the indemnity so scope, triggers, losses covered, and claim control rights are explicitly constrained.",
+       };
+     }
+-    if (hasControlRisk && hasDisputeRisk) {
++    if (primaryCategory === "liability") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. The current drafting weakens both your practical operating position and your dispute leverage across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Push a redline round that rebalances venue, suspension, and termination mechanics before signature.",
++        detail: `Do not accept in current form. Liability allocation appears capable of producing disproportionate downside across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Force a redraft of the liability architecture, including caps, carve-outs, and asymmetry in exposure.",
+       };
+     }
+-    if (uniqueCategories.includes("indemnity")) {
++    if (primaryCategory === "payment") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. Indemnity allocation appears capable of shifting disproportionate claim exposure onto your side across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Redraft the indemnity so scope, triggers, losses covered, and claim control rights are explicitly constrained.",
++        detail: `Do not accept in current form. The counterparty appears able to move commercial terms after signature across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Redline the pricing and change-control mechanics so economics cannot drift without a real exit option.",
+       };
+     }
+-    if (uniqueCategories.includes("liability")) {
++    if (primaryCategory === "termination") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. Liability allocation appears capable of producing disproportionate downside across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Force a redraft of the liability architecture, including caps, carve-outs, and asymmetry in exposure.",
++        detail: `Do not accept in current form. Exit optionality appears to sit disproportionately with the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Rework termination rights, notice, and cure structure before the contract reaches approval.",
+       };
+     }
+-    if (uniqueCategories.includes("payment")) {
++    if (primaryCategory === "service") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. The counterparty appears able to move commercial terms after signature across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Redline the pricing and change-control mechanics so economics cannot drift without a real exit option.",
++        detail: `Do not accept in current form. Service continuity appears exposed to counterparty-favored interruption mechanics across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Constrain suspension triggers, add notice discipline, and force a clear restoration mechanism.",
+       };
+     }
+-    if (uniqueCategories.includes("termination")) {
++    if (primaryCategory === "jurisdiction") {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. Exit optionality appears to sit disproportionately with the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Rework termination rights, notice, and cure structure before the contract reaches approval.",
++        detail: `Do not accept in current form. Venue and enforcement mechanics appear structurally unfavorable across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
++        nextStep:
++          "Reposition governing law and dispute venue into a forum your business can realistically enforce and defend.",
+       };
+     }
+-    if (uniqueCategories.includes("service")) {
++    if (hasControlRisk && hasEconomicRisk) {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. Service continuity can be disrupted on terms that materially favor the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Tighten suspension triggers, notice standards, and cure mechanics before accepting operational dependency.",
++        detail:
++          "Do not accept in current form. The contract appears to combine commercial downside with operational leverage that favors the counterparty.",
++        nextStep:
++          "Prioritize the top-ranked clauses first and remove the combination of economic drift and counterparty control.",
+       };
+     }
+-    if (uniqueCategories.includes("jurisdiction")) {
++    if (hasControlRisk && hasDisputeRisk) {
+       return {
+         label: "Hold / Renegotiate",
+-        detail: `Do not accept in current form. Venue and enforcement positioning appear structurally unfavorable across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+-        nextStep: "Push governing law and dispute forum back into a venue your business can realistically manage and enforce.",
++        detail:
++          "Do not accept in current form. The contract appears to combine operational leverage with structurally unfavorable dispute positioning.",
++        nextStep:
++          "Tighten control rights first, then move dispute mechanics into a venue aligned with your operating reality.",
+       };
+     }
+     return {
+       label: "Hold / Renegotiate",
+-      detail: `Do not accept in current form. Resolve the ${topRiskCount || 1} highest-value exposure point${topRiskCount === 1 ? "" : "s"} before signature.`,
+-      nextStep: "Escalate the flagged clauses into a focused redline round before any internal approval.",
++      detail:
++        "Do not accept in current form. Structural exposure remains material on current rule detection.",
++      nextStep:
++        "Escalate the priority findings into redlines before the agreement moves forward.",
+     };
+   }
+ 
+   if (severity === "MEDIUM") {
+-    if (hasControlRisk && hasEconomicRisk) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if the combined control and economic exposure is commercially acceptable after negotiation or dependency analysis.",
+-        nextStep: "Test whether supplier leverage, fallback options, and deal economics justify accepting the current imbalance.",
+-      };
+-    }
+-    if (uniqueCategories.includes("indemnity")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if indemnity scope is commercially narrow and does not transfer broad third-party or direct-loss exposure onto your side.",
+-        nextStep: "Check indemnity scope, excluded losses, control of claims, and whether the allocation matches the real operating risk.",
+-      };
+-    }
+-    if (uniqueCategories.includes("liability")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if the liability structure is proportionate to the deal and does not create open-ended downside.",
+-        nextStep: "Check caps, carve-outs, and responsibility allocation against actual contract value and failure scenarios.",
+-      };
+-    }
+-    if (uniqueCategories.includes("payment")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if commercial movement after signature is either constrained or economically tolerable.",
+-        nextStep: "Verify whether the pricing mechanics preserve margin, budget certainty, and a realistic exit option.",
+-      };
+-    }
+-    if (uniqueCategories.includes("termination")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if the counterparty's stronger exit rights do not undermine planning certainty or revenue visibility.",
+-        nextStep: "Assess whether notice periods, cure rights, and replacement options are enough to absorb early exit risk.",
+-      };
+-    }
+-    if (uniqueCategories.includes("service")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if service interruption rights are sufficiently constrained for your operational dependency profile.",
+-        nextStep: "Test the suspension language against real service reliance, escalation paths, and restoration timelines.",
+-      };
+-    }
+-    if (uniqueCategories.includes("jurisdiction")) {
+-      return {
+-        label: "Conditional Review",
+-        detail: "Proceed only if the venue and enforcement position remain workable despite being less than ideal.",
+-        nextStep: "Check whether dispute cost, enforceability, and practical forum access are acceptable for this deal size.",
+-      };
+-    }
+     return {
+-      label: "Conditional Review",
+-      detail: "Proceed only if the exposed clauses are commercially tolerable or can be narrowed with targeted negotiation.",
+-      nextStep: "Check whether the flagged clauses are acceptable within deal economics, fallback options, and supplier dependency.",
++      label: "Proceed with Negotiation",
++      detail:
++        "The contract is not clean enough for passive acceptance. Meaningful structural issues are present, but they appear negotiable.",
++      nextStep:
++        "Use the priority risks to focus redlines on the clauses most likely to create leverage or downside.",
+     };
+   }
+ 
+   return {
+     label: "Proceed with Checks",
+-    detail: "No major structural alert is visible on current rule detection, but final acceptance should still depend on business dependency and deal context.",
+-    nextStep: "Complete final commercial checks and confirm no off-text dependency changes the practical risk.",
++    detail:
++      "No major structural alert is visible on current rule detection, but final acceptance should still depend on business dependency and deal context.",
++    nextStep:
++      "Complete final commercial checks and confirm no off-text dependency changes the practical risk.",
+   };
+ }
+ 
+@@ -289,8 +329,13 @@ export default function DashboardPage() {
+   const [text, setText] = useState("");
+   const [result, setResult] = useState<AnalyzeResult | null>(null);
+   const [loading, setLoading] = useState(false);
++  const [inputMode, setInputMode] = useState<"text" | "file">("text");
++  const [selectedFile, setSelectedFile] = useState<File | null>(null);
++  const [uploadLabel, setUploadLabel] = useState("No file selected");
++  const fileInputRef = useRef<HTMLInputElement | null>(null);
++  const cameraInputRef = useRef<HTMLInputElement | null>(null);
+ 
+-  async function analyze() {
++  async function analyzeText() {
+     if (!text.trim()) return;
+ 
+     setLoading(true);
+@@ -322,6 +367,75 @@ export default function DashboardPage() {
+     }
+   }
+ 
++  async function analyzeFile(file: File) {
++    setLoading(true);
++    setResult(null);
++
++    try {
++      const formData = new FormData();
++      formData.append("file", file, file.name);
++
++      const res = await fetch("/api/analyze", {
++        method: "POST",
++        body: formData,
++      });
++
++      const textResponse = await res.text();
++
++      if (!res.ok) {
++        alert("Analysis error: " + textResponse);
++        return;
++      }
++
++      const data: AnalyzeResult = JSON.parse(textResponse);
++      setResult(data);
++    } catch (err) {
++      console.error("UPLOAD ERROR:", err);
++      alert("Error analyzing uploaded file: " + String(err));
++    } finally {
++      setLoading(false);
++    }
++  }
++
++  async function runReview() {
++    if (inputMode === "file") {
++      if (!selectedFile) return;
++      await analyzeFile(selectedFile);
++      return;
++    }
++
++    await analyzeText();
++  }
++
++  function handleFileSelection(file: File | null) {
++    setResult(null);
++    setSelectedFile(file);
++
++    if (!file) {
++      setUploadLabel("No file selected");
++      return;
++    }
++
++    setText("");
++    setInputMode("file");
++    setUploadLabel(file.name);
++  }
++
++  function onFileInputChange(event: ChangeEvent<HTMLInputElement>) {
++    const file = event.target.files?.[0] ?? null;
++    handleFileSelection(file);
++  }
++
++  function clearUpload() {
++    setSelectedFile(null);
++    setUploadLabel("No file selected");
++    if (fileInputRef.current) fileInputRef.current.value = "";
++    if (cameraInputRef.current) cameraInputRef.current.value = "";
++    if (!text.trim()) {
++      setInputMode("text");
++    }
++  }
++
+   const normalizedScore = result?.meta?.normalized_score ?? result?.risk_score ?? 0;
+   const contradictionCount = result?.meta?.contradiction_count ?? 0;
+   const adjustments = result?.meta?.score_adjustments ?? [];
+@@ -332,6 +446,10 @@ export default function DashboardPage() {
+   const suppressedRuleCount = result?.meta?.suppressed_rule_count ?? 0;
+   const rulesetVersion = result?.meta?.ruleset_version ?? "n/a";
+   const wordCount = result?.meta?.word_count ?? 0;
++  const hasTextInput = text.trim().length > 0;
++  const hasFileInput = !!selectedFile;
++  const hasInput = inputMode === "file" ? hasFileInput : hasTextInput;
++  const isPreAnalysis = !result && !hasInput && !loading;
+ 
+   const summaryCategories = useMemo(
+     () => [
+@@ -341,14 +459,20 @@ export default function DashboardPage() {
+     [topRisks, findings],
+   );
+ 
++  const primaryCategory = useMemo(
++    () => topRisks[0]?.category ?? findings[0]?.category ?? "",
++    [topRisks, findings],
++  );
++
+   const primarySummary = useMemo(() => {
+     if (!result) return "";
+     return executiveSummary(
+       result.severity,
+       topRisks.length || findings.length,
+       summaryCategories,
++      primaryCategory,
+     );
+-  }, [result, topRisks.length, findings.length, summaryCategories]);
++  }, [result, topRisks.length, findings.length, summaryCategories, primaryCategory]);
+ 
+   const posture = useMemo(() => {
+     if (!result) return null;
+@@ -356,8 +480,14 @@ export default function DashboardPage() {
+       result.severity,
+       topRisks.length || findings.length,
+       summaryCategories,
++      primaryCategory,
+     );
+-  }, [result, topRisks.length, findings.length, summaryCategories]);
++  }, [result, topRisks.length, findings.length, summaryCategories, primaryCategory]);
++
++  const intakeGuidance =
++    inputMode === "file"
++      ? "Upload PDF, JPG, PNG, or WEBP. Camera capture will be processed as image OCR."
++      : "Start with liability, indemnity, pricing, suspension, termination, and governing law clauses for the fastest first-pass signal.";
+ 
+   return (
+     <div className="min-h-screen bg-neutral-100 px-6 py-8 text-neutral-900 md:px-8">
+@@ -371,269 +501,511 @@ export default function DashboardPage() {
+               Executive Contract Risk Review
+             </h1>
+             <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+-              Automated contract risk intelligence to surface structural exposure, negotiation pressure points, and evidence-backed review priorities.
++              Automated contract risk intelligence to surface structural exposure,
++              negotiation pressure points, and evidence-backed review priorities before
++              commercial acceptance.
+             </p>
+           </div>
+ 
+           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+               <div className="text-xs uppercase tracking-wide text-neutral-500">Engine</div>
+-              <div className="mt-1 text-sm font-semibold text-neutral-900">{rulesetVersion}</div>
++              <div className="mt-1 text-sm font-semibold text-neutral-900">
++                {result ? rulesetVersion : "Ready"}
++              </div>
+             </div>
+             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+               <div className="text-xs uppercase tracking-wide text-neutral-500">Confidence</div>
+-              <div className="mt-1 text-sm font-semibold text-neutral-900">{confidence.toFixed(2)}</div>
++              <div className="mt-1 text-sm font-semibold text-neutral-900">
++                {result ? confidence.toFixed(2) : "Awaiting input"}
++              </div>
+             </div>
+             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+               <div className="text-xs uppercase tracking-wide text-neutral-500">Words</div>
+-              <div className="mt-1 text-sm font-semibold text-neutral-900">{wordCount}</div>
++              <div className="mt-1 text-sm font-semibold text-neutral-900">
++                {result ? wordCount : "No text"}
++              </div>
+             </div>
+             <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+-              <div className="text-xs uppercase tracking-wide text-neutral-500">Rules Matched</div>
+-              <div className="mt-1 text-sm font-semibold text-neutral-900">{matchedRuleCount}</div>
++              <div className="text-xs uppercase tracking-wide text-neutral-500">
++                Rules Matched
++              </div>
++              <div className="mt-1 text-sm font-semibold text-neutral-900">
++                {result ? matchedRuleCount : "No scan"}
++              </div>
+             </div>
+           </div>
+         </div>
+ 
+         <div className="mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+-          <div className="mb-4 flex items-center justify-between">
++          <div className="mb-4 flex items-center justify-between gap-4">
+             <div>
+               <h2 className="text-lg font-semibold text-neutral-950">Contract Input</h2>
+-              <p className="mt-1 text-sm text-neutral-500">Paste contract text to generate an executive risk view.</p>
++              <p className="mt-1 text-sm text-neutral-500">
++                Use pasted text or upload a contract file for structural exposure review.
++              </p>
+             </div>
+             <div className="text-xs text-neutral-400">Local secure proxy enabled</div>
+           </div>
+ 
++          <div className="mb-4 flex flex-wrap gap-3">
++            <button
++              type="button"
++              onClick={() => setInputMode("text")}
++              className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
++                inputMode === "text"
++                  ? "border-neutral-900 bg-neutral-900 text-white"
++                  : "border-neutral-200 bg-white text-neutral-700"
++              }`}
++            >
++              Paste text
++            </button>
++            <button
++              type="button"
++              onClick={() => {
++                setInputMode("file");
++                fileInputRef.current?.click();
++              }}
++              className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
++                inputMode === "file"
++                  ? "border-neutral-900 bg-neutral-900 text-white"
++                  : "border-neutral-200 bg-white text-neutral-700"
++              }`}
++            >
++              Upload PDF / Image
++            </button>
++            <button
++              type="button"
++              onClick={() => {
++                setInputMode("file");
++                cameraInputRef.current?.click();
++              }}
++              className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700"
++            >
++              Use camera
++            </button>
++            {selectedFile && (
++              <button
++                type="button"
++                onClick={clearUpload}
++                className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700"
++              >
++                Clear file
++              </button>
++            )}
++          </div>
++
++          <input
++            ref={fileInputRef}
++            type="file"
++            accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
++            className="hidden"
++            onChange={onFileInputChange}
++          />
++
++          <input
++            ref={cameraInputRef}
++            type="file"
++            accept="image/*"
++            capture="environment"
++            className="hidden"
++            onChange={onFileInputChange}
++          />
++
++          <div className="mb-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4">
++            <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
++              Intake mode
++            </div>
++            <div className="mt-2 text-sm text-neutral-700">
++              {inputMode === "file"
++                ? `File mode active. ${uploadLabel}`
++                : "Text mode active. Paste contract language, key clauses, or the full agreement below."}
++            </div>
++          </div>
++
+           <textarea
+-            className="w-full rounded-2xl border border-neutral-300 bg-white p-4 text-sm text-neutral-800 outline-none transition focus:border-black"
+-            rows={8}
+-            placeholder="Paste contract text here..."
+             value={text}
+-            onChange={(e) => setText(e.target.value)}
++            onChange={(e) => {
++              setText(e.target.value);
++              if (e.target.value.trim()) {
++                setInputMode("text");
++                setSelectedFile(null);
++                setUploadLabel("No file selected");
++                if (fileInputRef.current) fileInputRef.current.value = "";
++                if (cameraInputRef.current) cameraInputRef.current.value = "";
++              }
++            }}
++            placeholder="Paste contract language, key clauses, or the full agreement text here..."
++            className="min-h-[220px] w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-neutral-400"
+           />
+ 
+-          <div className="mt-4 flex flex-wrap items-center gap-3">
++          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
++            <div className="text-sm text-neutral-500">{intakeGuidance}</div>
++
+             <button
+-              onClick={analyze}
+-              disabled={loading}
++              onClick={runReview}
++              disabled={loading || !hasInput}
+               className="rounded-2xl bg-black px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+             >
+-              {loading ? "Analyzing..." : "Run Executive Review"}
++              {loading ? "Reviewing..." : "Run Executive Review"}
+             </button>
+-            <div className="text-sm text-neutral-500">
+-              Result emphasis: risk signal first, evidence second, technical detail last.
+-            </div>
+           </div>
+         </div>
+ 
+-        {result && (
+-          <div className="space-y-6">
+-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
+-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm xl:col-span-1">
+-                <div className="text-xs uppercase tracking-wide text-neutral-500">Risk Score</div>
+-                <div className="mt-3 text-6xl font-semibold tracking-tight text-neutral-950">
+-                  {normalizedScore}
++        {isPreAnalysis && (
++          <div className="mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++            <div className="grid gap-4 lg:grid-cols-3">
++              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
++                  Best input
+                 </div>
+-                <div className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-medium uppercase tracking-wide ${severityBadgeClass(result.severity)}`}>
+-                  {result.severity}
++                <p className="mt-3 text-sm leading-6 text-neutral-700">
++                  Use the full agreement or the clauses that control liability,
++                  indemnity, pricing movement, suspension, termination, and governing
++                  law.
++                </p>
++              </div>
++
++              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
++                  What returns
+                 </div>
+-                <div className="mt-4 text-sm text-neutral-600">
+-                  Exposure band: <span className="font-medium text-neutral-900">{scoreBand(normalizedScore, result.severity)}</span>
++                <p className="mt-3 text-sm leading-6 text-neutral-700">
++                  The engine will rank exposure, surface priority risks, and show
++                  evidence-backed review points for negotiation or escalation.
++                </p>
++              </div>
++
++              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
++                  Review posture
+                 </div>
+-                {contradictionCount > 0 && (
+-                  <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+-                    {contradictionCount} contradiction{contradictionCount > 1 ? "s" : ""} detected across clause signals.
+-                  </div>
+-                )}
++                <p className="mt-3 text-sm leading-6 text-neutral-700">
++                  This is a decision-support screen, not auto-approval. Use it to
++                  identify where the contract may create asymmetric leverage or downside.
++                </p>
+               </div>
++            </div>
++          </div>
++        )}
+ 
+-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm xl:col-span-3">
+-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
++        {result && (
++          <div className="space-y-8">
++            <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
++              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++                <div className="flex flex-wrap items-start justify-between gap-4">
+                   <div>
+-                    <div className="text-xs uppercase tracking-wide text-neutral-500">Executive Reading</div>
+-                    <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
++                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                       Decision Signal
++                    </div>
++                    <h2 className="mt-2 text-2xl font-semibold text-neutral-950">
++                      {scoreBand(normalizedScore, result.severity)} exposure
+                     </h2>
+-                    <p className="mt-3 max-w-3xl text-sm leading-7 text-neutral-700">
++                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                       {primarySummary}
+                     </p>
++                  </div>
+ 
+-                    {posture && (
+-                      <div className="mt-4 max-w-3xl rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+-                        <div className="text-xs uppercase tracking-wide text-neutral-500">Decision posture</div>
+-                        <div className="mt-2 text-base font-semibold text-neutral-950">{posture.label}</div>
+-                        <div className="mt-2 text-sm leading-6 text-neutral-700">{posture.detail}</div>
+-                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+-                          <div className="text-xs uppercase tracking-wide text-neutral-500">Immediate next step</div>
+-                          <div className="mt-2 text-sm leading-6 text-neutral-700">{posture.nextStep}</div>
+-                        </div>
+-                      </div>
+-                    )}
++                  <div
++                    className={`rounded-full border px-4 py-2 text-sm font-medium ${severityBadgeClass(
++                      result.severity,
++                    )}`}
++                  >
++                    {result.severity}
++                  </div>
++                </div>
++
++                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Risk score
++                    </div>
++                    <div className="mt-2 text-2xl font-semibold text-neutral-950">
++                      {normalizedScore}
++                    </div>
+                   </div>
+ 
+-                  <div className="grid min-w-[260px] grid-cols-2 gap-3">
+-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+-                      <div className="text-xs uppercase tracking-wide text-neutral-500">Top Risks</div>
+-                      <div className="mt-1 text-xl font-semibold text-neutral-950">{topRisks.length}</div>
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Source type
+                     </div>
+-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+-                      <div className="text-xs uppercase tracking-wide text-neutral-500">Flags</div>
+-                      <div className="mt-1 text-xl font-semibold text-neutral-950">{result.flags.length}</div>
++                    <div className="mt-2 text-base font-semibold text-neutral-950">
++                      {result.source_type ?? "text"}
+                     </div>
+-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+-                      <div className="text-xs uppercase tracking-wide text-neutral-500">Adjustments</div>
+-                      <div className="mt-1 text-xl font-semibold text-neutral-950">{adjustments.length}</div>
++                  </div>
++
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Extraction
+                     </div>
+-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+-                      <div className="text-xs uppercase tracking-wide text-neutral-500">Suppressed</div>
+-                      <div className="mt-1 text-xl font-semibold text-neutral-950">{suppressedRuleCount}</div>
++                    <div className="mt-2 text-base font-semibold text-neutral-950">
++                      {result.extraction_method ?? "direct"}
+                     </div>
+                   </div>
+-                </div>
+-              </div>
+-            </div>
+ 
+-            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+-              <div className="mb-5 flex items-center justify-between">
+-                <div>
+-                  <h2 className="text-xl font-semibold text-neutral-950">Priority Risk Stack</h2>
+-                  <p className="mt-1 text-sm text-neutral-500">Highest-value review points first.</p>
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Flags
++                    </div>
++                    <div className="mt-2 text-2xl font-semibold text-neutral-950">
++                      {result.flags.length}
++                    </div>
++                  </div>
+                 </div>
+-              </div>
+ 
+-              {topRisks.length > 0 ? (
+-                <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+-                  {topRisks.map((risk, i) => (
+-                    <div key={i} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
+-                      <div className="flex items-start justify-between gap-3">
+-                        <div className="text-xs uppercase tracking-[0.18em] text-neutral-500">
+-                          Priority {i + 1}
+-                        </div>
+-                        <div className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+-                          {severityTone(risk.severity)}
+-                        </div>
+-                      </div>
++                <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Contradictions
++                    </div>
++                    <div className="mt-2 text-2xl font-semibold text-neutral-950">
++                      {contradictionCount}
++                    </div>
++                  </div>
+ 
+-                      <div className="mt-3 text-lg font-semibold text-neutral-950">
+-                        {risk.title ?? "Untitled risk"}
+-                      </div>
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Suppressed
++                    </div>
++                    <div className="mt-2 text-2xl font-semibold text-neutral-950">
++                      {suppressedRuleCount}
++                    </div>
++                  </div>
+ 
+-                      <div className="mt-3 flex flex-wrap gap-2">
+-                        <div className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+-                          {risk.category ?? "n/a"}
+-                        </div>
+-                        <div className="rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+-                          Impact weight {risk.weight ?? "n/a"}
+-                        </div>
+-                      </div>
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      OCR confidence
++                    </div>
++                    <div className="mt-2 text-base font-semibold text-neutral-950">
++                      {typeof result.confidence_hint === "number"
++                        ? result.confidence_hint.toFixed(2)
++                        : "n/a"}
++                    </div>
++                  </div>
+ 
+-                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+-                        <div className="text-xs uppercase tracking-wide text-neutral-500">Recommended focus</div>
+-                        <div className="mt-2 leading-6">{recommendedFocus(risk.category)}</div>
+-                      </div>
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Pages
++                    </div>
++                    <div className="mt-2 text-base font-semibold text-neutral-950">
++                      {result.page_count ?? "n/a"}
++                    </div>
++                  </div>
++                </div>
++              </div>
+ 
+-                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4 text-sm text-neutral-700">
+-                        <div className="text-xs uppercase tracking-wide text-neutral-500">Business consequence if ignored</div>
+-                        <div className="mt-2 leading-6">{consequenceSummary(risk.category)}</div>
+-                      </div>
++              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++                <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++                  Decision Posture
++                </div>
++                <div className="mt-3 text-2xl font-semibold text-neutral-950">
++                  {posture?.label}
++                </div>
++                <p className="mt-3 text-sm leading-6 text-neutral-600">
++                  {posture?.detail}
++                </p>
+ 
+-                      <div className="mt-4 flex items-center justify-between">
+-                        <div className="text-xs uppercase tracking-wide text-neutral-500">Recommended action</div>
+-                        <div className="text-sm font-semibold text-neutral-950">
+-                          {recommendedAction(risk.category)}
+-                        </div>
+-                      </div>
+-                    </div>
+-                  ))}
++                <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                  <div className="text-xs uppercase tracking-wide text-neutral-500">
++                    Immediate next step
++                  </div>
++                  <p className="mt-2 text-sm leading-6 text-neutral-700">
++                    {posture?.nextStep}
++                  </p>
+                 </div>
+-              ) : (
+-                <div className="text-sm text-neutral-500">No top risks returned.</div>
+-              )}
++              </div>
+             </div>
+ 
+-            <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
+-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm xl:col-span-2">
+-                <h2 className="text-xl font-semibold text-neutral-950">Evidence and Findings</h2>
+-                <p className="mt-1 text-sm text-neutral-500">Underlying clause-level evidence behind the decision signal.</p>
++            <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
++              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++                <div className="flex items-center justify-between gap-4">
++                  <div>
++                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++                      Priority Risks
++                    </div>
++                    <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
++                      Ranked review focus
++                    </h3>
++                  </div>
++                </div>
+ 
+-                {findings.length > 0 ? (
+-                  <div className="mt-5 space-y-4">
+-                    {findings.map((f, i) => (
+-                      <div key={i} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
+-                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
++                <div className="mt-6 space-y-4">
++                  {(topRisks.length ? topRisks : findings).slice(0, 5).map((item, index) => {
++                    const category = item.category ?? "";
++                    const title = item.title ?? "Unlabeled risk";
++                    const severity = item.severity ?? 0;
++
++                    return (
++                      <div
++                        key={`${title}-${index}`}
++                        className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
++                      >
++                        <div className="flex flex-wrap items-start justify-between gap-3">
+                           <div>
+-                            <div className="text-lg font-semibold text-neutral-950">
+-                              {f.title ?? "Untitled finding"}
+-                            </div>
+-                            <div className="mt-1 text-xs uppercase tracking-wide text-neutral-500">
+-                              {f.category ?? "n/a"} · {severityTone(f.severity)} severity
++                            <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
++                              Priority {index + 1}
+                             </div>
++                            <h4 className="mt-2 text-lg font-semibold text-neutral-950">
++                              {title}
++                            </h4>
+                           </div>
+ 
+-                          <div className="inline-flex rounded-full border border-neutral-300 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+-                            {f.rule_id ?? "rule unavailable"}
++                          <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
++                            {severityTone(severity)} impact
+                           </div>
+                         </div>
+ 
+-                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+-                          <div className="text-xs uppercase tracking-wide text-neutral-500">Why this matters</div>
+-                          <div className="mt-2 text-sm leading-7 text-neutral-700">
+-                            {f.rationale ?? "No rationale provided."}
++                        <div className="mt-4 grid gap-4 md:grid-cols-3">
++                          <div>
++                            <div className="text-xs uppercase tracking-wide text-neutral-500">
++                              Recommended focus
++                            </div>
++                            <p className="mt-2 text-sm leading-6 text-neutral-700">
++                              {recommendedFocus(category)}
++                            </p>
+                           </div>
+-                        </div>
+ 
+-                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+-                          <div className="text-xs uppercase tracking-wide text-neutral-500">Clause evidence</div>
+-                          <div className="mt-2 text-sm italic leading-6 text-neutral-600">
+-                            {f.matched_text ?? "No matched text available."}
++                          <div>
++                            <div className="text-xs uppercase tracking-wide text-neutral-500">
++                              Recommended action
++                            </div>
++                            <p className="mt-2 text-sm leading-6 text-neutral-700">
++                              {recommendedAction(category)}
++                            </p>
++                          </div>
++
++                          <div>
++                            <div className="text-xs uppercase tracking-wide text-neutral-500">
++                              Why this matters
++                            </div>
++                            <p className="mt-2 text-sm leading-6 text-neutral-700">
++                              {consequenceSummary(category)}
++                            </p>
+                           </div>
+                         </div>
+                       </div>
+-                    ))}
+-                  </div>
+-                ) : (
+-                  <div className="mt-5 text-sm text-neutral-500">No detailed findings returned.</div>
+-                )}
++                    );
++                  })}
++                </div>
+               </div>
+ 
+-              <div className="space-y-6">
+-                <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+-                  <h2 className="text-lg font-semibold text-neutral-950">Flags</h2>
+-                  {result.flags.length > 0 ? (
+-                    <div className="mt-4 flex flex-wrap gap-2">
+-                      {result.flags.map((flag, i) => (
+-                        <span
+-                          key={i}
+-                          className="rounded-full border border-neutral-300 bg-neutral-50 px-3 py-2 text-sm text-neutral-800"
+-                        >
+-                          {flag}
+-                        </span>
+-                      ))}
++              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++                <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++                  Technical Detail
++                </div>
++
++                <div className="mt-4 space-y-3">
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Flags raised
++                    </div>
++                    <div className="mt-2 flex flex-wrap gap-2">
++                      {result.flags.length ? (
++                        result.flags.map((flag) => (
++                          <span
++                            key={flag}
++                            className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
++                          >
++                            {flag}
++                          </span>
++                        ))
++                      ) : (
++                        <span className="text-sm text-neutral-500">No flags returned.</span>
++                      )}
++                    </div>
++                  </div>
++
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                    <div className="text-xs uppercase tracking-wide text-neutral-500">
++                      Score adjustments
++                    </div>
++                    <div className="mt-2 space-y-2">
++                      {adjustments.length ? (
++                        adjustments.map((adj, index) => (
++                          <div key={index} className="text-sm text-neutral-700">
++                            <span className="font-medium">{adj.type ?? "adjustment"}</span>
++                            {typeof adj.effect === "number" ? ` (${adj.effect})` : ""} —{" "}
++                            {adj.reason ?? "No reason provided"}
++                          </div>
++                        ))
++                      ) : (
++                        <div className="text-sm text-neutral-500">
++                          No score adjustments returned.
++                        </div>
++                      )}
++                    </div>
++                  </div>
++
++                  {result.source_type && result.source_type !== "text" && (
++                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
++                      <div className="text-xs uppercase tracking-wide text-neutral-500">
++                        Intake diagnostics
++                      </div>
++                      <div className="mt-2 space-y-2 text-sm text-neutral-700">
++                        <div>Source: {result.source_type}</div>
++                        <div>Extraction: {result.extraction_method ?? "unknown"}</div>
++                        <div>
++                          Extractable text:{" "}
++                          {typeof result.has_extractable_text === "boolean"
++                            ? String(result.has_extractable_text)
++                            : "n/a"}
++                        </div>
++                      </div>
+                     </div>
+-                  ) : (
+-                    <div className="mt-4 text-sm text-neutral-500">No flags detected.</div>
+                   )}
+                 </div>
++              </div>
++            </div>
+ 
+-                <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+-                  <h2 className="text-lg font-semibold text-neutral-950">Score Adjustments</h2>
+-                  {adjustments.length > 0 ? (
+-                    <div className="mt-4 space-y-3">
+-                      {adjustments.map((adj, i) => (
+-                        <div key={i} className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+-                          <div className="text-sm font-semibold uppercase tracking-wide text-neutral-900">
+-                            {adj.type ?? "adjustment"} ({adj.effect ?? 0})
++            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
++              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++                Clause Evidence
++              </div>
++              <div className="mt-4 space-y-4">
++                {findings.length ? (
++                  findings.map((finding, index) => (
++                    <div
++                      key={`${finding.rule_id ?? "finding"}-${index}`}
++                      className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
++                    >
++                      <div className="flex flex-wrap items-start justify-between gap-3">
++                        <div>
++                          <h4 className="text-lg font-semibold text-neutral-950">
++                            {finding.title ?? "Unlabeled finding"}
++                          </h4>
++                          <div className="mt-1 text-xs uppercase tracking-[0.2em] text-neutral-500">
++                            {finding.category ?? "uncategorized"}
+                           </div>
+-                          <div className="mt-1 text-sm leading-6 text-neutral-600">
+-                            {adj.reason ?? "No reason provided."}
++                        </div>
++
++                        <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
++                          {severityTone(finding.severity)} impact
++                        </div>
++                      </div>
++
++                      {finding.rationale && (
++                        <p className="mt-4 text-sm leading-6 text-neutral-700">
++                          {finding.rationale}
++                        </p>
++                      )}
++
++                      {finding.matched_text && (
++                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
++                          <div className="text-xs uppercase tracking-wide text-neutral-500">
++                            Matched text
+                           </div>
++                          <p className="mt-2 text-sm leading-6 text-neutral-700">
++                            {finding.matched_text}
++                          </p>
+                         </div>
+-                      ))}
++                      )}
+                     </div>
+-                  ) : (
+-                    <div className="mt-4 text-sm text-neutral-500">No score adjustments were applied.</div>
+-                  )}
+-                </div>
++                  ))
++                ) : (
++                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-500">
++                    No detailed findings returned.
++                  </div>
++                )}
+               </div>
+             </div>
+           </div>
+diff --git a/voxa-frontend/app/page.tsx b/voxa-frontend/app/page.tsx
+index 9ef1235..49b7778 100644
+--- a/voxa-frontend/app/page.tsx
++++ b/voxa-frontend/app/page.tsx
+@@ -1,5 +1,134 @@
+-import { redirect } from "next/navigation";
++import Link from "next/link";
++
++const pillars = [
++  {
++    title: "Decision-first risk review",
++    body: "Surface the clauses most likely to shift leverage, cost, control, or downside exposure before approval momentum takes over.",
++  },
++  {
++    title: "Evidence-backed priority stack",
++    body: "Show the highest-value review points first, with clause evidence, business consequence, and recommended action aligned to the detected risk.",
++  },
++  {
++    title: "Executive-grade output",
++    body: "Convert clause detection into a commercial decision signal that leaders can understand quickly without reading like a raw rule dump.",
++  },
++];
++
++const signals = [
++  "Flags structural exposure early",
++  "Ranks negotiation priorities fast",
++  "Separates signal, evidence, detail",
++];
+ 
+ export default function HomePage() {
+-  redirect("/dashboard");
++  return (
++    <main className="min-h-screen bg-neutral-100 text-neutral-950">
++      <section className="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-8 md:px-8 lg:py-12">
++        <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-sm lg:p-12">
++          <div className="max-w-4xl">
++            <div className="text-xs font-medium uppercase tracking-[0.28em] text-neutral-500">
++              VoxaRisk Intelligence
++            </div>
++
++            <h1 className="mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-neutral-950 md:text-5xl">
++              Contract exposure intelligence for disciplined commercial decisions.
++            </h1>
++
++            <p className="mt-5 max-w-3xl text-base leading-7 text-neutral-600">
++              VoxaRisk surfaces structural exposure, negotiation pressure points, and review priorities before commercial momentum narrows judgment. It is built to support faster, evidence-backed contract decisions — not to replace legal review.
++            </p>
++
++            <div className="mt-8 flex flex-wrap items-center gap-4">
++              <Link
++                href="/dashboard"
++                className="rounded-2xl bg-black px-6 py-3 text-sm font-medium text-white transition hover:opacity-90"
++              >
++                Open Executive Review
++              </Link>
++
++              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
++                Automated contract risk intelligence. Not legal advice.
++              </div>
++            </div>
++
++            <div className="mt-8 grid gap-3 sm:grid-cols-3">
++              {signals.map((signal) => (
++                <div
++                  key={signal}
++                  className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm leading-6 text-neutral-700"
++                >
++                  {signal}
++                </div>
++              ))}
++            </div>
++          </div>
++        </div>
++
++        <div className="grid gap-6 lg:grid-cols-[1.4fr_0.9fr]">
++          <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-sm">
++            <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++              Why it exists
++            </div>
++
++            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
++              Commercial exposure is often missed when review discipline breaks down.
++            </h2>
++
++            <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-600">
++              Material contract exposure is often discovered after leverage has already weakened. VoxaRisk is
++              designed to surface structural risk early enough to strengthen negotiation posture,
++              approval discipline, and commercial judgment.
++            </p>
++
++            <div className="mt-8 grid gap-4 md:grid-cols-3">
++              {pillars.map((pillar) => (
++                <div
++                  key={pillar.title}
++                  className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
++                >
++                  <h3 className="text-base font-semibold text-neutral-950">{pillar.title}</h3>
++                  <p className="mt-3 text-sm leading-6 text-neutral-600">{pillar.body}</p>
++                </div>
++              ))}
++            </div>
++          </div>
++
++          <div className="rounded-[2rem] border border-neutral-200 bg-white p-8 shadow-sm">
++            <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++              Review doctrine
++            </div>
++
++            <h2 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
++              Built to strengthen judgment, not replace it.
++            </h2>
++
++            <div className="mt-5 space-y-4 text-sm leading-7 text-neutral-600">
++              <p>
++                VoxaRisk turns clause-level risk signals into a structured commercial review view.
++                It shows where exposure sits, why it matters, and what deserves immediate
++                attention first.
++              </p>
++
++              <p>
++                Final legal, commercial, and approval decisions remain with the user and their
++                advisers. VoxaRisk is intentionally positioned as contract risk intelligence, not
++                legal advice, certification, or approval.
++              </p>
++            </div>
++
++            <div className="mt-8 rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
++              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
++                Best fit
++              </div>
++              <div className="mt-3 text-sm leading-7 text-neutral-700">
++                In-house teams, founders, operators, and commercial leaders who need a fast,
++                structured exposure view before deeper legal review.
++              </div>
++            </div>
++          </div>
++        </div>
++      </section>
++    </main>
++  );
+ }
