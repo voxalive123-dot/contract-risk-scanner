@@ -152,6 +152,7 @@ function consequenceSummary(category?: string) {
   return categoryProfile(category).consequence;
 }
 
+
 function executiveSummary(
   severity: "LOW" | "MEDIUM" | "HIGH",
   riskCount: number,
@@ -162,61 +163,78 @@ function executiveSummary(
   const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
   const hasDisputeRisk = hasAnyCategory(uniqueCategories, DISPUTE_CATEGORIES);
   const hasEconomicRisk = hasAnyCategory(uniqueCategories, ECONOMIC_CATEGORIES);
+  const areaLabel = `${riskCount} priority risk area${riskCount === 1 ? "" : "s"}`;
 
   if (severity === "HIGH") {
+    if (riskCount >= 3 && hasControlRisk && hasEconomicRisk && hasDisputeRisk) {
+      return `This contract presents material structural exposure because commercial downside, operational leverage, and dispute positioning all appear to accumulate with the counterparty. ${areaLabel} should be addressed before acceptance.`;
+    }
+    if (riskCount >= 2 && hasControlRisk && hasEconomicRisk) {
+      return `This contract presents material structural exposure because the counterparty appears to hold both economic leverage and control over continuity or exit. ${areaLabel} should be addressed before acceptance.`;
+    }
+    if (riskCount >= 2 && hasControlRisk && hasDisputeRisk) {
+      return `This contract presents material structural exposure because counterparty-favored control rights are reinforced by unfavorable dispute positioning. ${areaLabel} should be addressed before acceptance.`;
+    }
+    if (riskCount >= 2 && hasEconomicRisk && hasDisputeRisk) {
+      return `This contract presents material structural exposure because downside economics appear difficult to resist and expensive to enforce in dispute. ${areaLabel} should be addressed before acceptance.`;
+    }
     if (primaryCategory === "indemnity") {
-      return `This contract presents material downside exposure driven by broad indemnity transfer. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material downside exposure because indemnity structure appears capable of transferring claim and cost burden onto your side. ${areaLabel} should be addressed before acceptance.`;
     }
     if (primaryCategory === "liability") {
-      return `This contract presents material downside exposure driven primarily by liability structure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material downside exposure because liability architecture appears misaligned with practical deal value and insurable risk. ${areaLabel} should be addressed before acceptance.`;
     }
     if (primaryCategory === "payment") {
-      return `This contract presents material commercial exposure driven by one-sided economic movement after signature. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material commercial exposure because the counterparty appears able to move pricing or charging mechanics after signature. ${areaLabel} should be addressed before acceptance.`;
     }
     if (primaryCategory === "termination") {
-      return `This contract presents material control risk because exit optionality appears to sit disproportionately with the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material control risk because exit optionality appears to sit disproportionately with the counterparty. ${areaLabel} should be addressed before acceptance.`;
     }
     if (primaryCategory === "service") {
-      return `This contract presents material operational exposure because service continuity can be disrupted on terms that favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material operational exposure because service continuity appears vulnerable to counterparty-controlled interruption rights. ${areaLabel} should be addressed before acceptance.`;
     }
     if (primaryCategory === "jurisdiction") {
-      return `This contract presents material dispute exposure because enforcement and venue appear structurally unfavorable. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+      return `This contract presents material dispute exposure because venue and enforcement mechanics appear structurally unfavorable. ${areaLabel} should be addressed before acceptance.`;
     }
-    if (hasControlRisk && hasDisputeRisk) {
-      return `This contract presents material structural exposure because operational control rights and dispute positioning both appear to favor the counterparty. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    if (hasControlRisk && hasEconomicRisk) {
-      return `This contract presents material structural exposure because the counterparty appears to hold both leverage over operations and disproportionate downside economics. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
-    }
-    return `This contract presents material structural exposure. ${riskCount} priority risk area${riskCount === 1 ? "" : "s"} should be addressed before acceptance.`;
+    return `This contract presents material structural exposure. ${areaLabel} should be addressed before acceptance.`;
   }
 
   if (severity === "MEDIUM") {
+    if (hasControlRisk && hasEconomicRisk) {
+      return "This contract contains meaningful structural exposure because economic pressure and control rights appear to reinforce each other in the counterparty's favor.";
+    }
+    if (hasControlRisk && hasDisputeRisk) {
+      return "This contract contains meaningful structural exposure because control rights may be difficult to resist once dispute mechanics also favor the counterparty.";
+    }
+    if (hasEconomicRisk && hasDisputeRisk) {
+      return "This contract contains meaningful structural exposure because commercial downside may be harder to challenge under the current dispute framework.";
+    }
     if (primaryCategory === "indemnity") {
-      return "This contract contains meaningful downside exposure because indemnity allocation may transfer disproportionate claim risk onto your side.";
+      return "This contract contains meaningful downside exposure because indemnity allocation may expand claim burden beyond a commercially balanced position.";
     }
     if (primaryCategory === "liability") {
-      return "This contract contains meaningful downside exposure through liability allocation that may exceed practical deal value.";
+      return "This contract contains meaningful downside exposure because liability structure may leave practical loss scenarios under-controlled.";
     }
     if (primaryCategory === "payment") {
-      return "This contract contains meaningful commercial downside because the economics may shift after signature.";
+      return "This contract contains meaningful commercial downside because economics may move after signature without equivalent protection for your side.";
     }
     if (primaryCategory === "termination") {
-      return "This contract contains meaningful control risk because the counterparty appears to retain stronger exit flexibility.";
+      return "This contract contains meaningful control risk because exit flexibility appears stronger on the counterparty side than on yours.";
     }
     if (primaryCategory === "service") {
-      return "This contract contains meaningful operational risk because service access may be interrupted on aggressive terms.";
+      return "This contract contains meaningful operational risk because service access may be vulnerable to aggressive interruption mechanics.";
     }
     if (primaryCategory === "jurisdiction") {
-      return "This contract contains meaningful dispute risk because forum and enforcement mechanics may work against your operating position.";
+      return "This contract contains meaningful dispute risk because venue and enforcement mechanics may not align with your operating position.";
     }
-    if (hasControlRisk && hasEconomicRisk) {
-      return "This contract contains meaningful downside exposure because commercial leverage and control rights appear to accumulate with the counterparty.";
-    }
-    return "This contract contains meaningful downside exposure. The current drafting should be reviewed with attention to leverage, control, and exit risk.";
+    return "This contract contains meaningful downside exposure. The current drafting is negotiable, but not clean enough for passive acceptance.";
   }
 
-  return "This contract shows limited structural risk on current rule detection, but acceptance should still depend on commercial context and dependency exposure.";
+  if (hasControlRisk && hasEconomicRisk) {
+    return "Current rule detection shows no major structural alert, but the contract still deserves a final check for combined control and commercial dependency.";
+  }
+
+  return "Current rule detection shows limited structural risk, but final acceptance should still depend on business dependency, leverage, and off-text commercial reality.";
 }
 
 function decisionPosture(
@@ -229,57 +247,19 @@ function decisionPosture(
   const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
   const hasDisputeRisk = hasAnyCategory(uniqueCategories, DISPUTE_CATEGORIES);
   const hasEconomicRisk = hasAnyCategory(uniqueCategories, ECONOMIC_CATEGORIES);
+  const areaLabel = `${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}`;
 
   if (severity === "HIGH") {
-    if (primaryCategory === "indemnity") {
+    if (topRiskCount >= 3 && hasControlRisk && hasEconomicRisk && hasDisputeRisk) {
       return {
         label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. Indemnity allocation appears capable of shifting disproportionate claim exposure onto your side across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
+        detail:
+          "Do not accept in current form. The contract appears to combine commercial downside, operational leverage, and unfavorable dispute positioning in a way that compounds counterparty advantage.",
         nextStep:
-          "Redraft the indemnity so scope, triggers, losses covered, and claim control rights are explicitly constrained.",
+          "Start with the highest-ranked clause, then remove the combined pattern of economic drift, control leverage, and adverse dispute mechanics.",
       };
     }
-    if (primaryCategory === "liability") {
-      return {
-        label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. Liability allocation appears capable of producing disproportionate downside across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
-        nextStep:
-          "Force a redraft of the liability architecture, including caps, carve-outs, and asymmetry in exposure.",
-      };
-    }
-    if (primaryCategory === "payment") {
-      return {
-        label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. The counterparty appears able to move commercial terms after signature across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
-        nextStep:
-          "Redline the pricing and change-control mechanics so economics cannot drift without a real exit option.",
-      };
-    }
-    if (primaryCategory === "termination") {
-      return {
-        label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. Exit optionality appears to sit disproportionately with the counterparty across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
-        nextStep:
-          "Rework termination rights, notice, and cure structure before the contract reaches approval.",
-      };
-    }
-    if (primaryCategory === "service") {
-      return {
-        label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. Service continuity appears exposed to counterparty-favored interruption mechanics across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
-        nextStep:
-          "Constrain suspension triggers, add notice discipline, and force a clear restoration mechanism.",
-      };
-    }
-    if (primaryCategory === "jurisdiction") {
-      return {
-        label: "Hold / Renegotiate",
-        detail: `Do not accept in current form. Venue and enforcement mechanics appear structurally unfavorable across ${topRiskCount || 1} priority area${topRiskCount === 1 ? "" : "s"}.`,
-        nextStep:
-          "Reposition governing law and dispute venue into a forum your business can realistically enforce and defend.",
-      };
-    }
-    if (hasControlRisk && hasEconomicRisk) {
+    if (topRiskCount >= 2 && hasControlRisk && hasEconomicRisk) {
       return {
         label: "Hold / Renegotiate",
         detail:
@@ -288,13 +268,70 @@ function decisionPosture(
           "Prioritize the top-ranked clauses first and remove the combination of economic drift and counterparty control.",
       };
     }
-    if (hasControlRisk && hasDisputeRisk) {
+    if (topRiskCount >= 2 && hasControlRisk && hasDisputeRisk) {
       return {
         label: "Hold / Renegotiate",
         detail:
           "Do not accept in current form. The contract appears to combine operational leverage with structurally unfavorable dispute positioning.",
         nextStep:
           "Tighten control rights first, then move dispute mechanics into a venue aligned with your operating reality.",
+      };
+    }
+    if (topRiskCount >= 2 && hasEconomicRisk && hasDisputeRisk) {
+      return {
+        label: "Hold / Renegotiate",
+        detail:
+          "Do not accept in current form. The contract appears to combine downside economics with a dispute framework that weakens your ability to resist or recover.",
+        nextStep:
+          "Neutralize the economic lever first, then reposition forum and enforcement mechanics before approval.",
+      };
+    }
+    if (primaryCategory === "indemnity") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Indemnity structure appears capable of shifting disproportionate claim exposure onto your side across ${areaLabel}.`,
+        nextStep:
+          "Redraft indemnity scope, covered losses, triggers, exclusions, and claim-control mechanics before the contract moves forward.",
+      };
+    }
+    if (primaryCategory === "liability") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Liability architecture appears capable of producing disproportionate downside across ${areaLabel}.`,
+        nextStep:
+          "Rebuild caps, carve-outs, and asymmetry so downside remains bounded and commercially proportionate.",
+      };
+    }
+    if (primaryCategory === "payment") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. The counterparty appears able to change commercial economics after signature across ${areaLabel}.`,
+        nextStep:
+          "Redline pricing, charging, and change-control mechanics so economics cannot move without your active consent or a real exit option.",
+      };
+    }
+    if (primaryCategory === "termination") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Exit optionality appears to sit disproportionately with the counterparty across ${areaLabel}.`,
+        nextStep:
+          "Rework termination rights, notice periods, cure mechanics, and transition protection before approval.",
+      };
+    }
+    if (primaryCategory === "service") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Service continuity appears exposed to counterparty-favored interruption mechanics across ${areaLabel}.`,
+        nextStep:
+          "Constrain suspension triggers, add notice discipline, and require a clear restoration path tied to objective conditions.",
+      };
+    }
+    if (primaryCategory === "jurisdiction") {
+      return {
+        label: "Hold / Renegotiate",
+        detail: `Do not accept in current form. Venue and enforcement mechanics appear structurally unfavorable across ${areaLabel}.`,
+        nextStep:
+          "Move governing law and dispute venue into a forum your business can realistically use, defend, and enforce.",
       };
     }
     return {
@@ -307,12 +344,76 @@ function decisionPosture(
   }
 
   if (severity === "MEDIUM") {
+    if (hasControlRisk && hasEconomicRisk) {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract remains negotiable, but the current drafting gives the counterparty a combined pattern of economic and operational leverage.",
+        nextStep:
+          "Focus first on the clauses that control price movement, continuity, and exit rather than spreading redlines too widely.",
+      };
+    }
+    if (hasControlRisk && hasDisputeRisk) {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract remains negotiable, but the current drafting combines control pressure with a dispute position that may be difficult to contest later.",
+        nextStep:
+          "Tighten the main leverage clauses first, then align forum and enforcement mechanics with your operating reality.",
+      };
+    }
+    if (hasEconomicRisk && hasDisputeRisk) {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract remains negotiable, but downside economics may be harder to resist under the current dispute framework.",
+        nextStep:
+          "Prioritize the clauses that shift money first, then reduce the cost of enforcing your position if a dispute emerges.",
+      };
+    }
+    if (primaryCategory === "payment") {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract is negotiable, but not clean enough for passive acceptance. Commercial mechanics appear capable of moving against you after signature.",
+        nextStep:
+          "Lock pricing, charging, and change-control language before the deal advances.",
+      };
+    }
+    if (primaryCategory === "termination" || primaryCategory === "service") {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract is negotiable, but not clean enough for passive acceptance. Control and continuity mechanics still give the counterparty meaningful leverage.",
+        nextStep:
+          "Use the priority risks to force clearer notice, cure, restoration, and termination discipline.",
+      };
+    }
+    if (primaryCategory === "jurisdiction") {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The contract is negotiable, but not clean enough for passive acceptance. Dispute mechanics may still work against your practical operating position.",
+        nextStep:
+          "Reposition governing law, forum, or escalation path before acceptance.",
+      };
+    }
     return {
       label: "Proceed with Negotiation",
       detail:
-        "The contract is not clean enough for passive acceptance. Meaningful structural issues are present, but they appear negotiable.",
+        "The contract is not clean enough for passive acceptance. Meaningful structural issues are present, but they still appear negotiable.",
       nextStep:
         "Use the priority risks to focus redlines on the clauses most likely to create leverage or downside.",
+    };
+  }
+
+  if (hasControlRisk && hasEconomicRisk) {
+    return {
+      label: "Proceed with Checks",
+      detail:
+        "No major structural alert is visible on current rule detection, but dependency and leverage should still be checked before acceptance.",
+      nextStep:
+        "Confirm that no pricing, control, or operational dependency sits outside the text reviewed here.",
     };
   }
 
