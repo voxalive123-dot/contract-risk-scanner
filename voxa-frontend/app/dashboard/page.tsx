@@ -152,6 +152,44 @@ function consequenceSummary(category?: string) {
   return categoryProfile(category).consequence;
 }
 
+function negotiationPriority(category?: string) {
+  switch (category) {
+    case "indemnity":
+      return "Limit indemnity scope, covered losses, claim control, defence costs, and third-party exposure.";
+    case "liability":
+      return "Set proportionate liability caps, define carve-outs carefully, and avoid uncapped general exposure.";
+    case "payment":
+      return "Fix price-change rights, charging triggers, renewal economics, and any unilateral commercial variation.";
+    case "termination":
+      return "Add notice runway, cure rights, transition support, and balanced termination rights.";
+    case "service":
+      return "Constrain suspension rights with objective triggers, notice, proportionality, and restoration obligations.";
+    case "jurisdiction":
+      return "Move governing law, forum, and enforcement mechanics into a commercially usable venue.";
+    default:
+      return "Clarify broad drafting, remove discretionary leverage, and convert vague rights into objective controls.";
+  }
+}
+
+function priorityReason(category?: string) {
+  switch (category) {
+    case "indemnity":
+      return "Indemnity clauses can transfer claim burden faster than ordinary liability wording.";
+    case "liability":
+      return "Liability architecture determines whether a bad event stays bounded or becomes disproportionate.";
+    case "payment":
+      return "Commercial drift after signature can destroy expected margin even when service delivery looks stable.";
+    case "termination":
+      return "Exit asymmetry gives one side optionality while the other carries planning risk.";
+    case "service":
+      return "Suspension mechanics can become operational leverage if not tied to disciplined triggers.";
+    case "jurisdiction":
+      return "A hostile or impractical forum can make even strong rights expensive to enforce.";
+    default:
+      return "Broad or vague drafting often becomes leverage only after dependency has formed.";
+  }
+}
+
 
 function executiveSummary(
   severity: "LOW" | "MEDIUM" | "HIGH",
@@ -430,6 +468,7 @@ export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
   const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("No file selected");
@@ -441,6 +480,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     setResult(null);
+    setErrorMessage(null);
 
     try {
       const res = await fetch("/api/analyze", {
@@ -454,7 +494,7 @@ export default function DashboardPage() {
       const textResponse = await res.text();
 
       if (!res.ok) {
-        alert("Analysis error: " + textResponse);
+        setErrorMessage(`Analysis failed: ${textResponse}`);
         return;
       }
 
@@ -462,7 +502,7 @@ export default function DashboardPage() {
       setResult(data);
     } catch (err) {
       console.error("FETCH ERROR:", err);
-      alert("Error analyzing contract: " + String(err));
+      setErrorMessage(`Error analyzing contract: ${String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -492,7 +532,7 @@ export default function DashboardPage() {
       setResult(data);
     } catch (err) {
       console.error("UPLOAD ERROR:", err);
-      alert("Error analyzing uploaded file: " + String(err));
+      setErrorMessage(`Error analyzing uploaded file: ${String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -510,6 +550,7 @@ export default function DashboardPage() {
 
   function handleFileSelection(file: File | null) {
     setResult(null);
+    setErrorMessage(null);
     setSelectedFile(file);
 
     if (!file) {
@@ -529,6 +570,7 @@ export default function DashboardPage() {
 
   function clearUpload() {
     setSelectedFile(null);
+    setErrorMessage(null);
     setUploadLabel("No file selected");
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -589,6 +631,14 @@ export default function DashboardPage() {
     inputMode === "file"
       ? "Upload PDF, JPG, PNG, or WEBP. Camera capture will be processed as image OCR."
       : "Start with liability, indemnity, pricing, suspension, termination, and governing law clauses for the fastest first-pass signal.";
+
+  const lowConfidenceNotice =
+    result &&
+    ((typeof result.confidence_hint === "number" && result.confidence_hint < 0.7) ||
+      (typeof confidence === "number" && confidence > 0 && confidence < 0.55));
+
+  const decisionBoundaryNotice =
+    "VoxaRisk provides automated contract risk intelligence, not legal advice or approval. Use these findings to focus review, negotiation, and escalation decisions.";
 
   return (
     <div className="min-h-screen bg-neutral-100 px-6 py-8 text-neutral-900 md:px-8">
@@ -740,6 +790,12 @@ export default function DashboardPage() {
             className="min-h-[220px] w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-neutral-400"
           />
 
+          {errorMessage && (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
+              {errorMessage}
+            </div>
+          )}
+
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-sm text-neutral-500">{intakeGuidance}</div>
 
@@ -854,6 +910,17 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {lowConfidenceNotice && (
+                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <div className="text-xs font-medium uppercase tracking-[0.2em] text-amber-700">
+                      Confidence warning
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-amber-800">
+                      Extraction or rules confidence is limited. Treat this result as a triage signal and verify the underlying clause text before relying on the review output.
+                    </p>
+                  </div>
+                )}
+
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                     <div className="text-xs uppercase tracking-wide text-neutral-500">
@@ -914,6 +981,63 @@ export default function DashboardPage() {
                     {posture?.nextStep}
                   </p>
                 </div>
+
+                <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+                  <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    Decision boundary
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-neutral-600">
+                    {decisionBoundaryNotice}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-wrap items-start justify-between gap-4">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Negotiation Priorities
+                  </div>
+                  <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
+                    What to redline first
+                  </h3>
+                  <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                    Ordered by detected severity and review priority. Use this as a negotiation agenda, not as legal approval or final acceptance guidance.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                {(topRisks.length ? topRisks : findings).slice(0, 3).map((item, index) => {
+                  const category = item.category ?? "";
+                  const title = item.title ?? "Unlabeled risk";
+
+                  return (
+                    <div
+                      key={`negotiation-${title}-${index}`}
+                      className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                    >
+                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        Redline {index + 1}
+                      </div>
+                      <h4 className="mt-2 text-base font-semibold text-neutral-950">
+                        {title}
+                      </h4>
+                      <p className="mt-3 text-sm leading-6 text-neutral-700">
+                        {negotiationPriority(category)}
+                      </p>
+                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
+                        <div className="text-xs uppercase tracking-wide text-neutral-500">
+                          Why first
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-neutral-600">
+                          {priorityReason(category)}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
