@@ -1,0 +1,15 @@
+server {
+    listen 80;
+    server_name voxarisk.com www.voxarisk.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:3000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    }
+}
+
+# HTTPS/TLS block intentionally omitted here because certificate setup
+# depends on the actual host and ACME approach. Add the final TLS-enabled
+# server block only on the target host after DNS is confirmed.

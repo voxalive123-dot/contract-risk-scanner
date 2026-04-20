@@ -1,0 +1,16 @@
+[Unit]
+Description=VoxaRisk Next.js frontend
+After=network.target
+
+[Service]
+Type=simple
+User=<DEPLOY_USER>
+WorkingDirectory=<DEPLOY_PATH>/contract_scanner/voxa-frontend
+Environment=NODE_ENV=production
+EnvironmentFile=<DEPLOY_PATH>/contract_scanner/voxa-frontend/.env.local
+ExecStart=/usr/bin/npm run start
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

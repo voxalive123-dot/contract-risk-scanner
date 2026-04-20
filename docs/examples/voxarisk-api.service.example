@@ -1,0 +1,15 @@
+[Unit]
+Description=VoxaRisk FastAPI backend
+After=network.target
+
+[Service]
+Type=simple
+User=<DEPLOY_USER>
+WorkingDirectory=<DEPLOY_PATH>/contract_scanner
+EnvironmentFile=<DEPLOY_PATH>/contract_scanner/.env
+ExecStart=<DEPLOY_PATH>/contract_scanner/.venv/bin/uvicorn main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
