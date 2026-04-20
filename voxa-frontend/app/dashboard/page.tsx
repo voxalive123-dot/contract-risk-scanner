@@ -519,7 +519,9 @@ export default function DashboardPage() {
       const textResponse = await res.text();
 
       if (!res.ok) {
-        setErrorMessage(`Analysis failed: ${textResponse}`);
+        setErrorMessage(
+          `Analysis could not be completed. ${textResponse} Review the source text or input format and try again.`,
+        );
         return;
       }
 
@@ -528,7 +530,9 @@ export default function DashboardPage() {
       setReportGeneratedAt(new Date().toISOString());
     } catch (err) {
       console.error("FETCH ERROR:", err);
-      setErrorMessage(`Error analyzing contract: ${String(err)}`);
+      setErrorMessage(
+        `Analysis could not be completed at this time. Review the source text or try again in a moment. ${String(err)}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -552,7 +556,9 @@ export default function DashboardPage() {
       const textResponse = await res.text();
 
       if (!res.ok) {
-        alert("Analysis error: " + textResponse);
+        setErrorMessage(
+          `Analysis could not be completed. ${textResponse} Review the source file or try a clearer PDF or image.`,
+        );
         return;
       }
 
@@ -561,7 +567,9 @@ export default function DashboardPage() {
       setReportGeneratedAt(new Date().toISOString());
     } catch (err) {
       console.error("UPLOAD ERROR:", err);
-      setErrorMessage(`Error analyzing uploaded file: ${String(err)}`);
+      setErrorMessage(
+        `Analysis could not be completed from the uploaded file. Review the source file quality or try again. ${String(err)}`,
+      );
     } finally {
       setLoading(false);
     }
@@ -659,8 +667,8 @@ export default function DashboardPage() {
 
   const intakeGuidance =
     inputMode === "file"
-      ? "Upload PDF, JPG, PNG, or WEBP. Camera capture will be processed as image OCR."
-      : "Start with liability, indemnity, pricing, suspension, termination, and governing law clauses for the fastest first-pass signal.";
+      ? "Upload PDF, JPG, PNG, or WEBP. For stronger first-pass signal, use legible source files and check clause evidence if OCR confidence is limited."
+      : "Start with liability, indemnity, pricing, suspension, termination, and governing law clauses for the strongest first-pass signal.";
 
   const lowConfidenceNotice =
     result &&
@@ -668,7 +676,7 @@ export default function DashboardPage() {
       (typeof confidence === "number" && confidence > 0 && confidence < 0.55));
 
   const decisionBoundaryNotice =
-    "VoxaRisk provides automated contract risk intelligence, not legal advice or approval. Use these findings to focus review, negotiation, and escalation decisions.";
+    "VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance.";
   const reportBoundaryNotice =
     "VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.";
   const effectiveConfidence =
@@ -873,7 +881,23 @@ export default function DashboardPage() {
 
         {isPreAnalysis && (
           <div className="report-print-hidden mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-3">
+            <div className="mb-6 flex flex-col gap-3 border-b border-neutral-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                  First-use guidance
+                </div>
+                <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                  Review flow for a clean first pass
+                </h2>
+              </div>
+              <p className="max-w-3xl text-sm leading-6 text-neutral-600">
+                Paste text or upload a supported document, run review, read the
+                Decision Signal first, then move into Negotiation Priorities,
+                clause evidence, and report export if the result needs to travel.
+              </p>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-4">
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
                   Best input
@@ -887,11 +911,21 @@ export default function DashboardPage() {
 
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                  Review order
+                </div>
+                <p className="mt-3 text-sm leading-6 text-neutral-700">
+                  Read Decision Signal first, then review negotiation priorities
+                  before moving into clause evidence and technical detail.
+                </p>
+              </div>
+
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
                   What returns
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
-                  The engine will rank exposure, surface priority risks, and show
-                  evidence-backed review points for negotiation or escalation.
+                  The engine will rank exposure, surface prioritised review focus,
+                  and show evidence-backed risk signals for negotiation or escalation.
                 </p>
               </div>
 
@@ -900,8 +934,9 @@ export default function DashboardPage() {
                   Review posture
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
-                  This is a decision-support screen, not auto-approval. Use it to
-                  identify where the contract may create asymmetric leverage or downside.
+                  Users remain responsible for commercial and legal decisions.
+                  Professional review remains appropriate where consequence,
+                  complexity, or source quality warrants escalation.
                 </p>
               </div>
             </div>
@@ -978,7 +1013,9 @@ export default function DashboardPage() {
                       Confidence warning
                     </div>
                     <p className="mt-2 text-sm leading-6 text-amber-800">
-                      Extraction or rules confidence is limited. Treat this result as a triage signal and verify the underlying clause text before relying on the review output.
+                      Extraction or rules confidence is limited. Treat this result
+                      as structured review support, verify the underlying clause
+                      text, and obtain professional review where appropriate.
                     </p>
                   </div>
                 )}
@@ -1044,12 +1081,27 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
+                <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                  <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    How to use this result
+                  </div>
+                  <p className="mt-2 text-sm leading-6 text-neutral-700">
+                    Use this output to focus review, align negotiation, inspect
+                    evidence, and generate a report-ready summary for internal
+                    decision-makers if needed.
+                  </p>
+                </div>
+
                 <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
                   <div className="text-xs uppercase tracking-wide text-neutral-500">
                     Decision boundary
                   </div>
                   <p className="mt-2 text-sm leading-6 text-neutral-600">
                     {decisionBoundaryNotice}
+                  </p>
+                  <p className="mt-2 text-sm leading-6 text-neutral-600">
+                    Users remain responsible for commercial and legal decisions
+                    and should obtain professional advice where appropriate.
                   </p>
                 </div>
               </div>
@@ -1065,7 +1117,9 @@ export default function DashboardPage() {
                     What to redline first
                   </h3>
                   <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
-                    Ordered by detected severity and review priority. Use this as a negotiation agenda, not as legal approval or final acceptance guidance.
+                    Ordered by detected severity and review priority. Use this as
+                    a negotiation agenda and structured review aid, not as final
+                    approval guidance.
                   </p>
                 </div>
               </div>
@@ -1290,7 +1344,9 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-500">
-                    No detailed findings returned.
+                    No material automated risk signals were elevated into detailed
+                    findings for this scan. This is a low-signal result, not a
+                    clearance outcome.
                   </div>
                 )}
               </div>
@@ -1309,7 +1365,7 @@ export default function DashboardPage() {
               </h2>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
                 Generate a print-ready executive report from the current dashboard
-                analysis result.
+                analysis result when the review needs to travel beyond the screen.
               </p>
             </div>
 
