@@ -1,5 +1,7 @@
 "use client";
 
+import Image from "next/image";
+import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
 
 type ScoreAdjustment = {
@@ -47,6 +49,45 @@ type AnalyzeResult = {
   page_count?: number | null;
   has_extractable_text?: boolean | null;
 };
+
+function DashboardHeader() {
+  return (
+    <header className="report-print-hidden border-b border-[#dccaa8] bg-[#f7f3ea]/95 backdrop-blur">
+      <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 md:px-8">
+        <Link href="/" className="flex items-center gap-4">
+          <Image
+            src="/brand/voxa-circle-logo.png"
+            alt="VOXA"
+            width={76}
+            height={76}
+            className="h-[76px] w-[76px] rounded-full object-cover shadow-[0_10px_24px_rgba(80,60,30,0.12)]"
+            priority
+          />
+          <div>
+            <div className="text-[15px] font-semibold uppercase tracking-[0.34em] text-neutral-950">
+              VOXARISK
+            </div>
+            <div className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+              Contract Risk Intelligence
+            </div>
+          </div>
+        </Link>
+
+        <nav className="flex items-center gap-3 text-sm text-neutral-700">
+          <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#efe4d0] hover:text-neutral-950">
+            Product
+          </Link>
+          <Link href="/pricing" className="rounded-full border border-[#cbb891] bg-[#fcf2df] px-4 py-2 font-medium text-[#6f552d] transition hover:bg-[#efe4d0]">
+            Pricing
+          </Link>
+          <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-medium text-stone-100">
+            Dashboard
+          </Link>
+        </nav>
+      </div>
+    </header>
+  );
+}
 
 function severityTone(severity?: number) {
   if ((severity ?? 0) >= 4) return "High";
@@ -667,7 +708,7 @@ export default function DashboardPage() {
 
   const intakeGuidance =
     inputMode === "file"
-      ? "Upload PDF, JPG, PNG, or WEBP. For stronger first-pass signal, use legible source files and check clause evidence if OCR confidence is limited."
+      ? "Upload PDF, JPG, PNG, or WEBP. For stronger first-pass signal, use legible source files and check clause evidence if Text capture is limited."
       : "Start with liability, indemnity, pricing, suspension, termination, and governing law clauses for the strongest first-pass signal.";
 
   const lowConfidenceNotice =
@@ -711,59 +752,66 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-neutral-100 px-6 py-8 text-neutral-900 md:px-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="report-print-hidden mb-8 flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f7f3ea_0%,#f1e5cf_100%)] text-neutral-950">
+      <DashboardHeader />
+      <div className="mx-auto max-w-7xl px-6 py-8 md:px-8">
+        <div className="report-print-hidden mb-8 flex flex-col gap-4 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-8 shadow-[0_12px_28px_rgba(80,60,30,0.06)] lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+            <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
               VoxaRisk Intelligence
             </div>
             <h1 className="mt-3 text-4xl font-semibold tracking-tight text-neutral-950">
               Executive Contract Risk Review
             </h1>
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+            <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
               Automated contract risk intelligence to surface structural exposure,
               negotiation pressure points, and evidence-backed review priorities before
               commercial acceptance.
             </p>
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">Engine</div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">
-                {result ? rulesetVersion : "Ready"}
+          <div className="grid min-w-full grid-cols-2 gap-3 sm:min-w-[460px] sm:grid-cols-4">
+            <div className="flex min-h-[86px] flex-col items-center justify-center rounded-2xl border border-[#d2bd96] bg-[#fcf2df] px-4 py-4 text-center shadow-[0_8px_18px_rgba(80,60,30,0.05)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                Status
+              </div>
+              <div className="mt-2.5 text-[15px] font-semibold leading-5 text-neutral-950">
+                {result ? "Complete" : "Ready"}
               </div>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">Confidence</div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">
-                {result ? confidence.toFixed(2) : "Awaiting input"}
+            <div className="flex min-h-[86px] flex-col items-center justify-center rounded-2xl border border-[#d2bd96] bg-[#fcf2df] px-4 py-4 text-center shadow-[0_8px_18px_rgba(80,60,30,0.05)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                Source
+              </div>
+              <div className="mt-2.5 text-[15px] font-semibold leading-5 text-neutral-950">
+                {result ? (result.source_type ? result.source_type.toUpperCase() : inputMode === "file" ? "FILE" : "TEXT") : "Pending"}
               </div>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">Words</div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">
-                {result ? wordCount : "No text"}
+            <div className="flex min-h-[86px] flex-col items-center justify-center rounded-2xl border border-[#d2bd96] bg-[#fcf2df] px-4 py-4 text-center shadow-[0_8px_18px_rgba(80,60,30,0.05)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                Words
+              </div>
+              <div className="mt-2.5 text-[15px] font-semibold leading-5 text-neutral-950">
+                {result ? wordCount : "None"}
               </div>
             </div>
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-              <div className="text-xs uppercase tracking-wide text-neutral-500">
-                Rules Matched
+            <div className="flex min-h-[86px] flex-col items-center justify-center rounded-2xl border border-[#d2bd96] bg-[#fcf2df] px-4 py-4 text-center shadow-[0_8px_18px_rgba(80,60,30,0.05)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                Findings
               </div>
-              <div className="mt-1 text-sm font-semibold text-neutral-900">
-                {result ? matchedRuleCount : "No scan"}
+              <div className="mt-2.5 text-[15px] font-semibold leading-5 text-neutral-950">
+                {result ? matchedRuleCount : "None"}
               </div>
             </div>
           </div>
         </div>
 
-        <div className="report-print-hidden mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-neutral-950">Contract Input</h2>
-              <p className="mt-1 text-sm text-neutral-500">
-                Use pasted text or upload a contract file for structural exposure review.
+              <p className="mt-1 text-sm text-[#8f7245]">
+                Paste contract text or upload a contract file for structural exposure review.
               </p>
             </div>
             <div className="text-xs text-neutral-400">Local secure proxy enabled</div>
@@ -775,8 +823,8 @@ export default function DashboardPage() {
               onClick={() => setInputMode("text")}
               className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
                 inputMode === "text"
-                  ? "border-neutral-900 bg-neutral-900 text-white"
-                  : "border-neutral-200 bg-white text-neutral-700"
+                  ? "border-[#11110f] bg-[#11110f] text-stone-100"
+                  : "border-[#dccaa8] bg-[#fffaf0] text-neutral-700"
               }`}
             >
               Paste text
@@ -789,8 +837,8 @@ export default function DashboardPage() {
               }}
               className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
                 inputMode === "file"
-                  ? "border-neutral-900 bg-neutral-900 text-white"
-                  : "border-neutral-200 bg-white text-neutral-700"
+                  ? "border-[#11110f] bg-[#11110f] text-stone-100"
+                  : "border-[#dccaa8] bg-[#fffaf0] text-neutral-700"
               }`}
             >
               Upload PDF / Image
@@ -801,7 +849,7 @@ export default function DashboardPage() {
                 setInputMode("file");
                 cameraInputRef.current?.click();
               }}
-              className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700"
+              className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-neutral-700"
             >
               Use camera
             </button>
@@ -809,7 +857,7 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={clearUpload}
-                className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-medium text-neutral-700"
+                className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-neutral-700"
               >
                 Clear file
               </button>
@@ -833,14 +881,14 @@ export default function DashboardPage() {
             onChange={onFileInputChange}
           />
 
-          <div className="mb-4 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50 p-4">
-            <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+          <div className="mb-4 rounded-2xl border border-dashed border-[#d6c4a0] bg-[#fcf2df] p-4">
+            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
               Intake mode
             </div>
             <div className="mt-2 text-sm text-neutral-700">
               {inputMode === "file"
                 ? `File mode active. ${uploadLabel}`
-                : "Text mode active. Paste contract language, key clauses, or the full agreement below."}
+                : "Text mode active. Paste key clauses or the full contract text below."}
             </div>
           </div>
 
@@ -856,8 +904,8 @@ export default function DashboardPage() {
                 if (cameraInputRef.current) cameraInputRef.current.value = "";
               }
             }}
-            placeholder="Paste contract language, key clauses, or the full agreement text here..."
-            className="min-h-[220px] w-full rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-neutral-400"
+            placeholder="Paste key clauses or the full contract text here..."
+            className="min-h-[220px] w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
           />
 
           {errorMessage && (
@@ -867,12 +915,12 @@ export default function DashboardPage() {
           )}
 
           <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div className="text-sm text-neutral-500">{intakeGuidance}</div>
+            <div className="text-sm text-[#8f7245]">{intakeGuidance}</div>
 
             <button
               onClick={runReview}
               disabled={loading || !hasInput}
-              className="rounded-2xl bg-black px-6 py-3 text-sm font-medium text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-[#11110f] px-6 py-3 text-sm font-semibold text-stone-100 shadow-[0_10px_22px_rgba(80,60,30,0.14)] transition hover:bg-[#1a1a17] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {loading ? "Reviewing..." : "Run Executive Review"}
             </button>
@@ -880,17 +928,17 @@ export default function DashboardPage() {
         </div>
 
         {isPreAnalysis && (
-          <div className="report-print-hidden mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-            <div className="mb-6 flex flex-col gap-3 border-b border-neutral-200 pb-6 lg:flex-row lg:items-end lg:justify-between">
+          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+            <div className="mb-6 flex flex-col gap-3 border-b border-[#dccaa8] pb-6 lg:flex-row lg:items-end lg:justify-between">
               <div>
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                   First-use guidance
                 </div>
                 <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
                   Review flow for a clean first pass
                 </h2>
               </div>
-              <p className="max-w-3xl text-sm leading-6 text-neutral-600">
+              <p className="max-w-3xl text-sm leading-6 text-neutral-700">
                 Paste text or upload a supported document, run review, read the
                 Decision Signal first, then move into Negotiation Priorities,
                 clause evidence, and report export if the result needs to travel.
@@ -898,8 +946,8 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-4">
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                   Best input
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -909,8 +957,8 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                   Review order
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -919,8 +967,8 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                   What returns
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -929,8 +977,8 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+              <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                   Review posture
                 </div>
                 <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -946,16 +994,16 @@ export default function DashboardPage() {
         {result && (
           <div className="report-print-hidden space-y-8">
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                       Decision Signal
                     </div>
                     <h2 className="mt-2 text-2xl font-semibold text-neutral-950">
                       {scoreBand(normalizedScore, result.severity)} exposure
                     </h2>
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
                       {primarySummary}
                     </p>
                   </div>
@@ -970,8 +1018,8 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Risk score
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-neutral-950">
@@ -979,8 +1027,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Source type
                     </div>
                     <div className="mt-2 text-base font-semibold text-neutral-950">
@@ -988,8 +1036,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Extraction
                     </div>
                     <div className="mt-2 text-base font-semibold text-neutral-950">
@@ -997,14 +1045,20 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Flags
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-neutral-950">
                       {result.flags.length}
                     </div>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm leading-6 text-neutral-700">
+                  <span className="font-semibold text-neutral-950">Risk score:</span>{" "}
+                  a 0–100 scan signal based on detected contract risk patterns. Read it together
+                  with Severity, Source Type, Extraction, and Flags to understand the review signal.
                 </div>
 
                 {lowConfidenceNotice && (
@@ -1021,27 +1075,27 @@ export default function DashboardPage() {
                 )}
 
                 <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      Contradictions
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                      Conflicts
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-neutral-950">
                       {contradictionCount}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      Suppressed
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                      Filtered
                     </div>
                     <div className="mt-2 text-2xl font-semibold text-neutral-950">
                       {suppressedRuleCount}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
-                      OCR confidence
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                      Text capture
                     </div>
                     <div className="mt-2 text-base font-semibold text-neutral-950">
                       {typeof result.confidence_hint === "number"
@@ -1050,8 +1104,8 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Pages
                     </div>
                     <div className="mt-2 text-base font-semibold text-neutral-950">
@@ -1059,21 +1113,27 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm leading-6 text-neutral-700">
+                  <span className="font-semibold text-neutral-950">Panel note:</span>{" "}
+                  the score summarizes detected risk signals. The supporting fields show source,
+                  extraction, flags, conflicts, filtering, text capture, and page context.
+                </div>
               </div>
 
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+              <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                   Decision Posture
                 </div>
                 <div className="mt-3 text-2xl font-semibold text-neutral-950">
                   {posture?.label}
                 </div>
-                <p className="mt-3 text-sm leading-6 text-neutral-600">
+                <p className="mt-3 text-sm leading-6 text-neutral-700">
                   {posture?.detail}
                 </p>
 
-                <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="text-xs uppercase tracking-wide text-neutral-500">
+                <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                  <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                     Immediate next step
                   </div>
                   <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1081,8 +1141,8 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                  <div className="text-xs uppercase tracking-wide text-neutral-500">
+                <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                  <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                     How to use this result
                   </div>
                   <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1092,14 +1152,14 @@ export default function DashboardPage() {
                   </p>
                 </div>
 
-                <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
-                  <div className="text-xs uppercase tracking-wide text-neutral-500">
+                <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                  <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                     Decision boundary
                   </div>
-                  <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  <p className="mt-2 text-sm leading-6 text-neutral-700">
                     {decisionBoundaryNotice}
                   </p>
-                  <p className="mt-2 text-sm leading-6 text-neutral-600">
+                  <p className="mt-2 text-sm leading-6 text-neutral-700">
                     Users remain responsible for commercial and legal decisions
                     and should obtain professional advice where appropriate.
                   </p>
@@ -1107,16 +1167,16 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+            <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Negotiation Priorities
                   </div>
                   <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
-                    What to redline first
+                    Review agenda
                   </h3>
-                  <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                  <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
                     Ordered by detected severity and review priority. Use this as
                     a negotiation agenda and structured review aid, not as final
                     approval guidance.
@@ -1132,9 +1192,9 @@ export default function DashboardPage() {
                   return (
                     <div
                       key={`negotiation-${title}-${index}`}
-                      className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                      className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                     >
-                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                         Redline {index + 1}
                       </div>
                       <h4 className="mt-2 text-base font-semibold text-neutral-950">
@@ -1143,11 +1203,11 @@ export default function DashboardPage() {
                       <p className="mt-3 text-sm leading-6 text-neutral-700">
                         {negotiationPriority(category)}
                       </p>
-                      <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
-                        <div className="text-xs uppercase tracking-wide text-neutral-500">
+                      <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                           Why first
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-neutral-600">
+                        <p className="mt-2 text-sm leading-6 text-neutral-700">
                           {priorityReason(category)}
                         </p>
                       </div>
@@ -1158,10 +1218,10 @@ export default function DashboardPage() {
             </div>
 
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+              <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                 <div className="flex items-center justify-between gap-4">
                   <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                       Priority Risks
                     </div>
                     <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
@@ -1179,11 +1239,11 @@ export default function DashboardPage() {
                     return (
                       <div
                         key={`${title}-${index}`}
-                        className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                        className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div>
-                            <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                               Priority {index + 1}
                             </div>
                             <h4 className="mt-2 text-lg font-semibold text-neutral-950">
@@ -1191,14 +1251,14 @@ export default function DashboardPage() {
                             </h4>
                           </div>
 
-                          <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                          <div className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs font-medium text-neutral-700">
                             {severityTone(severity)} impact
                           </div>
                         </div>
 
                         <div className="mt-4 grid gap-4 md:grid-cols-3">
                           <div>
-                            <div className="text-xs uppercase tracking-wide text-neutral-500">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                               Recommended focus
                             </div>
                             <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1207,7 +1267,7 @@ export default function DashboardPage() {
                           </div>
 
                           <div>
-                            <div className="text-xs uppercase tracking-wide text-neutral-500">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                               Recommended action
                             </div>
                             <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1216,7 +1276,7 @@ export default function DashboardPage() {
                           </div>
 
                           <div>
-                            <div className="text-xs uppercase tracking-wide text-neutral-500">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                               Why this matters
                             </div>
                             <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1230,14 +1290,14 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-                <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+              <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                   Technical Detail
                 </div>
 
                 <div className="mt-4 space-y-3">
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Flags raised
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
@@ -1245,19 +1305,19 @@ export default function DashboardPage() {
                         result.flags.map((flag) => (
                           <span
                             key={flag}
-                            className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
+                            className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs text-neutral-700"
                           >
                             {flag}
                           </span>
                         ))
                       ) : (
-                        <span className="text-sm text-neutral-500">No flags returned.</span>
+                        <span className="text-sm text-[#8f7245]">No flags returned.</span>
                       )}
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                    <div className="text-xs uppercase tracking-wide text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Score adjustments
                     </div>
                     <div className="mt-2 space-y-2">
@@ -1270,7 +1330,7 @@ export default function DashboardPage() {
                           </div>
                         ))
                       ) : (
-                        <div className="text-sm text-neutral-500">
+                        <div className="text-sm text-[#8f7245]">
                           No score adjustments returned.
                         </div>
                       )}
@@ -1278,8 +1338,8 @@ export default function DashboardPage() {
                   </div>
 
                   {result.source_type && result.source_type !== "text" && (
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Intake diagnostics
                       </div>
                       <div className="mt-2 space-y-2 text-sm text-neutral-700">
@@ -1298,8 +1358,8 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
-              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+            <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+              <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                 Clause Evidence
               </div>
               <div className="mt-4 space-y-4">
@@ -1307,19 +1367,19 @@ export default function DashboardPage() {
                   findings.map((finding, index) => (
                     <div
                       key={`${finding.rule_id ?? "finding"}-${index}`}
-                      className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                      className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <h4 className="text-lg font-semibold text-neutral-950">
                             {finding.title ?? "Unlabeled finding"}
                           </h4>
-                          <div className="mt-1 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                          <div className="mt-1 text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                             {finding.category ?? "uncategorized"}
                           </div>
                         </div>
 
-                        <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                        <div className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs font-medium text-neutral-700">
                           {severityTone(finding.severity)} impact
                         </div>
                       </div>
@@ -1331,8 +1391,8 @@ export default function DashboardPage() {
                       )}
 
                       {finding.matched_text && (
-                        <div className="mt-4 rounded-2xl border border-neutral-200 bg-white p-4">
-                          <div className="text-xs uppercase tracking-wide text-neutral-500">
+                        <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                          <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                             Matched text
                           </div>
                           <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1343,7 +1403,7 @@ export default function DashboardPage() {
                     </div>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm text-neutral-500">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
                     No material automated risk signals were elevated into detailed
                     findings for this scan. This is a low-signal result, not a
                     clearance outcome.
@@ -1354,16 +1414,16 @@ export default function DashboardPage() {
           </div>
         )}
 
-        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm md:p-8">
-          <div className="report-print-hidden flex flex-col gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+        <section className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] md:p-8">
+          <div className="report-print-hidden flex flex-col gap-4 border-b border-[#dccaa8] pb-6 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+              <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                 Report Layer
               </div>
               <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
                 Contract Risk Intelligence Report
               </h2>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">
                 Generate a print-ready executive report from the current dashboard
                 analysis result when the review needs to travel beyond the screen.
               </p>
@@ -1373,12 +1433,12 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={handlePrintReport}
-                className="rounded-2xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+                className="rounded-2xl bg-[#11110f] px-5 py-3 text-sm font-medium text-stone-100 transition hover:opacity-90"
               >
                 Report / Export
               </button>
             ) : (
-              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+              <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-3 text-sm text-neutral-700">
                 Run a contract analysis first to generate a report.
               </div>
             )}
@@ -1387,50 +1447,50 @@ export default function DashboardPage() {
           {result ? (
             <div
               data-report-root
-              className="report-surface mx-auto mt-8 max-w-5xl rounded-[28px] border border-neutral-200 bg-white p-8 md:p-10"
+              className="report-surface mx-auto mt-8 max-w-5xl rounded-[28px] border border-[#dccaa8] bg-[#fffaf0] p-8 md:p-10"
             >
-              <header className="border-b border-neutral-200 pb-8">
+              <header className="border-b border-[#dccaa8] pb-8">
                 <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
                   <div>
-                    <div className="text-sm font-semibold uppercase tracking-[0.28em] text-neutral-500">
+                    <div className="text-sm font-semibold uppercase tracking-[0.28em] text-[#8f7245]">
                       VoxaRisk
                     </div>
                     <h3 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
                       Contract Risk Intelligence Report
                     </h3>
-                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
                       Executive-grade output derived from the current automated
                       contract risk analysis result.
                     </p>
                   </div>
 
                   <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                         Generated
                       </div>
                       <div className="mt-2 text-sm font-semibold text-neutral-950">
                         {reportGeneratedLabel}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                         Ruleset
                       </div>
                       <div className="mt-2 text-sm font-semibold text-neutral-950">
                         {rulesetVersion}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                         Confidence
                       </div>
                       <div className="mt-2 text-sm font-semibold text-neutral-950">
                         {reportConfidenceLabel}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
-                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                         Decision posture
                       </div>
                       <div className="mt-2 text-sm font-semibold text-neutral-950">
@@ -1440,8 +1500,8 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Boundary
                   </div>
                   <p className="mt-3 text-sm leading-6 text-neutral-700">
@@ -1451,8 +1511,8 @@ export default function DashboardPage() {
               </header>
 
               <div className="report-page-break mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-                <section className="rounded-3xl border border-neutral-200 bg-neutral-50 p-6">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                <section className="rounded-3xl border border-[#dccaa8] bg-[#fcf2df] p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Executive Summary
                   </div>
                   <h4 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
@@ -1463,24 +1523,24 @@ export default function DashboardPage() {
                 </section>
 
                 <section className="grid gap-4">
-                  <div className="rounded-3xl border border-neutral-200 bg-white p-5">
-                    <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                       Decision Signal
                     </div>
                     <div className="mt-2 text-xl font-semibold text-neutral-950">
                       {scoreBand(normalizedScore, result.severity)} exposure
                     </div>
-                    <p className="mt-2 text-sm text-neutral-600">{result.severity} severity</p>
+                    <p className="mt-2 text-sm text-neutral-700">{result.severity} severity</p>
                   </div>
 
-                  <div className="rounded-3xl border border-neutral-200 bg-white p-5">
-                    <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                       Risk Score
                     </div>
                     <div className="mt-2 text-3xl font-semibold text-neutral-950">
                       {normalizedScore}
                     </div>
-                    <p className="mt-2 text-sm text-neutral-600">
+                    <p className="mt-2 text-sm text-neutral-700">
                       {matchedRuleCount} matched rule{matchedRuleCount === 1 ? "" : "s"} and{" "}
                       {result.flags.length} flag{result.flags.length === 1 ? "" : "s"}.
                     </p>
@@ -1488,17 +1548,17 @@ export default function DashboardPage() {
                 </section>
               </div>
 
-              <section className="report-page-break mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
+              <section className="report-page-break mt-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                   <div>
-                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
-                      Negotiation Priorities
+                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
+                      Review agenda
                     </div>
                     <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
-                      What to redline first
+                      Negotiation priorities
                     </h4>
                   </div>
-                  <div className="text-sm text-neutral-500">
+                  <div className="text-sm text-[#8f7245]">
                     Focus the first pass on leverage, downside transfer, and adverse
                     dispute positioning.
                   </div>
@@ -1513,9 +1573,9 @@ export default function DashboardPage() {
                       return (
                         <div
                           key={`report-priority-${title}-${index}`}
-                          className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                          className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                         >
-                          <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                          <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                             Priority {index + 1}
                           </div>
                           <h5 className="mt-2 text-base font-semibold text-neutral-950">
@@ -1524,14 +1584,14 @@ export default function DashboardPage() {
                           <p className="mt-3 text-sm leading-6 text-neutral-700">
                             {negotiationPriority(category)}
                           </p>
-                          <div className="mt-4 text-sm leading-6 text-neutral-600">
+                          <div className="mt-4 text-sm leading-6 text-neutral-700">
                             {priorityReason(category)}
                           </div>
                         </div>
                       );
                     })
                   ) : (
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700 lg:col-span-3">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm leading-6 text-neutral-700 lg:col-span-3">
                       No material automated risk signals were elevated into negotiation
                       priorities for this scan. This is a low-signal result, not a
                       clearance outcome or a substitute for commercial and legal review.
@@ -1540,9 +1600,9 @@ export default function DashboardPage() {
                 </div>
               </section>
 
-              <section className="report-page-break mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
+              <section className="report-page-break mt-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6">
                 <div>
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Findings
                   </div>
                   <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
@@ -1558,26 +1618,26 @@ export default function DashboardPage() {
                       return (
                         <article
                           key={`${finding.rule_id ?? "report-finding"}-${index}`}
-                          className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                          className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                         >
                           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                             <div>
                               <h5 className="text-lg font-semibold text-neutral-950">
                                 {finding.title ?? "Unlabeled finding"}
                               </h5>
-                              <div className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                              <div className="mt-2 text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                                 {category || "uncategorized"}
                               </div>
                             </div>
 
-                            <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                            <div className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs font-medium text-neutral-700">
                               {severityTone(finding.severity)} impact
                             </div>
                           </div>
 
                           <div className="mt-5 grid gap-5 md:grid-cols-2">
                             <div>
-                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                                 Why this matters
                               </div>
                               <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1586,7 +1646,7 @@ export default function DashboardPage() {
                             </div>
 
                             <div>
-                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                                 Recommended focus
                               </div>
                               <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1596,8 +1656,8 @@ export default function DashboardPage() {
                           </div>
 
                           {finding.matched_text && (
-                            <div className="mt-5 rounded-2xl border border-neutral-200 bg-white p-4">
-                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                            <div className="mt-5 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                                 Clause evidence
                               </div>
                               <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1609,7 +1669,7 @@ export default function DashboardPage() {
                       );
                     })
                   ) : (
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm leading-6 text-neutral-700">
                       No material automated risk signals were elevated into detailed
                       findings for this scan. Treat this as a low-signal automated
                       result rather than a clearance or complete contract outcome.
@@ -1619,8 +1679,8 @@ export default function DashboardPage() {
               </section>
 
               <section className="report-page-break mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-                <div className="rounded-3xl border border-neutral-200 bg-white p-6">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Top Risks
                   </div>
                   <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
@@ -1636,11 +1696,11 @@ export default function DashboardPage() {
                         return (
                           <div
                             key={`report-focus-${title}-${index}`}
-                            className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                            className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <div>
-                                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                                   Risk {index + 1}
                                 </div>
                                 <h5 className="mt-2 text-base font-semibold text-neutral-950">
@@ -1648,14 +1708,14 @@ export default function DashboardPage() {
                                 </h5>
                               </div>
 
-                              <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                              <div className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs font-medium text-neutral-700">
                                 {severityTone(item.severity)} impact
                               </div>
                             </div>
 
                             <div className="mt-4 grid gap-4 md:grid-cols-2">
                               <div>
-                                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                                   Category
                                 </div>
                                 <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1664,7 +1724,7 @@ export default function DashboardPage() {
                               </div>
 
                               <div>
-                                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                                   Focus action
                                 </div>
                                 <p className="mt-2 text-sm leading-6 text-neutral-700">
@@ -1676,7 +1736,7 @@ export default function DashboardPage() {
                         );
                       })
                     ) : (
-                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
+                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm leading-6 text-neutral-700">
                         No material automated risk signals were detected strongly enough
                         to produce a ranked top-risk list in this scan.
                       </div>
@@ -1684,14 +1744,14 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="rounded-3xl border border-neutral-200 bg-white p-6">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                     Meta / Details
                   </div>
 
                   <div className="mt-6 space-y-4">
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Technical context
                       </div>
                       <div className="mt-3 space-y-2 text-sm text-neutral-700">
@@ -1702,20 +1762,20 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Scan counters
                       </div>
                       <div className="mt-3 space-y-2 text-sm text-neutral-700">
                         <div>Matched rules: {matchedRuleCount}</div>
-                        <div>Suppressed rules: {suppressedRuleCount}</div>
-                        <div>Contradictions: {contradictionCount}</div>
+                        <div>Filtered rules: {suppressedRuleCount}</div>
+                        <div>Conflicts: {contradictionCount}</div>
                         <div>Flags raised: {result.flags.length}</div>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
-                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Flags
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -1723,13 +1783,13 @@ export default function DashboardPage() {
                           result.flags.map((flag) => (
                             <span
                               key={`report-flag-${flag}`}
-                              className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
+                              className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs text-neutral-700"
                             >
                               {flag}
                             </span>
                           ))
                         ) : (
-                          <span className="text-sm text-neutral-600">
+                          <span className="text-sm text-neutral-700">
                             No flags returned for this analysis.
                           </span>
                         )}
@@ -1740,14 +1800,14 @@ export default function DashboardPage() {
               </section>
             </div>
           ) : (
-            <div className="mt-8 rounded-[28px] border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center">
-              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+            <div className="mt-8 rounded-[28px] border border-dashed border-[#d6c4a0] bg-[#fcf2df] p-8 text-center">
+              <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                 Report Unavailable
               </div>
               <h3 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
                 Run a contract analysis first to generate a report.
               </h3>
-              <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-700">
                 The export layer uses the current dashboard analysis result and will
                 become available once VoxaRisk has produced an automated risk review.
               </p>
@@ -1755,6 +1815,6 @@ export default function DashboardPage() {
           )}
         </section>
       </div>
-    </div>
+    </main>
   );
 }

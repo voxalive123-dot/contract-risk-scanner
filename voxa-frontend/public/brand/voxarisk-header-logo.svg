@@ -1,0 +1,10 @@
+<svg width="520" height="96" viewBox="0 0 520 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="520" height="96" rx="18" fill="transparent"/>
+  <rect x="4" y="10" width="76" height="76" rx="18" fill="#11110F"/>
+  <path d="M27 63C20 59.8 16 53.3 16 45.8C16 35.7 23.9 27.5 34 27.1C37.7 20.4 44.8 16 52.8 16C61.1 16 68.2 20.8 71.7 27.7C80.3 30.2 86.6 38.1 86.6 47.5C86.6 56.3 81 64 73 67" stroke="#D9BE74" stroke-width="4.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M51.2 20L38.2 46.8H52.3L44.8 74.5L69.6 40.9H55.4L62.5 20H51.2Z" fill="#D9BE74"/>
+  <path d="M28.5 43.5C35 42.8 40.5 45.3 44.4 50.2" stroke="#D9BE74" stroke-width="3.8" stroke-linecap="round"/>
+  <path d="M73.8 43.5C67.3 42.8 61.8 45.3 57.9 50.2" stroke="#D9BE74" stroke-width="3.8" stroke-linecap="round"/>
+  <text x="102" y="43" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="800" letter-spacing="8" fill="#11110F">VOXARISK</text>
+  <text x="104" y="66" font-family="Arial, Helvetica, sans-serif" font-size="10" font-weight="700" letter-spacing="5" fill="#8A6A34">CONTRACT RISK INTELLIGENCE</text>
+</svg>

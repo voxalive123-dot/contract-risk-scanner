@@ -1,0 +1,72 @@
+<svg width="220" height="220" viewBox="0 0 220 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="42%" r="72%">
+      <stop offset="0%" stop-color="#24221C"/>
+      <stop offset="62%" stop-color="#14130F"/>
+      <stop offset="100%" stop-color="#070706"/>
+    </radialGradient>
+
+    <linearGradient id="gold" x1="42" y1="24" x2="176" y2="184">
+      <stop offset="0%" stop-color="#FFF0A3"/>
+      <stop offset="36%" stop-color="#DDBF66"/>
+      <stop offset="70%" stop-color="#A97D31"/>
+      <stop offset="100%" stop-color="#F2D57A"/>
+    </linearGradient>
+
+    <filter id="shadow" x="-25%" y="-25%" width="150%" height="150%">
+      <feDropShadow dx="0" dy="3" stdDeviation="2.2" flood-color="#000000" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <circle cx="110" cy="110" r="108" fill="url(#bg)"/>
+  <circle cx="110" cy="110" r="105" stroke="#C8A968" stroke-width="2"/>
+
+  <!-- Brain outline -->
+  <path
+    d="M65 103
+       C50 100 40 88 40 73
+       C40 56 53 42 70 41
+       C76 29 88 22 102 22
+       C118 22 131 31 137 44
+       C154 47 167 62 167 79
+       C167 95 156 108 141 113"
+    stroke="url(#gold)"
+    stroke-width="10"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    filter="url(#shadow)"
+  />
+
+  <!-- Brain curves -->
+  <path d="M66 70C77 67 87 72 94 82" stroke="url(#gold)" stroke-width="6" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M67 94C79 103 92 102 103 95" stroke="url(#gold)" stroke-width="5.5" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M137 70C127 67 117 72 110 82" stroke="url(#gold)" stroke-width="6" stroke-linecap="round" filter="url(#shadow)"/>
+  <path d="M136 94C124 103 112 102 101 95" stroke="url(#gold)" stroke-width="5.5" stroke-linecap="round" filter="url(#shadow)"/>
+
+  <!-- Lightning bolt entering the brain -->
+  <path
+    d="M105 21
+       L73 87
+       H101
+       L87 131
+       L150 58
+       H119
+       L136 21
+       H105Z"
+    fill="url(#gold)"
+    filter="url(#shadow)"
+  />
+
+  <!-- Universal parent brand -->
+  <text
+    x="110"
+    y="174"
+    text-anchor="middle"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="34"
+    font-weight="900"
+    letter-spacing="7"
+    fill="url(#gold)"
+    filter="url(#shadow)"
+  >VOXA</text>
+</svg>
