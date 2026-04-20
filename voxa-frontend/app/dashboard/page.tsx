@@ -464,6 +464,29 @@ function decisionPosture(
   };
 }
 
+function formatReportTimestamp(timestamp?: string | null) {
+  if (!timestamp) return "Not generated";
+
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(timestamp));
+}
+
+function confidenceIndicator(confidence?: number | null) {
+  if (typeof confidence !== "number" || Number.isNaN(confidence) || confidence <= 0) {
+    return "Confidence not available";
+  }
+
+  if (confidence >= 0.8) return `High confidence (${confidence.toFixed(2)})`;
+  if (confidence >= 0.6) return `Moderate confidence (${confidence.toFixed(2)})`;
+  return `Limited confidence (${confidence.toFixed(2)})`;
+}
+
+function lowSignalSummary() {
+  return "Current automated review detected no material automated risk signals in the clauses analyzed. This is not a clearance outcome, and commercial context, dependency, and professional review may still change the decision posture.";
+}
+
 export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -472,6 +495,7 @@ export default function DashboardPage() {
   const [inputMode, setInputMode] = useState<"text" | "file">("text");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("No file selected");
+  const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -480,6 +504,7 @@ export default function DashboardPage() {
 
     setLoading(true);
     setResult(null);
+    setReportGeneratedAt(null);
     setErrorMessage(null);
 
     try {
@@ -500,6 +525,7 @@ export default function DashboardPage() {
 
       const data: AnalyzeResult = JSON.parse(textResponse);
       setResult(data);
+      setReportGeneratedAt(new Date().toISOString());
     } catch (err) {
       console.error("FETCH ERROR:", err);
       setErrorMessage(`Error analyzing contract: ${String(err)}`);
@@ -511,6 +537,8 @@ export default function DashboardPage() {
   async function analyzeFile(file: File) {
     setLoading(true);
     setResult(null);
+    setReportGeneratedAt(null);
+    setErrorMessage(null);
 
     try {
       const formData = new FormData();
@@ -530,6 +558,7 @@ export default function DashboardPage() {
 
       const data: AnalyzeResult = JSON.parse(textResponse);
       setResult(data);
+      setReportGeneratedAt(new Date().toISOString());
     } catch (err) {
       console.error("UPLOAD ERROR:", err);
       setErrorMessage(`Error analyzing uploaded file: ${String(err)}`);
@@ -550,6 +579,7 @@ export default function DashboardPage() {
 
   function handleFileSelection(file: File | null) {
     setResult(null);
+    setReportGeneratedAt(null);
     setErrorMessage(null);
     setSelectedFile(file);
 
@@ -639,11 +669,43 @@ export default function DashboardPage() {
 
   const decisionBoundaryNotice =
     "VoxaRisk provides automated contract risk intelligence, not legal advice or approval. Use these findings to focus review, negotiation, and escalation decisions.";
+  const reportBoundaryNotice =
+    "VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.";
+  const effectiveConfidence =
+    typeof confidence === "number" && confidence > 0
+      ? confidence
+      : typeof result?.confidence_hint === "number"
+        ? result.confidence_hint
+        : null;
+  const reportConfidenceLabel = confidenceIndicator(effectiveConfidence);
+  const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
+  const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
+  const reportFocusItems = (topRisks.length ? topRisks : findings).slice(0, 5);
+  const hasMaterialSignals =
+    topRisks.length > 0 || findings.length > 0 || result?.severity !== "LOW";
+  const reportSummary = result
+    ? hasMaterialSignals
+      ? primarySummary
+      : lowSignalSummary()
+    : null;
+  const reportKeyDetail =
+    result && posture
+      ? posture.detail
+      : "Run a contract analysis first to generate a report.";
+
+  function handlePrintReport() {
+    if (!result) {
+      setErrorMessage("Run a contract analysis first to generate a report.");
+      return;
+    }
+
+    window.print();
+  }
 
   return (
     <div className="min-h-screen bg-neutral-100 px-6 py-8 text-neutral-900 md:px-8">
       <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm lg:flex-row lg:items-end lg:justify-between">
+        <div className="report-print-hidden mb-8 flex flex-col gap-4 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
               VoxaRisk Intelligence
@@ -688,7 +750,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        <div className="mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+        <div className="report-print-hidden mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between gap-4">
             <div>
               <h2 className="text-lg font-semibold text-neutral-950">Contract Input</h2>
@@ -810,7 +872,7 @@ export default function DashboardPage() {
         </div>
 
         {isPreAnalysis && (
-          <div className="mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
+          <div className="report-print-hidden mb-8 rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
                 <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
@@ -847,7 +909,7 @@ export default function DashboardPage() {
         )}
 
         {result && (
-          <div className="space-y-8">
+          <div className="report-print-hidden space-y-8">
             <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
               <div className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm">
                 <div className="flex flex-wrap items-start justify-between gap-4">
@@ -1235,6 +1297,407 @@ export default function DashboardPage() {
             </div>
           </div>
         )}
+
+        <section className="rounded-3xl border border-neutral-200 bg-white p-6 shadow-sm md:p-8">
+          <div className="report-print-hidden flex flex-col gap-4 border-b border-neutral-200 pb-6 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                Report Layer
+              </div>
+              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                Contract Risk Intelligence Report
+              </h2>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-600">
+                Generate a print-ready executive report from the current dashboard
+                analysis result.
+              </p>
+            </div>
+
+            {result ? (
+              <button
+                type="button"
+                onClick={handlePrintReport}
+                className="rounded-2xl bg-black px-5 py-3 text-sm font-medium text-white transition hover:opacity-90"
+              >
+                Report / Export
+              </button>
+            ) : (
+              <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm text-neutral-600">
+                Run a contract analysis first to generate a report.
+              </div>
+            )}
+          </div>
+
+          {result ? (
+            <div
+              data-report-root
+              className="report-surface mx-auto mt-8 max-w-5xl rounded-[28px] border border-neutral-200 bg-white p-8 md:p-10"
+            >
+              <header className="border-b border-neutral-200 pb-8">
+                <div className="flex flex-col gap-6 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-sm font-semibold uppercase tracking-[0.28em] text-neutral-500">
+                      VoxaRisk
+                    </div>
+                    <h3 className="mt-3 text-3xl font-semibold tracking-tight text-neutral-950">
+                      Contract Risk Intelligence Report
+                    </h3>
+                    <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-600">
+                      Executive-grade output derived from the current automated
+                      contract risk analysis result.
+                    </p>
+                  </div>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        Generated
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-950">
+                        {reportGeneratedLabel}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        Ruleset
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-950">
+                        {rulesetVersion}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        Confidence
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-950">
+                        {reportConfidenceLabel}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3">
+                      <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                        Decision posture
+                      </div>
+                      <div className="mt-2 text-sm font-semibold text-neutral-950">
+                        {posture?.label ?? "Review required"}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-6 rounded-2xl border border-neutral-200 bg-neutral-50 p-5">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Boundary
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-neutral-700">
+                    {reportBoundaryNotice}
+                  </p>
+                </div>
+              </header>
+
+              <div className="report-page-break mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                <section className="rounded-3xl border border-neutral-200 bg-neutral-50 p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Executive Summary
+                  </div>
+                  <h4 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
+                    {posture?.label ?? "Review required"}
+                  </h4>
+                  <p className="mt-4 text-sm leading-7 text-neutral-700">{reportSummary}</p>
+                  <p className="mt-4 text-sm leading-7 text-neutral-700">{reportKeyDetail}</p>
+                </section>
+
+                <section className="grid gap-4">
+                  <div className="rounded-3xl border border-neutral-200 bg-white p-5">
+                    <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                      Decision Signal
+                    </div>
+                    <div className="mt-2 text-xl font-semibold text-neutral-950">
+                      {scoreBand(normalizedScore, result.severity)} exposure
+                    </div>
+                    <p className="mt-2 text-sm text-neutral-600">{result.severity} severity</p>
+                  </div>
+
+                  <div className="rounded-3xl border border-neutral-200 bg-white p-5">
+                    <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                      Risk Score
+                    </div>
+                    <div className="mt-2 text-3xl font-semibold text-neutral-950">
+                      {normalizedScore}
+                    </div>
+                    <p className="mt-2 text-sm text-neutral-600">
+                      {matchedRuleCount} matched rule{matchedRuleCount === 1 ? "" : "s"} and{" "}
+                      {result.flags.length} flag{result.flags.length === 1 ? "" : "s"}.
+                    </p>
+                  </div>
+                </section>
+              </div>
+
+              <section className="report-page-break mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                  <div>
+                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                      Negotiation Priorities
+                    </div>
+                    <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                      What to redline first
+                    </h4>
+                  </div>
+                  <div className="text-sm text-neutral-500">
+                    Focus the first pass on leverage, downside transfer, and adverse
+                    dispute positioning.
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                  {reportPriorityItems.length ? (
+                    reportPriorityItems.map((item, index) => {
+                      const category = item.category ?? "";
+                      const title = item.title ?? "Unlabeled risk";
+
+                      return (
+                        <div
+                          key={`report-priority-${title}-${index}`}
+                          className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                        >
+                          <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                            Priority {index + 1}
+                          </div>
+                          <h5 className="mt-2 text-base font-semibold text-neutral-950">
+                            {title}
+                          </h5>
+                          <p className="mt-3 text-sm leading-6 text-neutral-700">
+                            {negotiationPriority(category)}
+                          </p>
+                          <div className="mt-4 text-sm leading-6 text-neutral-600">
+                            {priorityReason(category)}
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700 lg:col-span-3">
+                      No material automated risk signals were elevated into negotiation
+                      priorities for this scan. This is a low-signal result, not a
+                      clearance outcome or a substitute for commercial and legal review.
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="report-page-break mt-8 rounded-3xl border border-neutral-200 bg-white p-6">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Findings
+                  </div>
+                  <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                    Clause-level observations
+                  </h4>
+                </div>
+
+                <div className="mt-6 space-y-4">
+                  {findings.length ? (
+                    findings.map((finding, index) => {
+                      const category = finding.category ?? "";
+
+                      return (
+                        <article
+                          key={`${finding.rule_id ?? "report-finding"}-${index}`}
+                          className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                        >
+                          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                            <div>
+                              <h5 className="text-lg font-semibold text-neutral-950">
+                                {finding.title ?? "Unlabeled finding"}
+                              </h5>
+                              <div className="mt-2 text-xs uppercase tracking-[0.2em] text-neutral-500">
+                                {category || "uncategorized"}
+                              </div>
+                            </div>
+
+                            <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                              {severityTone(finding.severity)} impact
+                            </div>
+                          </div>
+
+                          <div className="mt-5 grid gap-5 md:grid-cols-2">
+                            <div>
+                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                Why this matters
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                {finding.rationale ?? consequenceSummary(category)}
+                              </p>
+                            </div>
+
+                            <div>
+                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                Recommended focus
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                {recommendedFocus(category)}
+                              </p>
+                            </div>
+                          </div>
+
+                          {finding.matched_text && (
+                            <div className="mt-5 rounded-2xl border border-neutral-200 bg-white p-4">
+                              <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                Clause evidence
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                {finding.matched_text}
+                              </p>
+                            </div>
+                          )}
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
+                      No material automated risk signals were elevated into detailed
+                      findings for this scan. Treat this as a low-signal automated
+                      result rather than a clearance or complete contract outcome.
+                    </div>
+                  )}
+                </div>
+              </section>
+
+              <section className="report-page-break mt-8 grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
+                <div className="rounded-3xl border border-neutral-200 bg-white p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Top Risks
+                  </div>
+                  <h4 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                    Ranked review focus
+                  </h4>
+
+                  <div className="mt-6 space-y-4">
+                    {reportFocusItems.length ? (
+                      reportFocusItems.map((item, index) => {
+                        const category = item.category ?? "";
+                        const title = item.title ?? "Unlabeled risk";
+
+                        return (
+                          <div
+                            key={`report-focus-${title}-${index}`}
+                            className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-3">
+                              <div>
+                                <div className="text-xs uppercase tracking-[0.2em] text-neutral-500">
+                                  Risk {index + 1}
+                                </div>
+                                <h5 className="mt-2 text-base font-semibold text-neutral-950">
+                                  {title}
+                                </h5>
+                              </div>
+
+                              <div className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs font-medium text-neutral-700">
+                                {severityTone(item.severity)} impact
+                              </div>
+                            </div>
+
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                              <div>
+                                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                  Category
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                  {category || "uncategorized"}
+                                </p>
+                              </div>
+
+                              <div>
+                                <div className="text-xs uppercase tracking-wide text-neutral-500">
+                                  Focus action
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                  {recommendedAction(category)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-5 text-sm leading-6 text-neutral-700">
+                        No material automated risk signals were detected strongly enough
+                        to produce a ranked top-risk list in this scan.
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="rounded-3xl border border-neutral-200 bg-white p-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                    Meta / Details
+                  </div>
+
+                  <div className="mt-6 space-y-4">
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                        Technical context
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-neutral-700">
+                        <div>Source type: {result.source_type ?? "text"}</div>
+                        <div>Extraction method: {result.extraction_method ?? "direct"}</div>
+                        <div>Pages: {result.page_count ?? "n/a"}</div>
+                        <div>Word count: {wordCount || "n/a"}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                        Scan counters
+                      </div>
+                      <div className="mt-3 space-y-2 text-sm text-neutral-700">
+                        <div>Matched rules: {matchedRuleCount}</div>
+                        <div>Suppressed rules: {suppressedRuleCount}</div>
+                        <div>Contradictions: {contradictionCount}</div>
+                        <div>Flags raised: {result.flags.length}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+                      <div className="text-xs uppercase tracking-wide text-neutral-500">
+                        Flags
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {result.flags.length ? (
+                          result.flags.map((flag) => (
+                            <span
+                              key={`report-flag-${flag}`}
+                              className="rounded-full border border-neutral-200 bg-white px-3 py-1 text-xs text-neutral-700"
+                            >
+                              {flag}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-sm text-neutral-600">
+                            No flags returned for this analysis.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            </div>
+          ) : (
+            <div className="mt-8 rounded-[28px] border border-dashed border-neutral-300 bg-neutral-50 p-8 text-center">
+              <div className="text-xs font-medium uppercase tracking-[0.24em] text-neutral-500">
+                Report Unavailable
+              </div>
+              <h3 className="mt-3 text-2xl font-semibold tracking-tight text-neutral-950">
+                Run a contract analysis first to generate a report.
+              </h3>
+              <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-neutral-600">
+                The export layer uses the current dashboard analysis result and will
+                become available once VoxaRisk has produced an automated risk review.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );

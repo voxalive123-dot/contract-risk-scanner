@@ -1,1 +1,56 @@
 @import "tailwindcss";
+
+@media print {
+  :root {
+    color-scheme: light;
+  }
+
+  html,
+  body {
+    background: #ffffff;
+  }
+
+  body {
+    margin: 0;
+    color: #111827;
+    font-family:
+      "Times New Roman",
+      Georgia,
+      serif;
+  }
+
+  .report-print-hidden {
+    display: none !important;
+  }
+
+  [data-report-root] {
+    margin: 0 !important;
+    max-width: none !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+  }
+
+  .report-surface,
+  .report-surface * {
+    color: #111827 !important;
+    box-shadow: none !important;
+  }
+
+  .report-surface {
+    border: 0 !important;
+    background: #ffffff !important;
+  }
+
+  .report-surface .bg-black,
+  .report-surface .bg-neutral-900,
+  .report-surface .bg-neutral-950 {
+    background: #f3f4f6 !important;
+  }
+
+  .report-page-break {
+    break-before: page;
+    page-break-before: always;
+  }
+}
