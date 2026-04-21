@@ -56,7 +56,7 @@ function DashboardHeader() {
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 md:px-8">
         <Link href="/" className="flex items-center gap-4">
           <Image
-            src="/brand/voxa-circle-logo.png"
+            src="/brand/voxa-circle-logo.svg"
             alt="VOXA"
             width={76}
             height={76}

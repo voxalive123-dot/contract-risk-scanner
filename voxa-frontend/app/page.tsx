@@ -45,7 +45,7 @@ function SiteHeader() {
         <Link href="/" className="flex items-center gap-4">
           <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
             <Image
-              src="/brand/voxa-circle-logo.png"
+              src="/brand/voxa-circle-logo.svg"
               alt="VOXA"
               width={1024}
               height={1024}
