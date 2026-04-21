@@ -72,13 +72,10 @@ function SiteHeader() {
       <div className="mx-auto flex max-w-[1360px] items-center justify-between px-6 py-5 md:px-8">
         <Link href="/" className="flex items-center gap-4">
           <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
-            <Image
-              src="/brand/voxa-circle-logo.svg"
+            <img
+              src="/brand/voxa-circle-logo.png"
               alt="VOXA"
-              width={1024}
-              height={1024}
               className="h-full w-full scale-[1.12] object-cover object-center"
-              priority
             />
           </div>
           <div className="leading-none">

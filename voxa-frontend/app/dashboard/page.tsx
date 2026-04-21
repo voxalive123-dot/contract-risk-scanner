@@ -54,13 +54,10 @@ function DashboardHeader() {
     <header className="report-print-hidden border-b border-[#dccaa8] bg-[#f7f3ea]/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-5 md:px-8">
         <Link href="/" className="flex items-center gap-4">
-          <Image
-            src="/brand/voxa-circle-logo.svg"
+          <img
+            src="/brand/voxa-circle-logo.png"
             alt="VOXA"
-            width={76}
-            height={76}
             className="h-[76px] w-[76px] rounded-full object-cover shadow-[0_10px_24px_rgba(80,60,30,0.12)]"
-            priority
           />
           <div>
             <div className="text-[15px] font-semibold uppercase tracking-[0.34em] text-neutral-950">
