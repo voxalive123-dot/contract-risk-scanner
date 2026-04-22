@@ -7,9 +7,8 @@ export default function SiteFooter() {
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div>
             <div className="font-semibold tracking-[-0.02em] text-neutral-950">VoxaRisk</div>
-            <div className="mt-1 max-w-xl leading-6">
-              Automated contract risk intelligence for disciplined commercial review.
-              Not legal advice, legal opinion, or contract approval.
+            <div className="mt-1 leading-6 md:whitespace-nowrap">
+              Automated contract risk intelligence for disciplined commercial review. Not legal advice, legal opinion, or contract approval.
             </div>
           </div>
 

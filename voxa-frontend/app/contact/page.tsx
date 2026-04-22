@@ -75,9 +75,8 @@ export default function ContactPage() {
             Contact VoxaRisk for product, account, or commercial enquiries.
           </h1>
           <p className="mt-6 max-w-3xl text-sm leading-7 text-neutral-700">
-            Use this page for platform enquiries, onboarding discussions, account issues,
-            commercial questions, or responsible reporting of operational concerns. Do not
-            submit highly sensitive contract material through this form.
+            Use this page for product, account, onboarding, or commercial enquiries.
+            Please do not submit confidential contract material through this form.
           </p>
         </section>
 
@@ -122,6 +121,21 @@ export default function ContactPage() {
             </div>
 
             {status && <div className="mt-4 rounded-xl border border-[#d2bd96] bg-[#fcf7ee] px-4 py-3 text-sm text-neutral-700">{status}</div>}
+
+            <div className="mt-5 grid gap-3 md:grid-cols-2">
+              <div className="rounded-[1rem] border border-[#d2bd96] bg-[#fcf7ee] p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a6a34]">Response path</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                  Your enquiry opens through email so there is a clear written trail.
+                </p>
+              </div>
+              <div className="rounded-[1rem] border border-[#d2bd96] bg-[#fcf7ee] p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#8a6a34]">Security boundary</div>
+                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                  Keep messages operational. Use the dashboard for contract review.
+                </p>
+              </div>
+            </div>
 
             <button type="submit" className="mt-5 rounded-xl bg-[#11110f] px-6 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
               Send enquiry
