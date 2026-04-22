@@ -75,7 +75,7 @@ function SiteHeader() {
             <img
               src="/brand/voxa-circle-logo.png"
               alt="VOXA"
-              className="h-full w-full object-contain object-center p-1"
+              className="h-full w-full rounded-full object-cover object-center"
             />
           </div>
           <div className="leading-none">
