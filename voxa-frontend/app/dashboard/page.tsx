@@ -1335,7 +1335,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
                     <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                       Decision discipline
                     </div>
