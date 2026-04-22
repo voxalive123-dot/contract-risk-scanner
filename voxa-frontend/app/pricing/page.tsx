@@ -10,6 +10,7 @@ type Plan = {
   href: string;
   featured?: boolean;
   features: string[];
+  checkoutOptions?: { label: string; href: string }[];
 };
 
 const plans: Plan[] = [
@@ -23,15 +24,6 @@ const plans: Plan[] = [
     features: ["Limited scans", "Summary score", "Basic decision signal", "Limited findings preview", "Upgrade for reports/export"],
   },
   {
-    name: "Professional",
-    price: "£39/month",
-    annual: "£390/year",
-    description: "For individual recurring review with full report-ready output and negotiation focus.",
-    cta: "Start Professional",
-    href: "/dashboard",
-    features: ["Full findings", "Executive summary", "Negotiation priorities", "Clause evidence", "Report/export", "Higher scan limits"],
-  },
-  {
     name: "Business",
     price: "£149/month",
     annual: "£1,490/year",
@@ -39,7 +31,11 @@ const plans: Plan[] = [
     cta: "Choose Business",
     href: "/dashboard",
     featured: true,
-    features: ["Everything in Professional", "Higher scan/report limits", "Recurring commercial review", "Prioritised review focus", "Report-ready outputs", "Team-oriented positioning"],
+    features: ["Full findings", "Executive summary", "Negotiation priorities", "Clause evidence", "Report/export", "Higher scan/report limits", "Recurring commercial review", "Prioritised review focus", "Team-oriented positioning"],
+    checkoutOptions: [
+      { label: "Start Business monthly", href: "https://buy.stripe.com/eVq6oK3zJbJf36c9B83AY00" },
+      { label: "Start Business annual", href: "https://buy.stripe.com/dRm5kGc6f3cJbCI3cK3AY01" },
+    ],
   },
   {
     name: "Executive",
@@ -49,15 +45,23 @@ const plans: Plan[] = [
     cta: "Choose Executive",
     href: "/dashboard",
     features: ["Everything in Business", "Higher usage limits", "Executive reporting focus", "Leadership review cadence", "Stronger decision support"],
+    checkoutOptions: [
+      { label: "Start Executive monthly", href: "https://buy.stripe.com/14A9AW7PZ6oVdKQfZw3AY02" },
+      { label: "Start Executive annual", href: "https://buy.stripe.com/6oU9AWdaj7sZ8qw3cK3AY03" },
+    ],
   },
   {
     name: "Enterprise",
-    price: "Custom",
-    annual: "From £1,500/month",
-    description: "For governed deployment discussions, onboarding, and custom commercial terms.",
+    price: "£299/month",
+    annual: "£2,990/year",
+    description: "For heavier review workflows, tailored limits, onboarding, or invoice-based access.",
     cta: "Contact Enterprise",
     href: "mailto:enterprise@voxarisk.com?subject=VoxaRisk%20Enterprise",
     features: ["Custom usage limits", "Governed deployment discussion", "Procurement/security review", "Commercial onboarding", "Enterprise terms"],
+    checkoutOptions: [
+      { label: "Start Enterprise monthly", href: "https://buy.stripe.com/fZu14q5HRaFb22828G3AY04" },
+      { label: "Start Enterprise annual", href: "https://buy.stripe.com/dRm4gCc6f9B7eOUbJg3AY05" },
+    ],
   },
 ];
 
@@ -110,6 +114,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 function PricingCard({ plan }: { plan: Plan }) {
   const featured = Boolean(plan.featured);
+  const hasCheckoutOptions = Boolean(plan.checkoutOptions?.length);
 
   return (
     <article className={`relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-[1.25rem] border bg-[#fffdf8] p-5 shadow-[0_14px_30px_rgba(75,55,25,0.07)] ${featured ? "border-[#8a6a34] ring-1 ring-[#b08d57]/40" : "border-[#dfcfb0]"}`}>
@@ -141,9 +146,32 @@ function PricingCard({ plan }: { plan: Plan }) {
         </div>
 
         <div className="mt-auto pt-5">
-          <Link href={plan.href} className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${featured ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]" : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"}`}>
-            {plan.cta}
-          </Link>
+          {hasCheckoutOptions ? (
+            <div className="space-y-2.5">
+              {plan.checkoutOptions?.map((option, index) => (
+                <a
+                  key={`${plan.name}-${option.label}`}
+                  href={option.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${
+                    featured && index === 0
+                      ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]"
+                      : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"
+                  }`}
+                >
+                  {option.label}
+                </a>
+              ))}
+              <p className="px-1 text-[12px] leading-5 text-neutral-500">
+                Access activation may be completed after subscription confirmation.
+              </p>
+            </div>
+          ) : (
+            <Link href={plan.href} className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${featured ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]" : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"}`}>
+              {plan.cta}
+            </Link>
+          )}
         </div>
       </div>
     </article>
