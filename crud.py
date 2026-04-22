@@ -14,6 +14,15 @@ def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
 
+def month_start_utc(reference_dt: datetime | None = None) -> datetime:
+    current = reference_dt or utcnow()
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    else:
+        current = current.astimezone(timezone.utc)
+    return current.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+
+
 # -------------------------
 # API KEY LOOKUP / TOUCH
 # -------------------------

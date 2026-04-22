@@ -18,7 +18,15 @@ from sqlalchemy.orm import Session
 
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
-from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
+from crud import (
+    count_scans_for_org_since,
+    create_scan,
+    create_usage_log,
+    get_api_key_by_hash,
+    get_organization_by_id,
+    month_start_utc,
+    touch_api_key_last_used,
+)
 from db import get_db
 from models import StripeWebhookEvent
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
@@ -29,6 +37,8 @@ from stripe_billing import (
     apply_paid_entitlement,
     bind_billing_identity,
     extract_event_context,
+    get_effective_plan_limit,
+    get_effective_plan_name,
     map_lookup_key_to_plan,
     resolve_org_match,
 )
@@ -142,6 +152,44 @@ def get_api_key_ctx(
 # ==========================================================
 def _client_ip(http_request: Request) -> str:
     return http_request.client.host if http_request.client else "unknown"
+
+
+def enforce_org_plan_quota(
+    *,
+    db: Session,
+    api_key_ctx: Any,
+) -> None:
+    org_id = getattr(api_key_ctx, "org_id", None)
+    if org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "organization_context_missing",
+                "current_plan": "starter",
+                "monthly_limit": get_effective_plan_limit(None),
+                "scans_used": 0,
+            },
+        )
+
+    org = get_organization_by_id(db, org_id)
+    effective_plan = get_effective_plan_name(org)
+    monthly_limit = get_effective_plan_limit(org)
+    scans_used = count_scans_for_org_since(
+        db=db,
+        org_id=org_id,
+        since_dt=month_start_utc(),
+    )
+
+    if scans_used >= monthly_limit:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail={
+                "error": "monthly_scan_quota_exceeded",
+                "current_plan": effective_plan,
+                "monthly_limit": monthly_limit,
+                "scans_used": scans_used,
+            },
+        )
 
 
 def _build_detailed_payload(text: str) -> dict[str, Any]:
@@ -324,6 +372,7 @@ def analyze(
     db: Session = Depends(get_db),
     api_key_ctx=Depends(get_api_key_ctx),
 ):
+    enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
     result = score_contract(request.text)
@@ -371,6 +420,7 @@ def analyze_detailed(
     db: Session = Depends(get_db),
     api_key_ctx=Depends(get_api_key_ctx),
 ):
+    enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
     payload = _build_detailed_payload(request.text)
@@ -394,6 +444,7 @@ async def analyze_pdf(
     db: Session = Depends(get_db),
     api_key_ctx=Depends(get_api_key_ctx),
 ):
+    enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
     if file.content_type not in {"application/pdf"}:
@@ -446,6 +497,7 @@ async def analyze_image(
     db: Session = Depends(get_db),
     api_key_ctx=Depends(get_api_key_ctx),
 ):
+    enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
     if file.content_type not in ALLOWED_IMAGE_TYPES:

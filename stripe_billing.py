@@ -11,7 +11,13 @@ from models import Organization, Plan
 
 
 DEFAULT_PLAN_NAME = "starter"
-DEFAULT_PLAN_LIMIT = 1000
+DEFAULT_PLAN_LIMIT = 5
+PLAN_QUOTAS: dict[str, int] = {
+    "starter": 5,
+    "business": 100,
+    "executive": 500,
+    "enterprise": 2000,
+}
 
 PRICE_LOOKUP_KEY_TO_PLAN: dict[str, str] = {
     "business_monthly_gbp": "business",
@@ -36,6 +42,27 @@ def map_lookup_key_to_plan(lookup_key: str | None) -> str | None:
     if not lookup_key:
         return None
     return PRICE_LOOKUP_KEY_TO_PLAN.get(lookup_key)
+
+
+def get_effective_plan_name(org: Organization | None) -> str:
+    if org is None:
+        return DEFAULT_PLAN_NAME
+
+    plan_type = (org.plan_type or DEFAULT_PLAN_NAME).strip().lower()
+    plan_status = (org.plan_status or "").strip().lower()
+
+    if plan_type in {"business", "executive", "enterprise"} and plan_status in PAID_ACTIVE_STATUSES:
+        return plan_type
+
+    if plan_type == DEFAULT_PLAN_NAME:
+        return DEFAULT_PLAN_NAME
+
+    return DEFAULT_PLAN_NAME
+
+
+def get_effective_plan_limit(org: Organization | None) -> int:
+    effective_plan = get_effective_plan_name(org)
+    return PLAN_QUOTAS.get(effective_plan, DEFAULT_PLAN_LIMIT)
 
 
 def _string_or_none(value: Any) -> str | None:
@@ -219,9 +246,10 @@ def apply_paid_entitlement(
     plan_record = get_plan_record(db, plan_name)
     if plan_record:
         org.plan_id = plan_record.id
-        org.plan_limit = plan_record.monthly_scan_quota
+        org.plan_limit = PLAN_QUOTAS.get(plan_name, plan_record.monthly_scan_quota)
     else:
         org.plan_id = None
+        org.plan_limit = PLAN_QUOTAS.get(plan_name, DEFAULT_PLAN_LIMIT)
 
 
 def apply_default_entitlement(
@@ -238,7 +266,7 @@ def apply_default_entitlement(
     starter_plan = get_plan_record(db, DEFAULT_PLAN_NAME)
     if starter_plan:
         org.plan_id = starter_plan.id
-        org.plan_limit = starter_plan.monthly_scan_quota
+        org.plan_limit = PLAN_QUOTAS.get(DEFAULT_PLAN_NAME, starter_plan.monthly_scan_quota)
     else:
         org.plan_id = None
         org.plan_limit = DEFAULT_PLAN_LIMIT
