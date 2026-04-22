@@ -238,6 +238,16 @@ export default function HomePage() {
                 high-priority findings across the same contract.
               </p>
             </div>
+
+            <div className="mt-4 rounded-[1rem] border border-[#d2bd96] bg-[#fbf3e5] p-5">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                What this helps prevent
+              </div>
+              <p className="mt-3 text-sm leading-6 text-neutral-700">
+                Missed redlines, late-stage approval surprises, uneven reviewer
+                judgment, and commercial sign-off without a clear evidence trail.
+              </p>
+            </div>
           </section>
         </div>
       </section>
