@@ -13,6 +13,7 @@ export default function SiteFooter() {
           </div>
 
           <nav className="flex flex-wrap gap-x-5 gap-y-2 font-medium">
+            <Link href="/questions" className="hover:text-neutral-950">Questions</Link>
             <Link href="/terms" className="hover:text-neutral-950">Terms</Link>
             <Link href="/privacy" className="hover:text-neutral-950">Privacy</Link>
             <Link href="/cookies" className="hover:text-neutral-950">Cookies</Link>

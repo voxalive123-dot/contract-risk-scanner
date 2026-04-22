@@ -252,6 +252,14 @@ export default function PricingPage() {
             <span className="font-semibold text-neutral-950">Plan logic:</span>{" "}
             Free validates signal. Business is the default commercial plan. Executive and Enterprise support higher-volume leadership and governed deployment.
           </div>
+          <div className="mt-4">
+            <Link
+              href="/questions"
+              className="inline-flex items-center rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-4 py-2 text-xs font-semibold tracking-[0.04em] text-neutral-950 transition hover:bg-[#f3e4c6]"
+            >
+              Questions before subscribing
+            </Link>
+          </div>
         </section>
 
         <section className="mt-6 rounded-[1.25rem] border border-[#d8c49e] bg-[#fffaf0] px-6 py-5 shadow-[0_10px_24px_rgba(75,55,25,0.05)]">
