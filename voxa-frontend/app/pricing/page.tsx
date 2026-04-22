@@ -25,8 +25,8 @@ const plans: Plan[] = [
   },
   {
     name: "Business",
-    price: "£149/month",
-    annual: "£1,490/year",
+    price: "£39/month",
+    annual: "£390/year",
     description: "For teams running structured commercial review across recurring contract work.",
     cta: "Choose Business",
     href: "/dashboard",
@@ -39,8 +39,8 @@ const plans: Plan[] = [
   },
   {
     name: "Executive",
-    price: "£499/month",
-    annual: "£4,990/year",
+    price: "£99/month",
+    annual: "£990/year",
     description: "For leadership teams needing stronger reporting discipline and review cadence.",
     cta: "Choose Executive",
     href: "/dashboard",
