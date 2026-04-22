@@ -148,6 +148,9 @@ function PricingCard({ plan }: { plan: Plan }) {
         <div className="mt-auto pt-5">
           {hasCheckoutOptions ? (
             <div className="space-y-2.5">
+              <p className="px-1 text-[12px] leading-5 text-neutral-500">
+                Access activation may be completed after subscription confirmation.
+              </p>
               {plan.checkoutOptions?.map((option, index) => (
                 <a
                   key={`${plan.name}-${option.label}`}
@@ -163,9 +166,6 @@ function PricingCard({ plan }: { plan: Plan }) {
                   {option.label}
                 </a>
               ))}
-              <p className="px-1 text-[12px] leading-5 text-neutral-500">
-                Access activation may be completed after subscription confirmation.
-              </p>
             </div>
           ) : (
             <Link href={plan.href} className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${featured ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]" : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"}`}>
@@ -239,7 +239,7 @@ export default function PricingPage() {
                 Choose the review cadence that matches your risk exposure.
               </h2>
             </div>
-            <div className="grid gap-4 xl:grid-cols-5">
+            <div className="grid gap-4 xl:grid-cols-4">
               {plans.map((plan) => (
                 <PricingCard key={plan.name} plan={plan} />
               ))}
@@ -250,7 +250,7 @@ export default function PricingPage() {
         <section className="mt-6 rounded-[1.25rem] border border-[#dccaad] bg-[#fffaf0] px-6 py-5 shadow-[0_10px_24px_rgba(75,55,25,0.05)]">
           <div className="max-w-[1180px] text-sm leading-7 text-neutral-700">
             <span className="font-semibold text-neutral-950">Plan logic:</span>{" "}
-            Free validates signal. Professional unlocks full report output. Business is the default commercial plan. Executive and Enterprise support higher-volume leadership and governed deployment.
+            Free validates signal. Business is the default commercial plan. Executive and Enterprise support higher-volume leadership and governed deployment.
           </div>
         </section>
 
