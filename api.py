@@ -16,6 +16,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from ai_explain import AIExplainRequest, AIProviderError, generate_ai_explanation, openai_api_configured
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
 from crud import (
@@ -152,6 +153,37 @@ def get_api_key_ctx(
 # ==========================================================
 def _client_ip(http_request: Request) -> str:
     return http_request.client.host if http_request.client else "unknown"
+
+
+def enforce_ai_plan_access(
+    *,
+    db: Session,
+    api_key_ctx: Any,
+) -> str:
+    org_id = getattr(api_key_ctx, "org_id", None)
+    if org_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "organization_context_missing",
+                "current_plan": "starter",
+                "feature": "ai_explain",
+            },
+        )
+
+    org = get_organization_by_id(db, org_id)
+    effective_plan = get_effective_plan_name(org)
+    if effective_plan not in {"business", "executive", "enterprise"}:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail={
+                "error": "ai_explain_not_available_for_plan",
+                "current_plan": effective_plan,
+                "feature": "ai_explain",
+            },
+        )
+
+    return effective_plan
 
 
 def enforce_org_plan_quota(
@@ -360,6 +392,31 @@ def root(request: Request):
         "status": "Contract Risk API running",
         "request_id": getattr(request.state, "request_id", None),
     }
+
+
+@app.post("/ai/explain")
+def ai_explain(
+    request: AIExplainRequest,
+    db: Session = Depends(get_db),
+    api_key_ctx=Depends(get_api_key_ctx),
+):
+    enforce_ai_plan_access(db=db, api_key_ctx=api_key_ctx)
+
+    if not openai_api_configured():
+        return {
+            "status": "disabled",
+            "reason": "openai_api_key_not_configured",
+        }
+
+    try:
+        response = generate_ai_explanation(request)
+    except AIProviderError:
+        return {
+            "status": "unavailable",
+            "reason": "ai_provider_error",
+        }
+
+    return response.model_dump(mode="json")
 
 
 # ==========================================================
