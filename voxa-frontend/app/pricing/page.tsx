@@ -31,7 +31,7 @@ const plans: Plan[] = [
     cta: "Choose Business",
     href: "/dashboard",
     featured: true,
-    features: ["Full findings", "Executive summary", "Negotiation priorities", "Clause evidence", "AI Review Notes", "Report/export", "Higher scan/report limits", "Recurring commercial review", "Prioritised review focus", "Team-oriented positioning"],
+    features: ["Full findings", "Executive summary", "Negotiation priorities", "Clause evidence", "Report/export", "Higher scan/report limits", "Recurring commercial review", "Prioritised review focus", "Team-oriented positioning", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Business monthly", href: "https://buy.stripe.com/eVq6oK3zJbJf36c9B83AY00" },
       { label: "Start Business annual", href: "https://buy.stripe.com/dRm5kGc6f3cJbCI3cK3AY01" },
@@ -44,7 +44,7 @@ const plans: Plan[] = [
     description: "For leadership teams needing stronger reporting discipline and review cadence.",
     cta: "Choose Executive",
     href: "/dashboard",
-    features: ["Everything in Business", "AI Review Notes", "Higher usage limits", "Executive reporting focus", "Leadership review cadence", "Stronger decision support"],
+    features: ["Everything in Business", "Higher usage limits", "Executive reporting focus", "Leadership review cadence", "Stronger decision support", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Executive monthly", href: "https://buy.stripe.com/14A9AW7PZ6oVdKQfZw3AY02" },
       { label: "Start Executive annual", href: "https://buy.stripe.com/6oU9AWdaj7sZ8qw3cK3AY03" },
@@ -57,7 +57,7 @@ const plans: Plan[] = [
     description: "For heavier review workflows, tailored limits, onboarding, or invoice-based access.",
     cta: "Contact Enterprise",
     href: "mailto:enterprise@voxarisk.com?subject=VoxaRisk%20Enterprise",
-    features: ["AI Review Notes", "Custom usage limits", "Governed deployment discussion", "Procurement/security review", "Commercial onboarding", "Enterprise terms"],
+    features: ["Custom usage limits", "Governed deployment discussion", "Procurement/security review", "Commercial onboarding", "Enterprise terms", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Enterprise monthly", href: "https://buy.stripe.com/fZu14q5HRaFb22828G3AY04" },
       { label: "Start Enterprise annual", href: "https://buy.stripe.com/dRm4gCc6f9B7eOUbJg3AY05" },
