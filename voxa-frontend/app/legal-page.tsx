@@ -70,9 +70,6 @@ export default function LegalPage({ eyebrow, title, intro, sections }: LegalPage
           <p className="mt-6 max-w-3xl text-sm leading-7 text-neutral-700">
             {intro}
           </p>
-          <div className="mt-6 rounded-[1.25rem] border border-[#d2bd96] bg-[#fcf7ee] p-5 text-sm leading-7 text-neutral-700">
-            These pages are drafted as a professional operating baseline for VoxaRisk. They should be reviewed and adapted before commercial launch to reflect the final registered operator, billing provider, hosting stack, analytics tools, support process, and jurisdiction-specific requirements.
-          </div>
         </section>
 
         <section className="mt-8 grid gap-5">

@@ -11,7 +11,7 @@ export default function TermsPage() {
           title: "1. Introduction",
           body: [
             "These Terms and Conditions apply to access to and use of VoxaRisk, including the website, dashboard, contract review tools, reports, outputs, interfaces, and related services. By accessing or using VoxaRisk, you agree to be bound by these Terms.",
-            "References to “VoxaRisk”, “we”, “us”, or “our” mean the operator of the VoxaRisk service. The final legal trading entity, registered address, company number, VAT status, and support contact should be inserted before commercial launch."
+            "References to “VoxaRisk”, “we”, “us”, or “our” mean the operator of the VoxaRisk service, including its website, dashboard, contract risk intelligence tools, reports, and related services."
           ]
         },
         {

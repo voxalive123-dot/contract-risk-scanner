@@ -10,8 +10,8 @@ export default function PrivacyPage() {
         {
           title: "1. Controller and contact details",
           body: [
-            "The controller or responsible business entity for VoxaRisk must be inserted before commercial launch, including legal name, registered address, company number where applicable, and privacy contact email.",
-            "For privacy enquiries, data subject requests, or complaints, users should be able to contact VoxaRisk through a dedicated privacy or support channel once the live support address is confirmed."
+            "VoxaRisk is responsible for handling personal data submitted through its website, dashboard, account flows, support channels, and contract risk intelligence services.",
+            "For privacy enquiries, data subject requests, or complaints, users may contact VoxaRisk through the contact route published on this website."
           ]
         },
         {
@@ -46,14 +46,14 @@ export default function PrivacyPage() {
           title: "6. International transfers",
           body: [
             "Some service providers may process data outside the United Kingdom or the user’s country. Where international transfers occur, VoxaRisk should use appropriate safeguards required by applicable law, such as adequacy arrangements, approved contractual clauses, or equivalent transfer mechanisms.",
-            "The final production privacy notice should list material processors and transfer locations once the live supplier stack is finalised."
+            "Where required, VoxaRisk may provide further information about material service providers, processors, and transfer safeguards through updates to this notice or direct user communication."
           ]
         },
         {
           title: "7. Retention",
           body: [
             "VoxaRisk should retain personal data and submitted contract materials only for as long as necessary for service delivery, account administration, security, audit, dispute handling, legal compliance, and legitimate business purposes.",
-            "Retention periods may differ for account data, billing records, scan history, report outputs, audit logs, support tickets, and deleted-account records. Final retention durations should be inserted once the production storage policy is fixed."
+            "Retention periods may differ for account data, billing records, scan history, report outputs, audit logs, support tickets, and deleted-account records. VoxaRisk applies retention controls according to operational, legal, security, and service requirements."
           ]
         },
         {

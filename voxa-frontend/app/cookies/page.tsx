@@ -39,14 +39,14 @@ export default function CookiesPage() {
           title: "5. Managing cookies",
           body: [
             "Users can usually control cookies through browser settings. Blocking some cookies may affect the operation, security, performance, or usability of the website and dashboard.",
-            "A production cookie banner or preference centre should be added before using non-essential cookies that require consent."
+            "Where non-essential cookies require consent, VoxaRisk will use an appropriate consent mechanism before those technologies are enabled."
           ]
         },
         {
           title: "6. Changes to this policy",
           body: [
             "This policy should be updated when VoxaRisk changes its analytics, hosting, support, advertising, authentication, or tracking tools.",
-            "The final production version should list actual cookie names, providers, purposes, duration, and whether each cookie is essential or optional."
+            "Where specific non-essential cookies are used, VoxaRisk will provide appropriate information about their provider, purpose, duration, and whether they are essential or optional."
           ]
         }
       ]}
