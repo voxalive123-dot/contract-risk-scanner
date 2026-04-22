@@ -22,3 +22,6 @@ test.txt
 # Frontend local build/install junk
 voxa-frontend/node_modules/
 voxa-frontend/.next/
+
+# Allow deployed VoxaRisk brand asset
+!voxa-frontend/public/brand/voxa-circle-logo.png
