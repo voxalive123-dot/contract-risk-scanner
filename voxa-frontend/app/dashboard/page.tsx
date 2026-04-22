@@ -57,7 +57,7 @@ function DashboardHeader() {
           <img
             src="/brand/voxa-circle-logo.png"
             alt="VOXA"
-            className="h-[76px] w-[76px] scale-[1.16] rounded-full object-cover object-center shadow-[0_10px_24px_rgba(80,60,30,0.12)]"
+            className="h-[76px] w-[76px] scale-[1.10] rounded-full object-cover object-center shadow-[0_10px_24px_rgba(80,60,30,0.12)]"
           />
           <div>
             <div className="text-[15px] font-semibold uppercase tracking-[0.34em] text-neutral-950">
