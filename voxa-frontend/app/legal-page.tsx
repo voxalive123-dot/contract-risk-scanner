@@ -16,8 +16,8 @@ type LegalPageProps = {
 function SiteHeader() {
   return (
     <header className="border-b border-[#dfd0b6] bg-[#f6efe1]">
-      <div className="mx-auto flex max-w-[1360px] items-center justify-between px-6 py-5 md:px-8">
-        <Link href="/" className="flex items-center gap-4">
+      <div className="mx-auto flex max-w-[1360px] flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
+        <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
           <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
             <img
               src="/brand/voxa-circle-logo.png"
@@ -35,7 +35,7 @@ function SiteHeader() {
           </div>
         </Link>
 
-        <nav className="flex items-center gap-4 text-sm font-medium text-neutral-700">
+        <nav className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-neutral-700 md:justify-end md:gap-4">
           <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">
             Product
           </Link>
@@ -59,12 +59,12 @@ export default function LegalPage({ eyebrow, title, intro, sections }: LegalPage
     <div className="min-h-screen bg-[#f4eddf] text-neutral-950">
       <SiteHeader />
 
-      <main className="mx-auto max-w-[1180px] px-6 py-14 md:px-8">
+      <main className="mx-auto max-w-[1180px] px-5 py-10 md:px-8 md:py-14">
         <section className="rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10">
           <div className="text-[11px] font-semibold uppercase tracking-[0.34em] text-[#8a6a34]">
             {eyebrow}
           </div>
-          <h1 className="mt-5 max-w-4xl text-[42px] font-semibold leading-[1.05] tracking-[-0.05em] text-neutral-950 md:text-[56px]">
+          <h1 className="mt-5 max-w-4xl text-[34px] font-semibold leading-[1.08] tracking-[-0.05em] text-neutral-950 sm:text-[42px] md:text-[56px]">
             {title}
           </h1>
           <p className="mt-6 max-w-3xl text-sm leading-7 text-neutral-700">
