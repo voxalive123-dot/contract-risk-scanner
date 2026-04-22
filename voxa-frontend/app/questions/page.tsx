@@ -96,6 +96,16 @@ const questionGroups: QuestionGroup[] = [
           "Free validates signal. Business is the default commercial plan for recurring contract review. Executive supports leadership-focused and higher-volume review workflows. Enterprise is for heavier governed deployment, tailored limits, onboarding, procurement/security review, or invoice-based access.",
       },
       {
+        question: "Can a firm or team use VoxaRisk?",
+        answer:
+          "Yes. Enterprise is intended for organisation-oriented use, including firms, consultants, commercial teams, and internal review groups. Access and deployment can be configured through controlled onboarding so the subscription maps properly to the right organisation, usage expectations, and billing context. VoxaRisk remains a contract risk intelligence tool, not a legal-advice or solicitor-service substitute.",
+      },
+      {
+        question: "Does Enterprise include self-serve team management?",
+        answer:
+          "Full self-serve team administration should be introduced only when the account and permissions layer is ready. Current Enterprise access should be treated as controlled organisation onboarding rather than a promise of instant user invites, SSO, or unlimited seats.",
+      },
+      {
         question: "Can I cancel a subscription?",
         answer:
           "Subscriptions are handled through Stripe billing infrastructure. Account-management and customer-portal flows should be connected as the billing layer matures, so customers can manage billing details through the appropriate route.",

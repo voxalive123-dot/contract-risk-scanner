@@ -247,6 +247,33 @@ export default function PricingPage() {
           </div>
         </section>
 
+        <section className="mt-6 rounded-[1.5rem] border border-[#d8c49e] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(75,55,25,0.06)]">
+          <Eyebrow>Enterprise and team deployment</Eyebrow>
+          <h2 className="mt-4 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
+            Enterprise is for governed organisation deployment.
+          </h2>
+          <p className="mt-5 max-w-[1040px] text-sm leading-7 text-neutral-700">
+            Enterprise is designed for firms, consultants, commercial teams, and organisations that need governed contract-risk review across more than one stakeholder. Access can be configured through controlled onboarding after subscription confirmation, including organisation-level usage expectations, billing review, and deployment requirements.
+          </p>
+
+          <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {[
+              "Organisation-oriented access configuration",
+              "Higher-volume review workflows",
+              "Controlled onboarding for firms and teams",
+              "Procurement, billing, or security review discussion",
+              "Suitable for solicitor firms, consultants, commercial teams, and internal review groups",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm leading-6 text-neutral-700"
+              >
+                {item}
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="mt-6 rounded-[1.25rem] border border-[#dccaad] bg-[#fffaf0] px-6 py-5 shadow-[0_10px_24px_rgba(75,55,25,0.05)]">
           <div className="max-w-[1180px] text-sm leading-7 text-neutral-700">
             <span className="font-semibold text-neutral-950">Plan logic:</span>{" "}
