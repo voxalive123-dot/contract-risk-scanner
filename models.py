@@ -44,6 +44,15 @@ class Organization(Base):
     # Common name used in our build: plan_tier
     plan_type: Mapped[str] = mapped_column(String(50), nullable=False, server_default="starter")
 
+    plan_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="active")
+
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, unique=True)
+    stripe_price_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    stripe_price_lookup_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    billing_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -220,3 +229,29 @@ class Plan(Base):
     sustained_limit = Column(Integer, nullable=False)
 
     created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+
+
+class StripeWebhookEvent(Base):
+    __tablename__ = "stripe_webhook_events"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+
+    stripe_event_id: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    processed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    processing_status: Mapped[str] = mapped_column(String(50), nullable=False)
+
+    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    stripe_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    stripe_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    stripe_price_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    stripe_price_lookup_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    billing_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

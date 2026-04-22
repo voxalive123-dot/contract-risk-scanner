@@ -52,13 +52,26 @@ def test_upgrade_head_on_fresh_db() -> None:
     columns = table_columns(DB_PATH, "scans")
     assert "scan_input_length" in columns
 
+    org_columns = table_columns(DB_PATH, "organizations")
+    assert "plan_status" in org_columns
+    assert "stripe_customer_id" in org_columns
+    assert "stripe_subscription_id" in org_columns
+    assert "stripe_price_lookup_key" in org_columns
+    assert "current_period_end" in org_columns
+    assert "billing_email" in org_columns
+
+    stripe_event_columns = table_columns(DB_PATH, "stripe_webhook_events")
+    assert "stripe_event_id" in stripe_event_columns
+    assert "processing_status" in stripe_event_columns
+    assert "org_id" in stripe_event_columns
+
     conn = sqlite3.connect(DB_PATH)
     try:
         cur = conn.cursor()
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "0f5bf4901e6a"
+        assert row[0] == "2a4d4d9f6b21"
     finally:
         conn.close()
 
@@ -70,7 +83,23 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     columns_after_downgrade = table_columns(DB_PATH, "scans")
     assert "scan_input_length" not in columns_after_downgrade
 
+    org_columns_after_downgrade = table_columns(DB_PATH, "organizations")
+    assert "plan_status" not in org_columns_after_downgrade
+
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='stripe_webhook_events'"
+        )
+        assert cur.fetchone() is None
+    finally:
+        conn.close()
+
     run_alembic("upgrade", "head")
 
     columns_after_reupgrade = table_columns(DB_PATH, "scans")
     assert "scan_input_length" in columns_after_reupgrade
+
+    org_columns_after_reupgrade = table_columns(DB_PATH, "organizations")
+    assert "plan_status" in org_columns_after_reupgrade

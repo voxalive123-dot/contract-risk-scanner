@@ -8,17 +8,30 @@ from tempfile import NamedTemporaryFile
 from typing import Any
 
 import pytesseract
+import stripe
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, field_validator
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
 from crud import create_scan, create_usage_log, get_api_key_by_hash, touch_api_key_last_used
 from db import get_db
+from models import StripeWebhookEvent
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
+from stripe_billing import (
+    PAID_ACTIVE_STATUSES,
+    RESTRICTED_STATUSES,
+    apply_default_entitlement,
+    apply_paid_entitlement,
+    bind_billing_identity,
+    extract_event_context,
+    map_lookup_key_to_plan,
+    resolve_org_match,
+)
 
 
 # ==========================================================
@@ -470,3 +483,107 @@ async def analyze_image(
     finally:
         if temp_path and temp_path.exists():
             temp_path.unlink(missing_ok=True)
+
+
+@app.post("/stripe/webhook")
+async def stripe_webhook(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    if not webhook_secret:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Stripe webhook secret not configured",
+        )
+
+    payload = await request.body()
+    signature = request.headers.get("Stripe-Signature", "")
+
+    try:
+        event = stripe.Webhook.construct_event(
+            payload=payload,
+            sig_header=signature,
+            secret=webhook_secret,
+        )
+    except (ValueError, stripe.error.SignatureVerificationError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail="Invalid Stripe signature") from exc
+
+    event_id = str(event.get("id"))
+    event_type = str(event.get("type", "unknown"))
+
+    existing_event = db.execute(
+        select(StripeWebhookEvent).where(StripeWebhookEvent.stripe_event_id == event_id)
+    ).scalars().first()
+    if existing_event:
+        return {"status": "duplicate", "event_id": event_id}
+
+    payload_object = event.get("data", {}).get("object", {}) or {}
+    context = extract_event_context(event_type, payload_object)
+    plan_name = map_lookup_key_to_plan(context.get("price_lookup_key"))
+    org = resolve_org_match(
+        db,
+        metadata_org_id=context.get("metadata_org_id"),
+        stripe_customer_id=context.get("customer_id"),
+        stripe_subscription_id=context.get("subscription_id"),
+    )
+
+    processing_status = "processed"
+    error: str | None = None
+
+    if org is None:
+        processing_status = "unmatched"
+    elif event_type == "checkout.session.completed":
+        bind_billing_identity(org, context)
+    elif event_type in {
+        "customer.subscription.created",
+        "customer.subscription.updated",
+        "customer.subscription.deleted",
+        "invoice.payment_failed",
+    }:
+        subscription_status = context.get("subscription_status")
+        if subscription_status in PAID_ACTIVE_STATUSES:
+            if plan_name is None:
+                processing_status = "unmatched"
+                error = "Unable to determine VoxaRisk plan from Stripe price lookup key."
+            else:
+                apply_paid_entitlement(
+                    db,
+                    org,
+                    plan_name=plan_name,
+                    subscription_status=subscription_status,
+                    context=context,
+                )
+        elif subscription_status in RESTRICTED_STATUSES:
+            apply_default_entitlement(
+                db,
+                org,
+                subscription_status=subscription_status,
+                context=context,
+            )
+        else:
+            processing_status = "ignored"
+    else:
+        processing_status = "ignored"
+
+    event_row = StripeWebhookEvent(
+        stripe_event_id=event_id,
+        event_type=event_type,
+        processing_status=processing_status,
+        org_id=org.id if org else None,
+        stripe_customer_id=context.get("customer_id"),
+        stripe_subscription_id=context.get("subscription_id"),
+        stripe_price_id=context.get("price_id"),
+        stripe_price_lookup_key=context.get("price_lookup_key"),
+        billing_email=context.get("billing_email"),
+        error=error,
+    )
+    db.add(event_row)
+    db.commit()
+
+    return {
+        "status": processing_status,
+        "event_id": event_id,
+        "matched_org_id": str(org.id) if org else None,
+    }
