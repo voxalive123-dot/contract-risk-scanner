@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
 
+import SiteFooter from "../site-footer";
 type ScoreAdjustment = {
   type?: string;
   effect?: number;
@@ -748,6 +749,7 @@ export default function DashboardPage() {
   }
 
   return (
+    <>
     <main className="min-h-screen bg-[linear-gradient(180deg,#f7f3ea_0%,#f1e5cf_100%)] text-neutral-950">
       <DashboardHeader />
       <div className="mx-auto max-w-7xl px-6 py-8 md:px-8">
@@ -1812,5 +1814,7 @@ export default function DashboardPage() {
         </section>
       </div>
     </main>
+      <SiteFooter />
+    </>
   );
 }

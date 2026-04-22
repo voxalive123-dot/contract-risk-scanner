@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import SiteFooter from "../site-footer";
 type Plan = {
   name: string;
   price: string;
@@ -151,6 +152,7 @@ function PricingCard({ plan }: { plan: Plan }) {
 
 export default function PricingPage() {
   return (
+    <>
     <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
       <SiteHeader />
 
@@ -234,5 +236,7 @@ export default function PricingPage() {
         </section>
       </section>
     </main>
+      <SiteFooter />
+    </>
   );
 }

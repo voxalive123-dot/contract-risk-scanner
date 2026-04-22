@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import SiteFooter from "./site-footer";
 const trustPillars = [
   {
     title: "Evidence-backed risk signals",
@@ -89,6 +90,7 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 
 export default function HomePage() {
   return (
+    <>
     <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
       <SiteHeader />
 
@@ -252,5 +254,7 @@ export default function HomePage() {
         </div>
       </section>
     </main>
+      <SiteFooter />
+    </>
   );
 }
