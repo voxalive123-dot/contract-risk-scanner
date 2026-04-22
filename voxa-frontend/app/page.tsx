@@ -182,6 +182,41 @@ export default function HomePage() {
           </section>
         </div>
 
+        <section className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
+          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
+            <div>
+              <Eyebrow>AI positioning</Eyebrow>
+              <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
+                AI, governed by evidence - not guesswork.
+              </h2>
+              <p className="mt-5 max-w-4xl text-base leading-8 text-neutral-700">
+                VoxaRisk uses deterministic risk detection first, then applies AI as a
+                controlled explanation layer for eligible plans. AI Review Notes can help
+                translate flagged clauses into clearer commercial review priorities, while
+                the underlying score, severity, findings, and evidence remain governed by
+                the VoxaRisk engine.
+              </p>
+            </div>
+
+            <div className="grid gap-3">
+              {[
+                "Deterministic findings first",
+                "AI explanation second",
+                "Evidence-backed review notes",
+                "No legal-advice substitution",
+                "No AI override of score or severity",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm font-medium leading-6 text-neutral-800"
+                >
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <div id="workflow" className="mt-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
             <Eyebrow>Review workflow</Eyebrow>

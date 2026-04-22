@@ -134,13 +134,33 @@ const questionGroups: QuestionGroup[] = [
     ],
   },
   {
-    eyebrow: "Why VoxaRisk, not generic AI?",
-    title: "Structured risk workflow over casual text explanation.",
+    eyebrow: "VoxaRisk and AI",
+    title: "Controlled AI augmentation, not black-box judgment.",
     items: [
       {
-        question: "Why use VoxaRisk instead of ChatGPT or another generic AI model?",
+        question: "Does VoxaRisk use AI?",
         answer:
-          "Generic AI can explain text, but it is not a governed contract risk workflow. VoxaRisk is built around structured findings, severity, evidence, prioritisation, reporting discipline, and commercial review boundaries. The goal is repeatable risk intelligence, not casual conversation.",
+          "Yes. VoxaRisk is being designed as an AI-enabled contract risk intelligence platform. The core scan remains governed by deterministic findings, severity signals, and clause evidence. AI is used as a controlled explanation layer, not as an uncontrolled legal chatbot.",
+      },
+      {
+        question: "Does AI decide the risk score?",
+        answer:
+          "No. The risk score, severity, findings, and clause evidence come from VoxaRisk’s deterministic analysis layer. AI Review Notes may explain those results in clearer commercial language, but they do not change the score or override the findings.",
+      },
+      {
+        question: "Why is that safer than a generic AI chatbot?",
+        answer:
+          "Generic AI can sound confident even when it is not grounded. VoxaRisk constrains AI to the detected findings and matched evidence, so the explanation stays closer to the actual scan result and does not become a free-form legal opinion.",
+      },
+      {
+        question: "Can AI Review Notes replace a lawyer?",
+        answer:
+          "No. AI Review Notes are decision-support content. They can help users understand what to review, clarify, or escalate, but they are not legal advice, legal opinion, contract approval, or a guarantee that a contract is safe.",
+      },
+      {
+        question: "Why does VoxaRisk combine rules and AI?",
+        answer:
+          "Rules provide structure, repeatability, and evidence discipline. AI adds readability, explanation, and commercial framing. The combination is designed to make contract review more understandable without surrendering control to a black-box answer.",
       },
     ],
   },

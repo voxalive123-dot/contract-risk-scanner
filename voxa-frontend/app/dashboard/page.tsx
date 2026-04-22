@@ -50,6 +50,29 @@ type AnalyzeResult = {
   has_extractable_text?: boolean | null;
 };
 
+type AIReviewEvidenceNote = {
+  rule_id?: string;
+  title?: string;
+  explanation?: string;
+  evidence_excerpt?: string;
+};
+
+type AIReviewSummary = {
+  overview?: string;
+  risk_posture_summary?: string;
+  negotiation_focus?: string[];
+  evidence_notes?: AIReviewEvidenceNote[];
+  uncertainty_notes?: string[];
+  boundary_notice?: string;
+};
+
+type AIExplainResponse = {
+  status?: "available" | "disabled" | "unavailable";
+  model?: string;
+  reason?: string;
+  ai_summary?: AIReviewSummary;
+};
+
 function DashboardHeader() {
   return (
     <header className="report-print-hidden border-b border-[#dccaa8] bg-[#f7f3ea]/95 backdrop-blur">
@@ -525,6 +548,33 @@ function lowSignalSummary() {
   return "Current automated review detected no material automated risk signals in the clauses analyzed. This is not a clearance outcome, and commercial context, dependency, and professional review may still change the decision posture.";
 }
 
+function buildAIExplainPayload(result: AnalyzeResult) {
+  return {
+    risk_score: result.risk_score,
+    severity: result.severity,
+    flags: result.flags,
+    findings: (result.findings ?? []).map((finding) => ({
+      rule_id: finding.rule_id,
+      title: finding.title,
+      category: finding.category,
+      severity: finding.severity,
+      rationale: finding.rationale,
+      matched_text: finding.matched_text,
+    })),
+    meta: {
+      confidence: result.meta?.confidence ?? result.confidence_hint ?? null,
+      top_risks: result.meta?.top_risks ?? [],
+      matched_rule_count: result.meta?.matched_rule_count ?? result.findings?.length ?? 0,
+      suppressed_rule_count: result.meta?.suppressed_rule_count ?? 0,
+      contradiction_count: result.meta?.contradiction_count ?? 0,
+    },
+    source_type: result.source_type ?? null,
+    extraction_method: result.extraction_method ?? null,
+    confidence_hint: result.confidence_hint ?? null,
+    has_extractable_text: result.has_extractable_text ?? null,
+  };
+}
+
 export default function DashboardPage() {
   const [text, setText] = useState("");
   const [result, setResult] = useState<AnalyzeResult | null>(null);
@@ -534,8 +584,19 @@ export default function DashboardPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploadLabel, setUploadLabel] = useState("No file selected");
   const [reportGeneratedAt, setReportGeneratedAt] = useState<string | null>(null);
+  const [aiReview, setAIReview] = useState<AIExplainResponse | null>(null);
+  const [aiState, setAIState] = useState<
+    "idle" | "loading" | "available" | "disabled" | "unavailable" | "denied" | "error"
+  >("idle");
+  const [aiMessage, setAIMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  function resetAIReview() {
+    setAIReview(null);
+    setAIState("idle");
+    setAIMessage(null);
+  }
 
   async function analyzeText() {
     if (!text.trim()) return;
@@ -544,6 +605,7 @@ export default function DashboardPage() {
     setResult(null);
     setReportGeneratedAt(null);
     setErrorMessage(null);
+    resetAIReview();
 
     try {
       const res = await fetch("/api/analyze", {
@@ -581,6 +643,7 @@ export default function DashboardPage() {
     setResult(null);
     setReportGeneratedAt(null);
     setErrorMessage(null);
+    resetAIReview();
 
     try {
       const formData = new FormData();
@@ -627,6 +690,7 @@ export default function DashboardPage() {
     setResult(null);
     setReportGeneratedAt(null);
     setErrorMessage(null);
+    resetAIReview();
     setSelectedFile(file);
 
     if (!file) {
@@ -647,6 +711,7 @@ export default function DashboardPage() {
   function clearUpload() {
     setSelectedFile(null);
     setErrorMessage(null);
+    resetAIReview();
     setUploadLabel("No file selected");
     if (fileInputRef.current) fileInputRef.current.value = "";
     if (cameraInputRef.current) cameraInputRef.current.value = "";
@@ -746,6 +811,78 @@ export default function DashboardPage() {
     }
 
     window.print();
+  }
+
+  async function generateAIReviewNotes() {
+    if (!result) return;
+
+    setAIState("loading");
+    setAIMessage(null);
+
+    try {
+      const res = await fetch("/api/ai/explain", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(buildAIExplainPayload(result)),
+      });
+
+      const payload = (await res.json().catch(() => null)) as AIExplainResponse | null;
+
+      if (res.status === 403) {
+        setAIReview(null);
+        setAIState("denied");
+        setAIMessage("AI Review Notes are available on paid plans.");
+        return;
+      }
+
+      if (!res.ok) {
+        setAIReview(null);
+        setAIState("unavailable");
+        setAIMessage(
+          payload?.status === "disabled"
+            ? "AI Review Notes are not currently enabled for this environment."
+            : "AI Review Notes are temporarily unavailable. The deterministic risk analysis above remains valid.",
+        );
+        return;
+      }
+
+      if (payload?.status === "available" && payload.ai_summary) {
+        setAIReview(payload);
+        setAIState("available");
+        return;
+      }
+
+      if (payload?.status === "disabled") {
+        setAIReview(payload);
+        setAIState("disabled");
+        setAIMessage("AI Review Notes are not currently enabled for this environment.");
+        return;
+      }
+
+      if (payload?.status === "unavailable") {
+        setAIReview(payload);
+        setAIState("unavailable");
+        setAIMessage(
+          "AI Review Notes are temporarily unavailable. The deterministic risk analysis above remains valid.",
+        );
+        return;
+      }
+
+      setAIReview(null);
+      setAIState("error");
+      setAIMessage(
+        "AI Review Notes are temporarily unavailable. The deterministic risk analysis above remains valid.",
+      );
+    } catch (error) {
+      console.error("AI REVIEW ERROR:", error);
+      setAIReview(null);
+      setAIState("unavailable");
+      setAIMessage(
+        "AI Review Notes are temporarily unavailable. The deterministic risk analysis above remains valid.",
+      );
+    }
   }
 
   return (
@@ -1433,6 +1570,155 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            <div className="rounded-3xl border border-[#d7c3a0] bg-[#fcf7ee] p-6 shadow-[0_10px_22px_rgba(80,60,30,0.05)]">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
+                    AI Review Notes
+                  </div>
+                  <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
+                    Secondary explanation layer
+                  </h3>
+                  <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
+                    Generated from VoxaRisk&apos;s deterministic findings and clause evidence.
+                    AI does not change the score, severity, findings, or decision posture.
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={generateAIReviewNotes}
+                  disabled={aiState === "loading"}
+                  className="rounded-2xl border border-[#cdb78d] bg-[#fffaf0] px-5 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {aiState === "loading"
+                    ? "Generating evidence-grounded AI notes..."
+                    : "Generate AI Review Notes"}
+                </button>
+              </div>
+
+              {aiState === "idle" && (
+                <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4 text-sm leading-6 text-neutral-700">
+                  Use AI Review Notes when you want a tighter commercial explanation of the
+                  deterministic result above. The underlying VoxaRisk analysis remains the
+                  authoritative output on this page.
+                </div>
+              )}
+
+              {(aiState === "disabled" ||
+                aiState === "unavailable" ||
+                aiState === "denied" ||
+                aiState === "error") &&
+                aiMessage && (
+                  <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4 text-sm leading-6 text-neutral-700">
+                    {aiMessage}
+                  </div>
+                )}
+
+              {aiState === "available" && aiReview?.ai_summary && (
+                <div className="mt-6 space-y-5">
+                  <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                        Overview
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-neutral-700">
+                        {aiReview.ai_summary.overview}
+                      </p>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                        Risk posture summary
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-neutral-700">
+                        {aiReview.ai_summary.risk_posture_summary}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid gap-5 xl:grid-cols-[0.95fr_1.05fr]">
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                        Negotiation focus
+                      </div>
+                      <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                        {(aiReview.ai_summary.negotiation_focus ?? []).map((item) => (
+                          <li
+                            key={item}
+                            className="rounded-xl border border-[#e3d4bb] bg-[#fcf7ee] px-4 py-3"
+                          >
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                        Boundary notice
+                      </div>
+                      <p className="mt-3 text-sm leading-7 text-neutral-700">
+                        {aiReview.ai_summary.boundary_notice}
+                      </p>
+
+                      {(aiReview.model || aiReview.reason) && (
+                        <div className="mt-4 text-xs uppercase tracking-[0.18em] text-[#8f7245]">
+                          {aiReview.model
+                            ? `Model: ${aiReview.model}`
+                            : aiReview.reason ?? ""}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                    <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                      Evidence notes
+                    </div>
+                    <div className="mt-4 space-y-4">
+                      {(aiReview.ai_summary.evidence_notes ?? []).map((note, index) => (
+                        <div
+                          key={`${note.rule_id ?? note.title ?? "evidence"}-${index}`}
+                          className="rounded-2xl border border-[#e3d4bb] bg-[#fcf7ee] p-4"
+                        >
+                          <h4 className="text-sm font-semibold text-neutral-950">
+                            {note.title ?? "Evidence note"}
+                          </h4>
+                          <p className="mt-2 text-sm leading-6 text-neutral-700">
+                            {note.explanation}
+                          </p>
+                          {note.evidence_excerpt && (
+                            <div className="mt-3 rounded-xl border border-[#dccaa8] bg-[#fffaf0] p-3 text-sm leading-6 text-neutral-700">
+                              {note.evidence_excerpt}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {(aiReview.ai_summary.uncertainty_notes ?? []).length > 0 && (
+                    <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                      <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                        Uncertainty notes
+                      </div>
+                      <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                        {(aiReview.ai_summary.uncertainty_notes ?? []).map((item) => (
+                          <li
+                            key={item}
+                            className="rounded-xl border border-[#e3d4bb] bg-[#fcf7ee] px-4 py-3"
+                          >
+                            {item}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
