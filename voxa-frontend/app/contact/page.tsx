@@ -80,7 +80,7 @@ export default function ContactPage() {
           </p>
         </section>
 
-        <section className="mt-8 grid gap-8 lg:grid-cols-[0.9fr_1.1fr]">
+        <section className="mt-8 grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr]">
           <aside className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-7 shadow-[0_12px_32px_rgba(75,55,25,0.06)]">
             <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Before contacting us</div>
             <h2 className="mt-4 text-[26px] font-semibold tracking-[-0.04em] text-neutral-950">Keep the enquiry clear and operational.</h2>
