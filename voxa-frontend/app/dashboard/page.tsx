@@ -1335,6 +1335,31 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                    <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                      Decision discipline
+                    </div>
+                    <h3 className="mt-2 text-sm font-semibold text-[#1f1a14]">
+                      Use the review before signing, not after the damage is done.
+                    </h3>
+                    <div className="mt-3 space-y-3 text-sm leading-6 text-neutral-700">
+                      <p>
+                        Treat the result as a structured pressure-point map. Focus first on
+                        clauses that transfer cost, liability, control, or dispute leverage
+                        away from your side.
+                      </p>
+                      <ul className="list-disc space-y-2 pl-5">
+                        <li>Challenge open-ended cost or liability obligations.</li>
+                        <li>Clarify rights to change, suspend, or terminate.</li>
+                        <li>Escalate dispute terms that make enforcement harder.</li>
+                      </ul>
+                      <p className="rounded-xl border border-[#dccaa8] bg-[#fcf2df] p-3 text-xs leading-5 text-[#6f5a37]">
+                        VoxaRisk does not approve contracts or replace legal advice. It helps
+                        you decide what to challenge, clarify, or escalate.
+                      </p>
+                    </div>
+                  </div>
+
                   {result.source_type && result.source_type !== "text" && (
                     <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
                       <div className="text-xs uppercase tracking-wide text-[#8f7245]">
