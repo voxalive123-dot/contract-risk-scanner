@@ -81,15 +81,27 @@ export default function ContactPage() {
         </section>
 
         <section className="mt-8 grid items-start gap-8 lg:grid-cols-[0.9fr_1.1fr]">
-          <aside className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-7 shadow-[0_12px_32px_rgba(75,55,25,0.06)]">
-            <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Before contacting us</div>
-            <h2 className="mt-4 text-[26px] font-semibold tracking-[-0.04em] text-neutral-950">Keep the enquiry clear and operational.</h2>
-            <div className="mt-5 space-y-4 text-sm leading-7 text-neutral-700">
-              <p>For contract risk review, use the dashboard rather than emailing confidential documents. For legal interpretation, obtain qualified professional advice.</p>
-              <p>For business onboarding, include your organisation type, expected usage, and whether you need individual, team, or enterprise access.</p>
-              <p>Current contact route: <span className="font-semibold text-neutral-950">contact@voxarisk.com</span></p>
-            </div>
-          </aside>
+          <div className="flex flex-col gap-5">
+            <aside className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-7 shadow-[0_12px_32px_rgba(75,55,25,0.06)]">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Before contacting us</div>
+              <h2 className="mt-4 text-[26px] font-semibold tracking-[-0.04em] text-neutral-950">Keep the enquiry clear and operational.</h2>
+              <div className="mt-5 space-y-4 text-sm leading-7 text-neutral-700">
+                <p>For contract risk review, use the dashboard rather than emailing confidential documents. For legal interpretation, obtain qualified professional advice.</p>
+                <p>For business onboarding, include your organisation type, expected usage, and whether you need individual, team, or enterprise access.</p>
+                <p>Current contact route: <span className="font-semibold text-neutral-950">contact@voxarisk.com</span></p>
+              </div>
+            </aside>
+
+            <aside className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-7 shadow-[0_12px_32px_rgba(75,55,25,0.06)]">
+              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">What happens next</div>
+              <h2 className="mt-4 text-[24px] font-semibold tracking-[-0.04em] text-neutral-950">We use written contact to keep the trail clear.</h2>
+              <div className="mt-5 space-y-3 text-sm leading-7 text-neutral-700">
+                <p>Commercial and account enquiries should include enough context for routing, but not sensitive contract text.</p>
+                <p>Where the issue concerns product access, billing, onboarding, or platform use, keep the subject line specific so the enquiry can be handled cleanly.</p>
+                <p>For contract review, the dashboard remains the correct route because it keeps analysis, evidence, and decision boundaries inside the product workflow.</p>
+              </div>
+            </aside>
+          </div>
 
           <form onSubmit={handleSubmit} className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-7 shadow-[0_12px_32px_rgba(75,55,25,0.06)]">
             <div className="grid gap-4 md:grid-cols-2">
