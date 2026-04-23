@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import SiteFooter from "../site-footer";
+
+const PLATFORM_OWNER_EMAIL = "voxalive123@gmail.com";
 
 function SiteHeader() {
   return (
@@ -53,8 +55,18 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 }
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
+  const [ownerRecoveryKey, setOwnerRecoveryKey] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const isOwnerRecovery = email.trim().toLowerCase() === PLATFORM_OWNER_EMAIL;
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const emailParam = params.get("email");
+    if (emailParam) {
+      setEmail(emailParam);
+    }
+  }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -62,14 +74,35 @@ export default function ForgotPasswordPage() {
     setMessage(null);
 
     try {
-      await fetch("/api/account/password/reset/request", {
+      const payload = {
+        email,
+        ...(isOwnerRecovery ? { owner_recovery_key: ownerRecoveryKey } : {}),
+      };
+      const response = await fetch("/api/account/password/reset/request", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email }),
+        body: JSON.stringify(payload),
       });
-      setMessage("If the account can be safely matched, password reset instructions can be issued through the controlled account channel.");
+      const body = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        setMessage(body?.detail ?? "Password reset request could not be completed.");
+        return;
+      }
+
+      if (body?.status === "owner_reset_ready" && typeof body.reset_url === "string") {
+        window.location.href = body.reset_url;
+        return;
+      }
+
+      if (body?.status === "owner_recovery_key_required") {
+        setMessage("Enter the owner recovery key configured for this deployment to continue.");
+        return;
+      }
+
+      setMessage("If the account can be safely matched and delivery is configured, password reset instructions will be issued through the controlled account channel.");
     } catch (error) {
       setMessage(`Password reset request could not be completed. ${String(error)}`);
     } finally {
@@ -110,6 +143,26 @@ export default function ForgotPasswordPage() {
                 className="mt-2 rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none transition focus:border-[#8a6a34]"
                 required
               />
+
+              {isOwnerRecovery && (
+                <>
+                  <label className="mt-5 text-sm font-semibold text-neutral-900" htmlFor="ownerRecoveryKey">
+                    Owner recovery key
+                  </label>
+                  <input
+                    id="ownerRecoveryKey"
+                    type="password"
+                    autoComplete="off"
+                    value={ownerRecoveryKey}
+                    onChange={(event) => setOwnerRecoveryKey(event.target.value)}
+                    className="mt-2 rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none transition focus:border-[#8a6a34]"
+                    required
+                  />
+                  <p className="mt-3 text-xs leading-6 text-neutral-600">
+                    Owner recovery uses the deployment recovery key when email delivery is not configured.
+                  </p>
+                </>
+              )}
 
               {message && (
                 <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">

@@ -6,6 +6,8 @@ import { FormEvent, useState } from "react";
 import AccountNavLink from "../account-nav-link";
 import SiteFooter from "../site-footer";
 
+const PLATFORM_OWNER_EMAIL = "voxalive123@gmail.com";
+
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-[#dfd0b6] bg-[#f6efe1]">
@@ -78,6 +80,10 @@ export default function SignInPage() {
       });
 
       if (!response.ok) {
+        if (email.trim().toLowerCase() === PLATFORM_OWNER_EMAIL) {
+          window.location.href = `/forgot-password?email=${encodeURIComponent(email.trim().toLowerCase())}&owner=1`;
+          return;
+        }
         setMessage("Sign in could not be completed. Check the account details and membership status.");
         return;
       }

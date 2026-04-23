@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from urllib.parse import parse_qs, urlparse
+
 from sqlalchemy import select
 
 from account_auth import authenticate_user
@@ -134,3 +136,86 @@ def test_platform_owner_bootstrap_reuses_named_owner_org_on_repeat_direct_passwo
         assert len(users) == 1
         assert len(memberships) == 1
         assert memberships[0].status == "active"
+
+
+def test_platform_owner_recovery_key_flow_creates_owner_resets_password_and_allows_internal_ops(
+    provisioning_client,
+    monkeypatch,
+):
+    client, session_factory = provisioning_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+    monkeypatch.setenv("PLATFORM_OWNER_RECOVERY_KEY", "deployment-owner-recovery")
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+
+    response = client.post(
+        "/account/password/reset/request",
+        json={
+            "email": "voxalive123@gmail.com",
+            "owner_recovery_key": "deployment-owner-recovery",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "owner_reset_ready"
+    assert body["delivery"] == "owner_recovery_key"
+    reset_token = parse_qs(urlparse(body["reset_url"]).query)["token"][0]
+
+    reset = client.post(
+        "/account/password/reset/complete",
+        json={"token": reset_token, "password": "owner recovered password"},
+    )
+    assert reset.status_code == 200
+
+    signin = client.post(
+        "/account/login",
+        json={"email": "voxalive123@gmail.com", "password": "owner recovered password"},
+    )
+    assert signin.status_code == 200
+    bearer = signin.json()["access_token"]
+
+    internal = client.get(
+        "/internal/ops/organizations",
+        headers={"Authorization": f"Bearer {bearer}"},
+    )
+    assert internal.status_code == 200
+
+    with session_factory() as db:
+        orgs = list(db.execute(select(Organization).where(Organization.name == "VoxaRisk Platform")).scalars().all())
+        users = list(db.execute(select(User).where(User.email == "voxalive123@gmail.com")).scalars().all())
+        memberships = list(db.execute(select(Membership).where(Membership.user_id == users[0].id)).scalars().all())
+        assert len(orgs) == 1
+        assert len(users) == 1
+        assert len([membership for membership in memberships if membership.status == "active"]) == 1
+        assert memberships[0].org_id == orgs[0].id
+
+
+def test_platform_owner_recovery_without_valid_key_does_not_create_owner_or_token(
+    provisioning_client,
+    monkeypatch,
+):
+    client, session_factory = provisioning_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+    monkeypatch.setenv("PLATFORM_OWNER_RECOVERY_KEY", "deployment-owner-recovery")
+
+    missing_key = client.post(
+        "/account/password/reset/request",
+        json={"email": "voxalive123@gmail.com"},
+    )
+    wrong_key = client.post(
+        "/account/password/reset/request",
+        json={
+            "email": "voxalive123@gmail.com",
+            "owner_recovery_key": "wrong-owner-recovery",
+        },
+    )
+
+    assert missing_key.status_code == 200
+    assert missing_key.json() == {"status": "owner_recovery_key_required"}
+    assert wrong_key.status_code == 403
+
+    with session_factory() as db:
+        assert list(db.execute(select(User).where(User.email == "voxalive123@gmail.com")).scalars().all()) == []
+        assert list(db.execute(select(AccountPasswordToken)).scalars().all()) == []
