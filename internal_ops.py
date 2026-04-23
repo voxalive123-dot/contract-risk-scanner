@@ -42,15 +42,24 @@ def _serialize_dt(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
+def platform_owner_email() -> str | None:
+    raw = os.getenv("PLATFORM_OWNER_EMAIL", "").strip().lower()
+    return raw or None
+
+
 def internal_admin_emails() -> set[str]:
     raw = os.getenv("INTERNAL_ADMIN_EMAILS", "")
-    return {item.strip().lower() for item in raw.split(",") if item.strip()}
+    emails = {item.strip().lower() for item in raw.split(",") if item.strip()}
+    owner_email = platform_owner_email()
+    if owner_email:
+        emails.add(owner_email)
+    return emails
 
 
 def require_internal_admin(context: AccountContext) -> None:
     allowed = internal_admin_emails()
     if not allowed:
-        raise InternalOpsConfigError("INTERNAL_ADMIN_EMAILS is not configured")
+        raise InternalOpsConfigError("Internal operations access is not configured")
     if context.user.email.strip().lower() not in allowed:
         raise InternalOpsForbiddenError("Account is not an internal platform admin")
 

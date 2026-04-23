@@ -164,6 +164,20 @@ def test_internal_admin_access_allowed(internal_ops_client):
     assert len(response.json()["organizations"]) == 1
 
 
+
+def test_platform_owner_email_grants_internal_ops_without_admin_list(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(session_factory, email="voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+
+    response = client.get(
+        "/internal/ops/organizations",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["read_only"] is True
 def test_normal_customer_owner_denied_internal_ops(internal_ops_client):
     client, session_factory, monkeypatch = internal_ops_client
     customer = create_user_org(session_factory, email="customer-owner@example.test", role="owner")
