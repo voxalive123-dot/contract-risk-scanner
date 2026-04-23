@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 import os
 import logging
 import time
@@ -24,6 +25,7 @@ from account_auth import (
     AccountConfigError,
     InvalidCredentialsError,
     InvalidMembershipError,
+    account_session_config_missing_keys,
     account_context_for_user,
     account_context_from_token,
     authenticate_user,
@@ -124,6 +126,26 @@ def reset_error_response(code: str) -> JSONResponse:
             "status": "failed",
             "code": code,
             "detail": "Password reset could not be completed.",
+        },
+    )
+
+
+def session_config_error_response() -> JSONResponse:
+    missing = account_session_config_missing_keys()
+    logger.error(
+        "account_session_config_missing",
+        extra={
+            "event": "account_session_config_missing",
+            "reason": "session_config_missing",
+            "missing_keys": ",".join(missing),
+        },
+    )
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={
+            "status": "failed",
+            "code": "session_config_missing",
+            "detail": "Account session configuration missing",
         },
     )
 
@@ -370,10 +392,7 @@ def get_account_ctx(
     try:
         return account_context_from_token(db, token.strip())
     except AccountConfigError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Account session configuration missing",
-        ) from exc
+        return session_config_error_response()
     except InvalidMembershipError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -607,12 +626,33 @@ def _extract_text_from_image(image_path: Path) -> tuple[str, float]:
 # ==========================================================
 # APP
 # ==========================================================
+@asynccontextmanager
+async def app_lifespan(_app: FastAPI):
+    missing = account_session_config_missing_keys()
+    if missing:
+        logger.critical(
+            "account_session_config_invalid_startup",
+            extra={
+                "event": "account_session_config_invalid_startup",
+                "reason": "session_config_missing",
+                "missing_keys": ",".join(missing),
+            },
+        )
+    else:
+        logger.info(
+            "account_session_config_validated",
+            extra={"event": "account_session_config_validated", "reason": "configured"},
+        )
+    yield
+
+
 app = FastAPI(
     title="VoxaRisk_INTELLIGENCE",
     version="1.0.0",
     docs_url="/docs" if ENABLE_DOCS else None,
     redoc_url="/redoc" if ENABLE_DOCS else None,
     openapi_url="/openapi.json" if ENABLE_DOCS else None,
+    lifespan=app_lifespan,
 )
 
 app.add_middleware(
@@ -677,10 +717,7 @@ def account_login(
         context = authenticate_user(db, email=request.email, password=request.password)
         token = create_session_token(context.user)
     except AccountConfigError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Account session configuration missing",
-        ) from exc
+        return session_config_error_response()
     except InvalidCredentialsError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -833,10 +870,7 @@ def account_password_reset_complete(
                 "reason": "session_config_missing",
             },
         )
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Account session configuration missing",
-        ) from exc
+        return session_config_error_response()
     except AccountTokenError as exc:
         logger.info(
             "password_reset_consume_failed",

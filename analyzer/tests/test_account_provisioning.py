@@ -370,6 +370,37 @@ def test_owner_password_reset_loop_signs_in_and_accesses_internal_ops(provisioni
     assert internal.json()["read_only"] is True
 
 
+def test_password_reset_completion_reports_session_config_missing(provisioning_client, monkeypatch):
+    client, session_factory = provisioning_client
+    org_id = create_org(session_factory)
+    with session_factory() as db:
+        setup_token = provision_customer_account(
+            db,
+            org_id=org_id,
+            email="session-missing@example.test",
+        ).setup_token
+        complete_password_token(
+            db,
+            raw_token=setup_token,
+            password="original password",
+            purpose="setup",
+        )
+        reset_token = request_password_reset(db, email="session-missing@example.test")
+
+    monkeypatch.delenv("ACCOUNT_SESSION_SECRET", raising=False)
+    response = client.post(
+        "/account/password/reset/complete",
+        json={"token": reset_token, "password": "updated password"},
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "status": "failed",
+        "code": "session_config_missing",
+        "detail": "Account session configuration missing",
+    }
+
+
 def test_password_reset_completion_logs_invalid_reasons(provisioning_client, caplog):
     client, session_factory = provisioning_client
     org_id = create_org(session_factory)

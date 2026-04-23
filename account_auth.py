@@ -46,11 +46,22 @@ class AccountContext:
     entitlement: EntitlementResolution
 
 
+def account_session_config_missing_keys() -> list[str]:
+    missing: list[str] = []
+    if not os.getenv("ACCOUNT_SESSION_SECRET", "").strip():
+        missing.append("ACCOUNT_SESSION_SECRET")
+    return missing
+
+
+def validate_account_session_config() -> None:
+    missing = account_session_config_missing_keys()
+    if missing:
+        raise AccountConfigError(f"Missing account session configuration: {', '.join(missing)}")
+
+
 def account_session_secret() -> str:
-    secret = os.getenv("ACCOUNT_SESSION_SECRET", "").strip()
-    if not secret:
-        raise AccountConfigError("ACCOUNT_SESSION_SECRET is not configured")
-    return secret
+    validate_account_session_config()
+    return os.getenv("ACCOUNT_SESSION_SECRET", "").strip()
 
 
 def hash_password(password: str) -> str:
