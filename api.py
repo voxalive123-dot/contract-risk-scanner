@@ -16,7 +16,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PIL import Image
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -34,6 +34,7 @@ from account_provisioning import (
     AccountTokenError,
     complete_password_token,
     request_password_reset,
+    validate_password_token,
 )
 from ai_explain import AIExplainRequest, AIProviderError, generate_ai_explanation, openai_api_configured
 from billing_portal import (
@@ -104,6 +105,28 @@ RATE_LIMIT_REFILL_PER_SEC = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "1.0"))
 _BUCKETS: dict[str, dict[str, float]] = {}
 logger = logging.getLogger("voxarisk.api")
 
+RESET_ERROR_STATUSES = {
+    "missing_token": status.HTTP_400_BAD_REQUEST,
+    "missing_token_or_password": status.HTTP_400_BAD_REQUEST,
+    "token_not_found": status.HTTP_404_NOT_FOUND,
+    "token_expired": status.HTTP_410_GONE,
+    "token_already_used": status.HTTP_410_GONE,
+    "password_validation_failed": status.HTTP_400_BAD_REQUEST,
+    "payload_invalid": status.HTTP_400_BAD_REQUEST,
+    "token_user_invalid": status.HTTP_403_FORBIDDEN,
+}
+
+
+def reset_error_response(code: str) -> JSONResponse:
+    return JSONResponse(
+        status_code=RESET_ERROR_STATUSES.get(code, status.HTTP_400_BAD_REQUEST),
+        content={
+            "status": "failed",
+            "code": code,
+            "detail": "Password reset could not be completed.",
+        },
+    )
+
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
     "image/jpg",
@@ -172,6 +195,15 @@ class AccountPasswordActionRequest(BaseModel):
     token: str = Field(...)
     password: str = Field(...)
 
+    @model_validator(mode="before")
+    @classmethod
+    def normalize_legacy_password_field(cls, data: Any) -> Any:
+        if isinstance(data, dict) and "password" not in data and "new_password" in data:
+            normalized = dict(data)
+            normalized["password"] = normalized.get("new_password")
+            return normalized
+        return data
+
     @field_validator("token")
     @classmethod
     def validate_token(cls, value: str) -> str:
@@ -185,6 +217,17 @@ class AccountPasswordActionRequest(BaseModel):
         if not isinstance(value, str) or len(value) < 12:
             raise ValueError("password must be at least 12 characters")
         return value
+
+
+class AccountPasswordTokenValidateRequest(BaseModel):
+    token: str = Field(...)
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("token is required")
+        return value.strip()
 
 
 class AccountPasswordResetRequest(BaseModel):
@@ -583,7 +626,10 @@ app.add_middleware(
 
 @app.exception_handler(RequestValidationError)
 async def request_validation_error_handler(request: Request, exc: RequestValidationError):
-    if request.url.path == "/account/password/reset/complete":
+    if request.url.path in {
+        "/account/password/reset/complete",
+        "/account/password/reset/validate",
+    }:
         reason = "payload_invalid"
         errors = exc.errors()
         if any("token" in {str(part) for part in error.get("loc", [])} for error in errors):
@@ -594,10 +640,7 @@ async def request_validation_error_handler(request: Request, exc: RequestValidat
             "password_reset_consume_failed",
             extra={"event": "password_reset_consume_failed", "reason": reason},
         )
-        return JSONResponse(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            content={"detail": "Password reset token is invalid or expired"},
-        )
+        return reset_error_response(reason)
     return await request_validation_exception_handler(request, exc)
 
 
@@ -749,6 +792,26 @@ def account_password_reset_request(
     return {"status": "reset_requested"}
 
 
+@app.post("/account/password/reset/validate")
+def account_password_reset_validate(
+    request: AccountPasswordTokenValidateRequest,
+    db: Session = Depends(get_db),
+):
+    token_status = validate_password_token(db, raw_token=request.token, purpose="reset")
+    if token_status == "valid":
+        logger.info(
+            "password_reset_token_validated",
+            extra={"event": "password_reset_token_validated", "reason": "valid"},
+        )
+        return {"valid": True, "code": "valid"}
+
+    logger.info(
+        "password_reset_token_validation_failed",
+        extra={"event": "password_reset_token_validation_failed", "reason": token_status},
+    )
+    return reset_error_response(token_status)
+
+
 @app.post("/account/password/reset/complete")
 def account_password_reset_complete(
     request: AccountPasswordActionRequest,
@@ -782,10 +845,7 @@ def account_password_reset_complete(
                 "reason": getattr(exc, "reason", "invalid_token"),
             },
         )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Password reset token is invalid or expired",
-        ) from exc
+        return reset_error_response(getattr(exc, "reason", "payload_invalid"))
 
     logger.info(
         "password_reset_consume_succeeded",

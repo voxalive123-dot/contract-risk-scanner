@@ -5,6 +5,8 @@ import { FormEvent, useEffect, useState } from "react";
 
 import SiteFooter from "../site-footer";
 
+type TokenState = "checking" | "valid" | "invalid" | "missing";
+
 function SiteHeader() {
   return (
     <header className="sticky top-0 z-50 border-b border-black/10 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/80">
@@ -57,9 +59,63 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [tokenState, setTokenState] = useState<TokenState>("checking");
+  const [tokenMessage, setTokenMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setToken((new URLSearchParams(window.location.search).get("token") ?? "").trim());
+    const resetToken = (new URLSearchParams(window.location.search).get("token") ?? "").trim();
+    setToken(resetToken);
+
+    if (!resetToken) {
+      setTokenState("missing");
+      setTokenMessage("Reset token missing. Request a fresh password reset link.");
+      return;
+    }
+
+    let cancelled = false;
+
+    async function validateToken() {
+      setTokenState("checking");
+      setTokenMessage(null);
+      try {
+        const response = await fetch("/api/account/password/reset/validate", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ token: resetToken }),
+        });
+
+        if (cancelled) {
+          return;
+        }
+
+        if (response.ok) {
+          setTokenState("valid");
+          return;
+        }
+
+        const payload = await response.json().catch(() => null);
+        const code = typeof payload?.code === "string" ? payload.code : "invalid";
+        setTokenState("invalid");
+        setTokenMessage(
+          code === "token_expired" || code === "token_already_used"
+            ? "This reset link has expired or has already been used. Request a fresh password reset link."
+            : "This reset link is not valid. Request a fresh password reset link.",
+        );
+      } catch (error) {
+        if (!cancelled) {
+          setTokenState("invalid");
+          setTokenMessage(`Password reset link could not be validated. ${String(error)}`);
+        }
+      }
+    }
+
+    validateToken();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -68,8 +124,8 @@ export default function ResetPasswordPage() {
 
     const resetToken = token.trim();
 
-    if (!resetToken) {
-      setMessage("Reset token missing. Use the reset link issued for your account.");
+    if (!resetToken || tokenState !== "valid") {
+      setMessage("Request a fresh password reset link before setting a new password.");
       return;
     }
 
@@ -127,9 +183,18 @@ export default function ResetPasswordPage() {
                 Reset password
               </div>
 
-              {!token && (
+              {tokenState === "checking" && (
+                <div className="mt-5 rounded-xl border border-[#d8c49e] bg-[#fffdf8] p-4 text-sm leading-6 text-neutral-700">
+                  Checking reset link...
+                </div>
+              )}
+
+              {(tokenState === "missing" || tokenState === "invalid") && (
                 <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-800">
-                  Reset token missing. Use the reset link issued for your account.
+                  <div>{tokenMessage}</div>
+                  <Link href="/forgot-password" className="mt-3 inline-flex font-semibold underline-offset-4 hover:underline">
+                    Request a fresh reset link
+                  </Link>
                 </div>
               )}
 
@@ -142,6 +207,7 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
+                disabled={tokenState !== "valid"}
                 className="mt-2 rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none transition focus:border-[#8a6a34]"
                 minLength={12}
                 required
@@ -156,6 +222,7 @@ export default function ResetPasswordPage() {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
+                disabled={tokenState !== "valid"}
                 className="mt-2 rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none transition focus:border-[#8a6a34]"
                 minLength={12}
                 required
@@ -169,7 +236,7 @@ export default function ResetPasswordPage() {
 
               <button
                 type="submit"
-                disabled={loading || !token}
+                disabled={loading || tokenState !== "valid"}
                 className="mt-6 rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17] disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? "Resetting password..." : "Reset password"}

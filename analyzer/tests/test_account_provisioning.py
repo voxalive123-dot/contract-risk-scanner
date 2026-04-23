@@ -257,9 +257,16 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
     assert "password_reset_delivery_succeeded" in log_events
     reset_token = parse_qs(urlparse(sent_messages[0]["reset_url"]).query)["token"][0]
 
+    validate = client.post(
+        "/account/password/reset/validate",
+        json={"token": reset_token},
+    )
+    assert validate.status_code == 200
+    assert validate.json() == {"valid": True, "code": "valid"}
+
     reset = client.post(
         "/account/password/reset/complete",
-        json={"token": reset_token, "password": "updated password"},
+        json={"token": reset_token, "new_password": "updated password"},
     )
     assert reset.status_code == 200
 
@@ -273,7 +280,15 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
         "/account/password/reset/complete",
         json={"token": reset_token, "password": "another updated password"},
     )
-    assert reused.status_code == 400
+    assert reused.status_code == 410
+    assert reused.json()["code"] == "token_already_used"
+
+    validate_used = client.post(
+        "/account/password/reset/validate",
+        json={"token": reset_token},
+    )
+    assert validate_used.status_code == 410
+    assert validate_used.json()["code"] == "token_already_used"
 
 
 def test_password_reset_completion_changes_password_without_widening_entitlement(provisioning_client):
@@ -308,6 +323,51 @@ def test_password_reset_completion_changes_password_without_widening_entitlement
         context = authenticate_user(db, email="reset@example.test", password="updated password")
         assert str(context.organization.id) == str(org_id)
         assert context.entitlement.effective_plan == "starter"
+
+
+def test_owner_password_reset_loop_signs_in_and_accesses_internal_ops(provisioning_client, monkeypatch):
+    client, session_factory = provisioning_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+    org_id = create_org(session_factory)
+    with session_factory() as db:
+        setup_token = provision_customer_account(
+            db,
+            org_id=org_id,
+            email="admin.dashboard@voxarisk.com",
+        ).setup_token
+        complete_password_token(
+            db,
+            raw_token=setup_token,
+            password="original owner password",
+            purpose="setup",
+        )
+        reset_token = request_password_reset(db, email="admin.dashboard@voxarisk.com")
+
+    validate = client.post(
+        "/account/password/reset/validate",
+        json={"token": reset_token},
+    )
+    assert validate.status_code == 200
+
+    reset = client.post(
+        "/account/password/reset/complete",
+        json={"token": reset_token, "password": "updated owner password"},
+    )
+    assert reset.status_code == 200
+
+    with session_factory() as db:
+        with pytest.raises(InvalidCredentialsError):
+            authenticate_user(db, email="admin.dashboard@voxarisk.com", password="original owner password")
+        authenticate_user(db, email="admin.dashboard@voxarisk.com", password="updated owner password")
+
+    access_token = reset.json()["access_token"]
+    internal = client.get(
+        "/internal/ops/organizations",
+        headers={"Authorization": f"Bearer {access_token}"},
+    )
+    assert internal.status_code == 200
+    assert internal.json()["read_only"] is True
 
 
 def test_password_reset_completion_logs_invalid_reasons(provisioning_client, caplog):
@@ -353,10 +413,14 @@ def test_password_reset_completion_logs_invalid_reasons(provisioning_client, cap
         json={"password": "updated password"},
     )
 
-    assert expired.status_code == 400
-    assert not_found.status_code == 400
+    assert expired.status_code == 410
+    assert expired.json()["code"] == "token_expired"
+    assert not_found.status_code == 404
+    assert not_found.json()["code"] == "token_not_found"
     assert short_password.status_code == 400
+    assert short_password.json()["code"] == "password_validation_failed"
     assert missing_token.status_code == 400
+    assert missing_token.json()["code"] == "missing_token"
     reasons = [record.__dict__.get("reason") for record in caplog.records]
     assert "token_expired" in reasons
     assert "token_not_found" in reasons

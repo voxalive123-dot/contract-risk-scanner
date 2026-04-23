@@ -99,6 +99,41 @@ def create_password_token(
     return raw_token
 
 
+def validate_password_token(
+    db: Session,
+    *,
+    raw_token: str,
+    purpose: str,
+) -> str:
+    if not raw_token.strip():
+        return "missing_token"
+
+    token = db.execute(
+        select(AccountPasswordToken).where(AccountPasswordToken.token_hash == hash_account_token(raw_token))
+    ).scalars().first()
+    if token is None or token.purpose != purpose:
+        return "token_not_found"
+    if token.used_at is not None:
+        return "token_already_used"
+
+    expires_at = token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < utcnow():
+        return "token_expired"
+
+    user = db.get(User, token.user_id)
+    if user is None or not user.is_active:
+        return "token_user_invalid"
+
+    try:
+        account_context_for_user(db, user)
+    except (InvalidCredentialsError, InvalidMembershipError):
+        return "token_user_invalid"
+
+    return "valid"
+
+
 def provision_customer_account(
     db: Session,
     *,
@@ -172,24 +207,14 @@ def complete_password_token(
     if not raw_token.strip() or not password:
         raise AccountTokenError("Invalid token or password", reason="missing_token_or_password")
 
-    stmt = select(AccountPasswordToken).where(AccountPasswordToken.token_hash == hash_account_token(raw_token))
-    token = db.execute(stmt).scalars().first()
-    if token is None:
-        raise AccountTokenError("Token not found", reason="token_not_found")
-    if token.purpose != purpose:
-        raise AccountTokenError("Token not found", reason="token_not_found")
-    if token.used_at is not None:
-        raise AccountTokenError("Token already used", reason="token_already_used")
+    token_status = validate_password_token(db, raw_token=raw_token, purpose=purpose)
+    if token_status != "valid":
+        raise AccountTokenError("Invalid password token", reason=token_status)
 
-    expires_at = token.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < utcnow():
-        raise AccountTokenError("Expired token", reason="token_expired")
-
+    token = db.execute(
+        select(AccountPasswordToken).where(AccountPasswordToken.token_hash == hash_account_token(raw_token))
+    ).scalars().one()
     user = db.get(User, token.user_id)
-    if user is None or not user.is_active:
-        raise AccountTokenError("Invalid token user", reason="token_user_invalid")
 
     try:
         context = account_context_for_user(db, user)

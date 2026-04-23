@@ -13,20 +13,32 @@ export async function POST(request: Request) {
       token: typeof bodyObject.token === "string" ? bodyObject.token.trim() : bodyObject.token,
       password: bodyObject.password,
     };
-    const upstream = await fetch(`${API_BASE}/account/password/reset/complete`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestPayload),
-      cache: "no-store",
-    });
+    let upstream: Response;
+    try {
+      upstream = await fetch(`${API_BASE}/account/password/reset/complete`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestPayload),
+        cache: "no-store",
+      });
+    } catch (error) {
+      return NextResponse.json(
+        { error: `Password reset backend unreachable: ${String(error)}` },
+        { status: 503 },
+      );
+    }
 
-    const payload = await upstream.json().catch(() => null);
+    const raw = await upstream.text();
+    const payload = raw ? JSON.parse(raw) : null;
 
     if (!upstream.ok) {
-      return NextResponse.json(payload ?? { error: "Password reset failed." }, {
+      return new NextResponse(raw || JSON.stringify(payload ?? {}), {
         status: upstream.status,
+        headers: {
+          "Content-Type": upstream.headers.get("Content-Type") || "application/json",
+        },
       });
     }
 
@@ -47,7 +59,12 @@ export async function POST(request: Request) {
       maxAge: 60 * 60 * 8,
     });
 
-    return NextResponse.json({ account: payload.account });
+    return new NextResponse(raw, {
+      status: upstream.status,
+      headers: {
+        "Content-Type": upstream.headers.get("Content-Type") || "application/json",
+      },
+    });
   } catch (error) {
     return NextResponse.json(
       { error: `Password reset proxy failure: ${String(error)}` },
