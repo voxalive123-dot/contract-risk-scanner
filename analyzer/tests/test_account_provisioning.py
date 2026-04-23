@@ -239,7 +239,6 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
         return "test"
 
     monkeypatch.setattr(api, "send_password_reset_email", fake_send_password_reset_email)
-    monkeypatch.setattr(api, "mail_provider_name", lambda: "test")
     monkeypatch.setattr(api, "password_reset_url", lambda token: f"https://voxarisk.test/reset-password?token={token}")
 
     caplog.set_level(logging.INFO, logger="voxarisk.api")

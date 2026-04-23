@@ -54,7 +54,6 @@ from db import get_db
 from email_delivery import (
     EmailDeliveryConfigError,
     EmailDeliveryError,
-    mail_provider_name,
     password_reset_url,
     send_password_reset_email,
 )
@@ -682,7 +681,7 @@ def account_password_reset_request(
         extra={"event": "password_reset_token_created", "email": request.email},
     )
     reset_url = password_reset_url(reset_token)
-    provider = mail_provider_name()
+    provider = "smtp"
     logger.info(
         "password_reset_delivery_started",
         extra={
