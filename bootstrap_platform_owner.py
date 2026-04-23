@@ -18,7 +18,7 @@ from account_provisioning import (
 from db import SessionLocal
 from models import AccountPasswordToken, Membership, Organization
 
-DEFAULT_OWNER_EMAIL = "voxalive123@gmail.com"
+DEFAULT_OWNER_EMAIL = "admin.dashboard@voxarisk.com"
 DEFAULT_OWNER_ORG_NAME = "VoxaRisk Platform"
 DEFAULT_PLAN_LIMIT = 5
 

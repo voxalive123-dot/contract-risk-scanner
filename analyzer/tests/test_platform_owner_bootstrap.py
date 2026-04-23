@@ -14,14 +14,14 @@ from models import AccountPasswordToken, Membership, Organization, User
 def test_platform_owner_bootstrap_creates_owner_account_membership_and_setup_token(provisioning_client, monkeypatch):
     client, session_factory = provisioning_client
     org_id = create_org(session_factory)
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
     monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
 
     with session_factory() as db:
         payload = bootstrap_platform_owner(db, org_id=str(org_id))
 
     assert payload["status"] == "owner_bootstrap_ready"
-    assert payload["email"] == "voxalive123@gmail.com"
+    assert payload["email"] == "admin.dashboard@voxarisk.com"
     assert payload["role"] == "owner"
     assert payload["setup_url"].startswith("http://localhost:3000/account/setup?token=")
 
@@ -41,7 +41,7 @@ def test_platform_owner_bootstrap_creates_owner_account_membership_and_setup_tok
     with session_factory() as db:
         context = authenticate_user(
             db,
-            email="voxalive123@gmail.com",
+            email="admin.dashboard@voxarisk.com",
             password="owner secure password",
         )
         assert str(context.organization.id) == str(org_id)
@@ -52,13 +52,13 @@ def test_platform_owner_bootstrap_creates_owner_account_membership_and_setup_tok
 def test_platform_owner_bootstrap_is_idempotent_and_invalidates_previous_setup_token(provisioning_client, monkeypatch):
     _client, session_factory = provisioning_client
     org_id = create_org(session_factory)
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
 
     with session_factory() as db:
         first = bootstrap_platform_owner(db, org_id=str(org_id))
         second = bootstrap_platform_owner(db, org_id=str(org_id))
 
-    assert first["email"] == second["email"] == "voxalive123@gmail.com"
+    assert first["email"] == second["email"] == "admin.dashboard@voxarisk.com"
     assert first["user_id"] == second["user_id"]
     assert first["membership_id"] == second["membership_id"]
     assert first["setup_token"] != second["setup_token"]
@@ -69,7 +69,7 @@ def test_platform_owner_bootstrap_is_idempotent_and_invalidates_previous_setup_t
     assert len([row for row in rows if row.used_at is None]) == 1
 
     with session_factory() as db:
-        users = list(db.execute(select(User).where(User.email == "voxalive123@gmail.com")).scalars().all())
+        users = list(db.execute(select(User).where(User.email == "admin.dashboard@voxarisk.com")).scalars().all())
         memberships = list(db.execute(select(Membership).where(Membership.user_id == users[0].id)).scalars().all())
         assert len(users) == 1
         assert len(memberships) == 1
@@ -78,7 +78,7 @@ def test_platform_owner_bootstrap_is_idempotent_and_invalidates_previous_setup_t
 
 def test_platform_owner_bootstrap_can_create_deterministic_owner_org_and_set_password(provisioning_client, monkeypatch):
     client, session_factory = provisioning_client
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
     monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
     monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
 
@@ -95,7 +95,7 @@ def test_platform_owner_bootstrap_can_create_deterministic_owner_org_and_set_pas
 
     signin = client.post(
         "/account/login",
-        json={"email": "voxalive123@gmail.com", "password": "owner direct password"},
+        json={"email": "admin.dashboard@voxarisk.com", "password": "owner direct password"},
     )
     assert signin.status_code == 200
     bearer = signin.json()["access_token"]
@@ -116,7 +116,7 @@ def test_platform_owner_bootstrap_can_create_deterministic_owner_org_and_set_pas
 
 def test_platform_owner_bootstrap_reuses_named_owner_org_on_repeat_direct_password_runs(provisioning_client, monkeypatch):
     _client, session_factory = provisioning_client
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
     monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
 
     with session_factory() as db:
@@ -130,7 +130,7 @@ def test_platform_owner_bootstrap_reuses_named_owner_org_on_repeat_direct_passwo
 
     with session_factory() as db:
         orgs = list(db.execute(select(Organization).where(Organization.name == "VoxaRisk Platform")).scalars().all())
-        users = list(db.execute(select(User).where(User.email == "voxalive123@gmail.com")).scalars().all())
+        users = list(db.execute(select(User).where(User.email == "admin.dashboard@voxarisk.com")).scalars().all())
         memberships = list(db.execute(select(Membership).where(Membership.user_id == users[0].id)).scalars().all())
         assert len(orgs) == 1
         assert len(users) == 1
@@ -142,12 +142,12 @@ def test_platform_owner_bootstrap_resolves_existing_membership_ambiguity(provisi
     _client, session_factory = provisioning_client
     old_org_id = create_org(session_factory)
     platform_org_id = create_org(session_factory)
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "voxalive123@gmail.com")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
 
     with session_factory() as db:
         user = User(
             org_id=old_org_id,
-            email="voxalive123@gmail.com",
+            email="admin.dashboard@voxarisk.com",
             password_hash=hash_password("old owner password"),
             role="owner",
             is_active=True,
@@ -173,7 +173,7 @@ def test_platform_owner_bootstrap_resolves_existing_membership_ambiguity(provisi
 
         context = authenticate_user(
             db,
-            email="voxalive123@gmail.com",
+            email="admin.dashboard@voxarisk.com",
             password="new owner password",
         )
         assert str(context.organization.id) == str(platform_org_id)

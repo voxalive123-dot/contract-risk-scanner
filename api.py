@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import logging
 import time
 import uuid
 from pathlib import Path
@@ -53,6 +54,7 @@ from db import get_db
 from email_delivery import (
     EmailDeliveryConfigError,
     EmailDeliveryError,
+    mail_provider_name,
     password_reset_url,
     send_password_reset_email,
 )
@@ -98,6 +100,7 @@ RATE_LIMIT_CAPACITY = int(os.getenv("RATE_LIMIT_CAPACITY", "60"))
 RATE_LIMIT_REFILL_PER_SEC = float(os.getenv("RATE_LIMIT_REFILL_PER_SEC", "1.0"))
 
 _BUCKETS: dict[str, dict[str, float]] = {}
+logger = logging.getLogger("voxarisk.api")
 
 ALLOWED_IMAGE_TYPES = {
     "image/jpeg",
@@ -668,23 +671,60 @@ def account_password_reset_request(
 ):
     reset_token = request_password_reset(db, email=request.email)
     if reset_token is None:
+        logger.info(
+            "password_reset_request_no_match",
+            extra={"event": "password_reset_request_no_match", "email": request.email},
+        )
         return {"status": "reset_requested"}
 
+    logger.info(
+        "password_reset_token_created",
+        extra={"event": "password_reset_token_created", "email": request.email},
+    )
     reset_url = password_reset_url(reset_token)
+    provider = mail_provider_name()
+    logger.info(
+        "password_reset_delivery_started",
+        extra={
+            "event": "password_reset_delivery_started",
+            "email": request.email,
+            "provider": provider,
+        },
+    )
     try:
-        send_password_reset_email(to_email=request.email, reset_url=reset_url)
+        provider = send_password_reset_email(to_email=request.email, reset_url=reset_url)
     except EmailDeliveryConfigError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Password reset email delivery is not configured",
-        ) from exc
+        logger.error(
+            "password_reset_delivery_failed",
+            extra={
+                "event": "password_reset_delivery_failed",
+                "email": request.email,
+                "provider": provider,
+                "error": str(exc),
+            },
+        )
+        return {"status": "reset_requested"}
     except EmailDeliveryError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Password reset email could not be delivered",
-        ) from exc
+        logger.error(
+            "password_reset_delivery_failed",
+            extra={
+                "event": "password_reset_delivery_failed",
+                "email": request.email,
+                "provider": provider,
+                "error": str(exc),
+            },
+        )
+        return {"status": "reset_requested"}
 
-    return {"status": "reset_email_sent"}
+    logger.info(
+        "password_reset_delivery_succeeded",
+        extra={
+            "event": "password_reset_delivery_succeeded",
+            "email": request.email,
+            "provider": provider,
+        },
+    )
+    return {"status": "reset_requested"}
 
 
 @app.post("/account/password/reset/complete")

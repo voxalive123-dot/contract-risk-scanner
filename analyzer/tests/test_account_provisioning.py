@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+import logging
 from datetime import timedelta
 from urllib.parse import parse_qs, urlparse
 
@@ -186,12 +187,13 @@ def test_expired_token_fails_closed(provisioning_client):
     assert response.json()["detail"] == "Password setup token is invalid or expired"
 
 
-def test_reset_request_endpoint_does_not_return_token_and_requires_email_delivery(provisioning_client):
+def test_reset_request_endpoint_does_not_return_token_or_reveal_delivery_state(provisioning_client, caplog):
     client, session_factory = provisioning_client
     org_id = create_org(session_factory)
     with session_factory() as db:
         provision_customer_account(db, org_id=org_id, email="reset-request@example.test")
 
+    caplog.set_level(logging.INFO, logger="voxarisk.api")
     known = client.post(
         "/account/password/reset/request",
         json={"email": "reset-request@example.test"},
@@ -201,16 +203,20 @@ def test_reset_request_endpoint_does_not_return_token_and_requires_email_deliver
         json={"email": "missing@example.test"},
     )
 
-    assert known.status_code == 503
+    assert known.status_code == 200
     assert unknown.status_code == 200
-    assert known.json()["detail"] == "Password reset email delivery is not configured"
     assert unknown.json() == {"status": "reset_requested"}
+    assert known.json() == {"status": "reset_requested"}
     assert "token" not in known.text.lower()
+    log_events = [record.__dict__.get("event") for record in caplog.records]
+    assert "password_reset_delivery_failed" in log_events
+    assert "password_reset_request_no_match" in log_events
 
 
 def test_reset_request_sends_email_and_reset_link_completes_password_change(
     provisioning_client,
     monkeypatch,
+    caplog,
 ):
     client, session_factory = provisioning_client
     sent_messages = []
@@ -228,21 +234,28 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
             purpose="setup",
         )
 
-    def fake_send_password_reset_email(*, to_email: str, reset_url: str) -> None:
+    def fake_send_password_reset_email(*, to_email: str, reset_url: str) -> str:
         sent_messages.append({"to_email": to_email, "reset_url": reset_url})
+        return "test"
 
     monkeypatch.setattr(api, "send_password_reset_email", fake_send_password_reset_email)
+    monkeypatch.setattr(api, "mail_provider_name", lambda: "test")
     monkeypatch.setattr(api, "password_reset_url", lambda token: f"https://voxarisk.test/reset-password?token={token}")
 
+    caplog.set_level(logging.INFO, logger="voxarisk.api")
     response = client.post(
         "/account/password/reset/request",
         json={"email": "email-reset@example.test"},
     )
 
     assert response.status_code == 200
-    assert response.json() == {"status": "reset_email_sent"}
+    assert response.json() == {"status": "reset_requested"}
     assert len(sent_messages) == 1
     assert sent_messages[0]["to_email"] == "email-reset@example.test"
+    log_events = [record.__dict__.get("event") for record in caplog.records]
+    assert "password_reset_token_created" in log_events
+    assert "password_reset_delivery_started" in log_events
+    assert "password_reset_delivery_succeeded" in log_events
     reset_token = parse_qs(urlparse(sent_messages[0]["reset_url"]).query)["token"][0]
 
     reset = client.post(
