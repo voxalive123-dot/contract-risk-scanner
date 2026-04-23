@@ -7,13 +7,12 @@ const SESSION_COOKIE = "voxarisk_account_session";
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const requestPayload =
-      typeof body === "object" && body !== null
-        ? {
-            ...body,
-            token: typeof body.token === "string" ? body.token.trim() : body.token,
-          }
-        : body;
+    const bodyObject: Record<string, unknown> =
+      typeof body === "object" && body !== null ? body : {};
+    const requestPayload = {
+      token: typeof bodyObject.token === "string" ? bodyObject.token.trim() : bodyObject.token,
+      password: bodyObject.password,
+    };
     const upstream = await fetch(`${API_BASE}/account/password/reset/complete`, {
       method: "POST",
       headers: {

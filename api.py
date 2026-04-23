@@ -181,7 +181,7 @@ class AccountPasswordActionRequest(BaseModel):
 
     @field_validator("password")
     @classmethod
-    def validate_new_password(cls, value: str) -> str:
+    def validate_password(cls, value: str) -> str:
         if not isinstance(value, str) or len(value) < 12:
             raise ValueError("password must be at least 12 characters")
         return value
