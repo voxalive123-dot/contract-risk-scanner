@@ -647,3 +647,62 @@ Out of scope:
 - Advanced RBAC matrix.
 - Team invite email delivery automation.
 - External sharing.
+## Internal Operations Console
+
+Purpose:
+- Provide a narrow internal platform-admin surface for inspecting organisations, memberships, billing references, subscription truth, resolver-backed entitlement, usage, scans, invites, webhook events, and monitoring signals.
+- Keep platform governance visible without creating a second entitlement authority.
+
+Mechanism:
+- Backend service: `internal_ops.py`.
+- Backend endpoints:
+  - `GET /internal/ops/organizations`
+  - `GET /internal/ops/organizations/{org_id}`
+- Frontend proxy route: `/api/internal/ops/organizations`.
+- Customer-facing route is not used; internal route is `/internal/operations`.
+
+Access control:
+- User must have a valid account session.
+- User must also be explicitly listed in `INTERNAL_ADMIN_EMAILS`.
+- Customer organisation roles such as `owner` or `admin` do not grant internal operations access.
+
+Data surfaced:
+- Organisations list with effective entitlement, subscription summary, billing customer reference summary, member count, pending invite count, and scan count.
+- Organisation detail with membership rows, recent invites, recent scans, usage logs, monitoring signals, webhook rows, and entitlement diagnostics.
+
+Manual controls:
+- None in this step.
+- The console is read-only and must not mutate Organisation, Membership, Subscription, Billing Customer Reference, Plan, or entitlement records.
+
+Authority rule:
+- Internal dashboard state is observation only.
+- Resolver-backed Subscription truth remains product-access authority.
+- Any future mutation must be explicit, bounded, audited, and separately tested.
+## Phase 11 Internal Support Workflow Guardrails
+
+The internal operations console may expose a narrow support workflow layer for platform operators only. This layer is not a customer surface, not a CRM, and not an entitlement authority.
+
+### Audit Path
+
+Operator workflow mutations must be recorded in `internal_operator_actions` before they are treated as complete. Each audit record includes:
+
+- `actor_user_id`: the authenticated internal platform operator.
+- `org_id`: the organisation context when applicable.
+- `target_type` and `target_id`: the affected organisation, invite, or other bounded object.
+- `action_type`: the narrow internal action performed.
+- `reason`: the operator-supplied investigation reason.
+- `before_json` and `after_json`: snapshots sufficient to explain what changed.
+- `created_at`: database timestamp for review.
+
+### Allowed Step 3 Actions
+
+Phase 11 Step 3 allows only these bounded workflow actions:
+
+- `operator_note`: records an internal investigation note against an organisation with the current diagnostics snapshot.
+- `invite_cancelled`: cancels a pending, unused organisation invite and records before/after invite state.
+
+No plan editing, subscription editing, billing-customer editing, entitlement override, quota override, or scan-result mutation is part of this workflow layer.
+
+### Authority Boundary
+
+Runtime entitlement remains resolver-backed. Internal workflow actions may provide support context or bounded containment around invites, but they must not grant premium access, deny premium access, alter risk scoring, or override subscription truth. Customer organisation owners/admins are not internal platform admins and must not access these workflow endpoints.

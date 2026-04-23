@@ -51,6 +51,20 @@ from crud import (
 )
 from db import get_db
 from entitlement_spine import resolve_entitlement_for_org
+from internal_ops import (
+    InternalOpsConfigError,
+    InternalOpsForbiddenError,
+    get_internal_organization_detail,
+    list_internal_organizations,
+    require_internal_admin,
+)
+from internal_workflows import (
+    InternalWorkflowInvalidActionError,
+    InternalWorkflowNotFoundError,
+    cancel_pending_invite,
+    create_operator_note,
+    workflow_view,
+)
 from models import StripeWebhookEvent
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
 from stripe_reconciliation import reconcile_stripe_event
@@ -187,6 +201,17 @@ class AccountBillingPortalRequest(BaseModel):
         return stripped
 
 
+class InternalWorkflowReasonRequest(BaseModel):
+    reason: str = Field(...)
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 8:
+            raise ValueError("a clear operator reason is required")
+        return value.strip()
+
+
 class TeamInviteCreateRequest(BaseModel):
     email: str = Field(...)
     role: str = Field(default="member")
@@ -306,6 +331,21 @@ def get_account_ctx(
             detail="Invalid account session",
         ) from exc
 
+
+def get_internal_admin_ctx(account_ctx=Depends(get_account_ctx)):
+    try:
+        require_internal_admin(account_ctx)
+    except InternalOpsConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Internal operations access is not configured",
+        ) from exc
+    except InternalOpsForbiddenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Internal operations access denied",
+        ) from exc
+    return account_ctx
 
 # ==========================================================
 # HELPERS
@@ -653,6 +693,77 @@ def account_password_reset_complete(
         "token_type": "bearer",
         "account": serialize_account_context(context),
     }
+@app.get("/internal/ops/organizations")
+def internal_ops_organizations(
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return list_internal_organizations(db)
+
+
+@app.get("/internal/ops/organizations/{org_id}")
+def internal_ops_organization_detail(
+    org_id: str,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return get_internal_organization_detail(db, org_id=org_id)
+
+
+@app.get("/internal/ops/organizations/{org_id}/workflow")
+def internal_ops_organization_workflow(
+    org_id: str,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return workflow_view(db, org_id=org_id)
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/organizations/{org_id}/workflow/notes")
+def internal_ops_operator_note(
+    org_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = create_operator_note(
+            db,
+            actor=_internal_ctx,
+            org_id=org_id,
+            reason=request.reason,
+        )
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "operator_note_recorded", "action": action}
+
+
+@app.post("/internal/ops/invites/{invite_id}/cancel")
+def internal_ops_invite_cancel(
+    invite_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = cancel_pending_invite(
+            db,
+            actor=_internal_ctx,
+            invite_id=invite_id,
+            reason=request.reason,
+        )
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "invite_cancelled", "action": action}
 
 @app.get("/account/team")
 def account_team(

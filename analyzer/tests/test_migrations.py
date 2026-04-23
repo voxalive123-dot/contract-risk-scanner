@@ -102,13 +102,21 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "signal_type" in monitoring_columns
     assert "severity" in monitoring_columns
 
+    internal_action_columns = table_columns(DB_PATH, "internal_operator_actions")
+    assert "actor_user_id" in internal_action_columns
+    assert "org_id" in internal_action_columns
+    assert "action_type" in internal_action_columns
+    assert "reason" in internal_action_columns
+    assert "before_json" in internal_action_columns
+    assert "after_json" in internal_action_columns
+
     conn = sqlite3.connect(DB_PATH)
     try:
         cur = conn.cursor()
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "9c1f0d2a8b7e"
+        assert row[0] == "b1c2d3e4f5a6"
     finally:
         conn.close()
 
@@ -142,6 +150,10 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='organization_invites'"
         )
         assert cur.fetchone() is None
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='internal_operator_actions'"
+        )
+        assert cur.fetchone() is None
     finally:
         conn.close()
 
@@ -155,3 +167,6 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
 
     subscription_columns_after_reupgrade = table_columns(DB_PATH, "subscriptions")
     assert "status" in subscription_columns_after_reupgrade
+
+    internal_action_columns_after_reupgrade = table_columns(DB_PATH, "internal_operator_actions")
+    assert "action_type" in internal_action_columns_after_reupgrade

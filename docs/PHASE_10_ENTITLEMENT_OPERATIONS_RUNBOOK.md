@@ -577,3 +577,53 @@ Safety rules:
 Phase 10 closure boundary:
 - Phase 10 now includes account sign-in, controlled provisioning, password setup/reset, resolver-backed entitlement, webhook reconciliation, diagnostics, backfill, runbook, and billing portal linkage.
 - Phase 10 still excludes team invites, broad admin dashboard, local subscription editing UI, open registration, and customer-facing role management.
+## Phase 11 Internal Support Workflow Procedure
+
+The internal operations console includes a narrow support workflow layer for platform operators. This workflow is for investigation notes and bounded invite containment only. It does not grant, remove, or override entitlement.
+
+### Access Rule
+
+Only an authenticated account whose email is listed in `INTERNAL_ADMIN_EMAILS` may use the internal workflow endpoints or internal console workflow panel. Customer organisation `owner`, `admin`, or `member` roles are not internal platform-admin roles.
+
+### Workflow View
+
+Use the organisation workflow view when a support case requires operator context:
+
+```bash
+GET /internal/ops/organizations/{org_id}/workflow
+```
+
+The view shows:
+
+- the existing read-only organisation operations detail,
+- resolver-backed entitlement diagnostics,
+- mismatch flags,
+- recent webhook/backfill/monitoring context already surfaced by diagnostics,
+- recent internal operator action history,
+- the bounded manual controls currently allowed.
+
+### Record Investigation Note
+
+Use an operator note to document support reasoning without mutating entitlement truth:
+
+```bash
+POST /internal/ops/organizations/{org_id}/workflow/notes
+{"reason":"Customer paid access investigation note with clear context"}
+```
+
+This writes an `internal_operator_actions` row with the actor, organisation, reason, diagnostics snapshot, and timestamp. It does not alter subscription, plan, quota, billing customer reference, or resolver output.
+
+### Cancel Pending Invite
+
+Use invite cancellation only for pending, unused invites that should no longer be accepted:
+
+```bash
+POST /internal/ops/invites/{invite_id}/cancel
+{"reason":"Duplicate invite created during support review"}
+```
+
+This action is rejected for accepted, used, non-pending, or missing invites. Successful cancellation writes before/after invite state to `internal_operator_actions`.
+
+### What Not To Do
+
+Do not use the workflow layer for plan changes, subscription repair, billing-customer edits, quota overrides, AI entitlement changes, or scan-result changes. Use webhook reconciliation, diagnostics, and documented backfill procedures for billing truth issues. If the resolver does not explain access, investigate persisted truth rather than overriding frontend state.
