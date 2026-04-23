@@ -9,6 +9,8 @@ from dataclasses import dataclass
 from email.message import EmailMessage
 from urllib.parse import urlencode
 
+RESEND_USER_AGENT = "VoxaRisk/1.0"
+
 
 class EmailDeliveryConfigError(Exception):
     pass
@@ -183,6 +185,7 @@ def send_email_via_resend(message_payload: EmailMessagePayload) -> None:
         headers={
             "Authorization": f"Bearer {config.api_key}",
             "Content-Type": "application/json",
+            "User-Agent": RESEND_USER_AGENT,
         },
     )
 

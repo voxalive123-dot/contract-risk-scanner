@@ -98,6 +98,7 @@ def test_send_password_reset_email_uses_resend_api_provider(monkeypatch):
     assert sent["url"] == "https://api.resend.test/emails"
     assert sent["timeout"] == 10
     assert sent["headers"]["Authorization"] == "Bearer resend-test-key"
+    assert sent["headers"]["User-agent"] == "VoxaRisk/1.0"
     assert sent["body"]["from"] == "VoxaRisk <noreply@voxarisk.com>"
     assert sent["body"]["to"] == ["admin.dashboard@voxarisk.com"]
     assert "https://app.voxarisk.com/reset-password?token=abc" in sent["body"]["text"]
