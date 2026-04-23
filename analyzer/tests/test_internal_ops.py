@@ -189,7 +189,7 @@ def test_normal_customer_owner_denied_internal_ops(internal_ops_client):
     )
 
     assert response.status_code == 403
-    assert response.json()["detail"] == "Internal operations access denied"
+    assert response.json()["detail"] == "Internal operations access denied: signed-in email is not configured as platform owner or internal admin"
 
 
 def test_internal_ops_requires_configuration(internal_ops_client):

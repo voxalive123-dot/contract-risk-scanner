@@ -343,7 +343,7 @@ def get_internal_admin_ctx(account_ctx=Depends(get_account_ctx)):
     except InternalOpsForbiddenError as exc:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Internal operations access denied",
+            detail="Internal operations access denied: signed-in email is not configured as platform owner or internal admin",
         ) from exc
     return account_ctx
 
