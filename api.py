@@ -27,13 +27,8 @@ from account_auth import (
     serialize_account_context,
 )
 from account_provisioning import (
-    AccountProvisioningError,
     AccountTokenError,
     complete_password_token,
-    ensure_platform_owner_account,
-    is_platform_owner_email,
-    owner_recovery_key_configured,
-    owner_recovery_key_matches,
     request_password_reset,
 )
 from ai_explain import AIExplainRequest, AIProviderError, generate_ai_explanation, openai_api_configured
@@ -55,6 +50,12 @@ from crud import (
     touch_api_key_last_used,
 )
 from db import get_db
+from email_delivery import (
+    EmailDeliveryConfigError,
+    EmailDeliveryError,
+    password_reset_url,
+    send_password_reset_email,
+)
 from entitlement_spine import resolve_entitlement_for_org
 from internal_ops import (
     InternalOpsConfigError,
@@ -183,7 +184,6 @@ class AccountPasswordActionRequest(BaseModel):
 
 class AccountPasswordResetRequest(BaseModel):
     email: str = Field(...)
-    owner_recovery_key: str | None = None
 
     @field_validator("email")
     @classmethod
@@ -191,13 +191,6 @@ class AccountPasswordResetRequest(BaseModel):
         if not isinstance(value, str) or not value.strip():
             raise ValueError("email is required")
         return value.strip().lower()
-
-    @field_validator("owner_recovery_key")
-    @classmethod
-    def validate_owner_recovery_key(cls, value: str | None) -> str | None:
-        if value is None:
-            return None
-        return value.strip()
 
 
 class AccountBillingPortalRequest(BaseModel):
@@ -673,40 +666,25 @@ def account_password_reset_request(
     request: AccountPasswordResetRequest,
     db: Session = Depends(get_db),
 ):
-    if is_platform_owner_email(request.email):
-        if not request.owner_recovery_key:
-            return {"status": "owner_recovery_key_required"}
-        if not owner_recovery_key_configured():
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Owner recovery key is not configured",
-            )
-        if not owner_recovery_key_matches(request.owner_recovery_key):
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Owner recovery key is invalid",
-            )
-        try:
-            ensure_platform_owner_account(db)
-            reset_token = request_password_reset(db, email=request.email)
-        except AccountProvisioningError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=str(exc),
-            ) from exc
-        if reset_token is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Owner account could not be prepared for password reset",
-            )
-        return {
-            "status": "owner_reset_ready",
-            "delivery": "owner_recovery_key",
-            "reset_url": f"/reset-password?token={reset_token}",
-        }
+    reset_token = request_password_reset(db, email=request.email)
+    if reset_token is None:
+        return {"status": "reset_requested"}
 
-    request_password_reset(db, email=request.email)
-    return {"status": "reset_requested"}
+    reset_url = password_reset_url(reset_token)
+    try:
+        send_password_reset_email(to_email=request.email, reset_url=reset_url)
+    except EmailDeliveryConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Password reset email delivery is not configured",
+        ) from exc
+    except EmailDeliveryError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Password reset email could not be delivered",
+        ) from exc
+
+    return {"status": "reset_email_sent"}
 
 
 @app.post("/account/password/reset/complete")

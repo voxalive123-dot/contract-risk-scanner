@@ -1,8 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
-import os
 import secrets
 import uuid
 from dataclasses import dataclass
@@ -23,9 +21,6 @@ from models import AccountPasswordToken, Membership, Organization, User
 
 SETUP_TTL_HOURS = 72
 RESET_TTL_HOURS = 2
-DEFAULT_PLATFORM_OWNER_EMAIL = "voxalive123@gmail.com"
-DEFAULT_PLATFORM_OWNER_ORG_NAME = "VoxaRisk Platform"
-DEFAULT_PLATFORM_OWNER_PLAN_LIMIT = 5
 
 
 class AccountProvisioningError(Exception):
@@ -42,13 +37,6 @@ class ProvisionedAccount:
     organization: Organization
     membership: Membership
     setup_token: str
-
-
-@dataclass(frozen=True)
-class PlatformOwnerAccount:
-    user: User
-    organization: Organization
-    membership: Membership
 
 
 def utcnow() -> datetime:
@@ -74,107 +62,6 @@ def _single_user_by_email(db: Session, email: str) -> User | None:
 def _membership_for_user_org(db: Session, *, user: User, org: Organization) -> Membership | None:
     stmt = select(Membership).where(Membership.user_id == user.id, Membership.org_id == org.id)
     return db.execute(stmt).scalars().first()
-
-
-def platform_owner_email() -> str:
-    return os.getenv("PLATFORM_OWNER_EMAIL", DEFAULT_PLATFORM_OWNER_EMAIL).strip().lower() or DEFAULT_PLATFORM_OWNER_EMAIL
-
-
-def platform_owner_org_name() -> str:
-    return os.getenv("PLATFORM_OWNER_ORG_NAME", DEFAULT_PLATFORM_OWNER_ORG_NAME).strip() or DEFAULT_PLATFORM_OWNER_ORG_NAME
-
-
-def is_platform_owner_email(email: str) -> bool:
-    return email.strip().lower() == platform_owner_email()
-
-
-def owner_recovery_key_configured() -> bool:
-    return bool(os.getenv("PLATFORM_OWNER_RECOVERY_KEY", "").strip())
-
-
-def owner_recovery_key_matches(raw_key: str | None) -> bool:
-    configured = os.getenv("PLATFORM_OWNER_RECOVERY_KEY", "").strip()
-    supplied = (raw_key or "").strip()
-    return bool(configured and supplied and hmac.compare_digest(configured, supplied))
-
-
-def _resolve_platform_owner_org(db: Session) -> Organization:
-    configured_org_id = os.getenv("PLATFORM_OWNER_ORG_ID", "").strip()
-    if configured_org_id:
-        try:
-            normalized_org_id = uuid.UUID(configured_org_id)
-        except ValueError as exc:
-            raise AccountProvisioningError("PLATFORM_OWNER_ORG_ID is not a valid UUID") from exc
-        org = db.get(Organization, normalized_org_id)
-        if org is None:
-            raise AccountProvisioningError("PLATFORM_OWNER_ORG_ID does not match an organization")
-        return org
-
-    org_name = platform_owner_org_name()
-    stmt = select(Organization).where(Organization.name == org_name)
-    org = db.execute(stmt).scalars().first()
-    if org is not None:
-        return org
-
-    org = Organization(
-        name=org_name,
-        plan_type="starter",
-        plan_status="active",
-        plan_limit=DEFAULT_PLATFORM_OWNER_PLAN_LIMIT,
-    )
-    db.add(org)
-    db.commit()
-    db.refresh(org)
-    return org
-
-
-def ensure_platform_owner_account(db: Session) -> PlatformOwnerAccount:
-    org = _resolve_platform_owner_org(db)
-    email = platform_owner_email()
-
-    user = _single_user_by_email(db, email)
-    if user is None:
-        user = User(
-            org_id=org.id,
-            email=email,
-            password_hash=hash_password(_new_raw_token()),
-            role="owner",
-            is_active=True,
-        )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-    else:
-        user.org_id = org.id
-        user.role = "owner"
-        user.is_active = True
-        db.add(user)
-
-    target_membership = _membership_for_user_org(db, user=user, org=org)
-    memberships = list(db.execute(select(Membership).where(Membership.user_id == user.id)).scalars().all())
-    for membership in memberships:
-        if membership.org_id == org.id:
-            target_membership = membership
-            target_membership.role = "owner"
-            target_membership.status = "active"
-        elif membership.status == "active":
-            membership.status = "inactive"
-        db.add(membership)
-
-    if target_membership is None:
-        target_membership = Membership(
-            user_id=user.id,
-            org_id=org.id,
-            role="owner",
-            status="active",
-        )
-        db.add(target_membership)
-
-    db.commit()
-    db.refresh(user)
-    db.refresh(target_membership)
-    db.refresh(org)
-    return PlatformOwnerAccount(user=user, organization=org, membership=target_membership)
 
 
 def _invalidate_existing_tokens(db: Session, *, user: User, purpose: str) -> None:

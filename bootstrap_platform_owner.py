@@ -16,7 +16,7 @@ from account_provisioning import (
     utcnow,
 )
 from db import SessionLocal
-from models import AccountPasswordToken, Organization
+from models import AccountPasswordToken, Membership, Organization
 
 DEFAULT_OWNER_EMAIL = "voxalive123@gmail.com"
 DEFAULT_OWNER_ORG_NAME = "VoxaRisk Platform"
@@ -93,6 +93,19 @@ def _set_owner_password(db, *, user, password: str) -> None:
     db.commit()
 
 
+def _enforce_single_owner_membership(db, *, membership: Membership) -> None:
+    stmt = select(Membership).where(Membership.user_id == membership.user_id)
+    for row in db.execute(stmt).scalars().all():
+        if row.id == membership.id:
+            row.role = "owner"
+            row.status = "active"
+        elif row.status == "active":
+            row.status = "inactive"
+        db.add(row)
+    db.commit()
+    db.refresh(membership)
+
+
 def bootstrap_platform_owner(
     db,
     *,
@@ -113,6 +126,7 @@ def bootstrap_platform_owner(
         email=normalized_email,
         role="owner",
     )
+    _enforce_single_owner_membership(db, membership=provisioned.membership)
 
     setup_url = build_setup_url(setup_base_url, provisioned.setup_token)
     credential_status = "setup_link_issued"

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import uuid
 from datetime import timedelta
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 from fastapi.testclient import TestClient
@@ -185,7 +186,7 @@ def test_expired_token_fails_closed(provisioning_client):
     assert response.json()["detail"] == "Password setup token is invalid or expired"
 
 
-def test_reset_request_endpoint_is_generic_and_does_not_return_token(provisioning_client):
+def test_reset_request_endpoint_does_not_return_token_and_requires_email_delivery(provisioning_client):
     client, session_factory = provisioning_client
     org_id = create_org(session_factory)
     with session_factory() as db:
@@ -200,11 +201,59 @@ def test_reset_request_endpoint_is_generic_and_does_not_return_token(provisionin
         json={"email": "missing@example.test"},
     )
 
-    assert known.status_code == 200
+    assert known.status_code == 503
     assert unknown.status_code == 200
-    assert known.json() == {"status": "reset_requested"}
+    assert known.json()["detail"] == "Password reset email delivery is not configured"
     assert unknown.json() == {"status": "reset_requested"}
     assert "token" not in known.text.lower()
+
+
+def test_reset_request_sends_email_and_reset_link_completes_password_change(
+    provisioning_client,
+    monkeypatch,
+):
+    client, session_factory = provisioning_client
+    sent_messages = []
+    org_id = create_org(session_factory)
+    with session_factory() as db:
+        setup_token = provision_customer_account(
+            db,
+            org_id=org_id,
+            email="email-reset@example.test",
+        ).setup_token
+        complete_password_token(
+            db,
+            raw_token=setup_token,
+            password="original password",
+            purpose="setup",
+        )
+
+    def fake_send_password_reset_email(*, to_email: str, reset_url: str) -> None:
+        sent_messages.append({"to_email": to_email, "reset_url": reset_url})
+
+    monkeypatch.setattr(api, "send_password_reset_email", fake_send_password_reset_email)
+    monkeypatch.setattr(api, "password_reset_url", lambda token: f"https://voxarisk.test/reset-password?token={token}")
+
+    response = client.post(
+        "/account/password/reset/request",
+        json={"email": "email-reset@example.test"},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"status": "reset_email_sent"}
+    assert len(sent_messages) == 1
+    assert sent_messages[0]["to_email"] == "email-reset@example.test"
+    reset_token = parse_qs(urlparse(sent_messages[0]["reset_url"]).query)["token"][0]
+
+    reset = client.post(
+        "/account/password/reset/complete",
+        json={"token": reset_token, "password": "updated password"},
+    )
+    assert reset.status_code == 200
+
+    with session_factory() as db:
+        context = authenticate_user(db, email="email-reset@example.test", password="updated password")
+        assert str(context.organization.id) == str(org_id)
 
 
 def test_password_reset_completion_changes_password_without_widening_entitlement(provisioning_client):
