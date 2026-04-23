@@ -216,7 +216,7 @@ export default function InternalOperationsPage() {
 
               <section className="rounded-[1.25rem] border border-[#d8c49e] bg-[#fbf3e5] p-6">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Organisation detail</div>
-                {!detail && <p className="mt-5 text-sm leading-7 text-neutral-700">Select an organisation to inspect resolver-backed truth, recent activity, and narrow support workflow history.</p>}
+                {!detail && <p className="mt-5 text-sm leading-7 text-neutral-700">Select an organisation to review account status, recent activity, and internal support history.</p>}
                 {detail?.found && (
                   <div className="mt-5 space-y-5 text-sm leading-6 text-neutral-700">
                     <div className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-4">

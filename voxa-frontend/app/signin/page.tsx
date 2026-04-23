@@ -103,9 +103,8 @@ export default function SignInPage() {
                 Sign in to your VoxaRisk account.
               </h1>
               <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-                Authentication identifies the user and connects them to an organisation
-                membership. Paid access remains governed by subscription truth and the
-                VoxaRisk entitlement resolver.
+                Sign in to access your VoxaRisk account and organisation workspace. Available
+                features depend on your organisation’s subscription and account permissions.
               </p>
             </div>
 
