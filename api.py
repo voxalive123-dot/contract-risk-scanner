@@ -11,7 +11,10 @@ from typing import Any
 import pytesseract
 import stripe
 from fastapi import Depends, FastAPI, File, Header, HTTPException, Request, UploadFile, status
+from fastapi.exception_handlers import request_validation_exception_handler
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from PIL import Image
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
@@ -578,6 +581,26 @@ app.add_middleware(
 )
 
 
+@app.exception_handler(RequestValidationError)
+async def request_validation_error_handler(request: Request, exc: RequestValidationError):
+    if request.url.path == "/account/password/reset/complete":
+        reason = "payload_invalid"
+        errors = exc.errors()
+        if any("token" in {str(part) for part in error.get("loc", [])} for error in errors):
+            reason = "missing_token"
+        elif any("password" in {str(part) for part in error.get("loc", [])} for error in errors):
+            reason = "password_validation_failed"
+        logger.info(
+            "password_reset_consume_failed",
+            extra={"event": "password_reset_consume_failed", "reason": reason},
+        )
+        return JSONResponse(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            content={"detail": "Password reset token is invalid or expired"},
+        )
+    return await request_validation_exception_handler(request, exc)
+
+
 # ==========================================================
 # MIDDLEWARE
 # ==========================================================
@@ -740,16 +763,38 @@ def account_password_reset_complete(
         )
         token = create_session_token(context.user)
     except AccountConfigError as exc:
+        logger.error(
+            "password_reset_consume_failed",
+            extra={
+                "event": "password_reset_consume_failed",
+                "reason": "session_config_missing",
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Account session configuration missing",
         ) from exc
     except AccountTokenError as exc:
+        logger.info(
+            "password_reset_consume_failed",
+            extra={
+                "event": "password_reset_consume_failed",
+                "reason": getattr(exc, "reason", "invalid_token"),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Password reset token is invalid or expired",
         ) from exc
 
+    logger.info(
+        "password_reset_consume_succeeded",
+        extra={
+            "event": "password_reset_consume_succeeded",
+            "user_id": str(context.user.id),
+            "org_id": str(context.organization.id),
+        },
+    )
     return {
         "access_token": token,
         "token_type": "bearer",

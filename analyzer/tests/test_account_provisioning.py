@@ -11,7 +11,7 @@ from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import api
-from account_auth import authenticate_user
+from account_auth import InvalidCredentialsError, authenticate_user
 from account_provisioning import (
     AccountTokenError,
     complete_password_token,
@@ -264,8 +264,16 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
     assert reset.status_code == 200
 
     with session_factory() as db:
+        with pytest.raises(InvalidCredentialsError):
+            authenticate_user(db, email="email-reset@example.test", password="original password")
         context = authenticate_user(db, email="email-reset@example.test", password="updated password")
         assert str(context.organization.id) == str(org_id)
+
+    reused = client.post(
+        "/account/password/reset/complete",
+        json={"token": reset_token, "password": "another updated password"},
+    )
+    assert reused.status_code == 400
 
 
 def test_password_reset_completion_changes_password_without_widening_entitlement(provisioning_client):
@@ -300,6 +308,60 @@ def test_password_reset_completion_changes_password_without_widening_entitlement
         context = authenticate_user(db, email="reset@example.test", password="updated password")
         assert str(context.organization.id) == str(org_id)
         assert context.entitlement.effective_plan == "starter"
+
+
+def test_password_reset_completion_logs_invalid_reasons(provisioning_client, caplog):
+    client, session_factory = provisioning_client
+    org_id = create_org(session_factory)
+    with session_factory() as db:
+        setup_token = provision_customer_account(
+            db,
+            org_id=org_id,
+            email="expired-reset@example.test",
+        ).setup_token
+        complete_password_token(
+            db,
+            raw_token=setup_token,
+            password="original password",
+            purpose="setup",
+        )
+        expired_token = request_password_reset(db, email="expired-reset@example.test")
+        row = db.execute(
+            select(AccountPasswordToken).where(
+                AccountPasswordToken.token_hash.is_not(None),
+                AccountPasswordToken.purpose == "reset",
+            )
+        ).scalars().first()
+        row.expires_at = utcnow() - timedelta(minutes=1)
+        db.commit()
+
+    caplog.set_level(logging.INFO, logger="voxarisk.api")
+    expired = client.post(
+        "/account/password/reset/complete",
+        json={"token": expired_token, "password": "updated password"},
+    )
+    not_found = client.post(
+        "/account/password/reset/complete",
+        json={"token": "not-a-real-token", "password": "updated password"},
+    )
+    short_password = client.post(
+        "/account/password/reset/complete",
+        json={"token": "not-a-real-token", "password": "short"},
+    )
+    missing_token = client.post(
+        "/account/password/reset/complete",
+        json={"password": "updated password"},
+    )
+
+    assert expired.status_code == 400
+    assert not_found.status_code == 400
+    assert short_password.status_code == 400
+    assert missing_token.status_code == 400
+    reasons = [record.__dict__.get("reason") for record in caplog.records]
+    assert "token_expired" in reasons
+    assert "token_not_found" in reasons
+    assert "password_validation_failed" in reasons
+    assert "missing_token" in reasons
 
 
 def test_inactive_membership_blocks_setup_completion(provisioning_client):

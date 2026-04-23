@@ -59,15 +59,27 @@ export default function ResetPasswordPage() {
   const [message, setMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    setToken(new URLSearchParams(window.location.search).get("token") ?? "");
+    setToken((new URLSearchParams(window.location.search).get("token") ?? "").trim());
   }, []);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMessage(null);
 
+    const resetToken = token.trim();
+
+    if (!resetToken) {
+      setMessage("Reset token missing. Use the reset link issued for your account.");
+      return;
+    }
+
     if (password !== confirmPassword) {
       setMessage("Passwords do not match.");
+      return;
+    }
+
+    if (password.length < 12) {
+      setMessage("Use a password of at least 12 characters.");
       return;
     }
 
@@ -78,7 +90,7 @@ export default function ResetPasswordPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ token, password }),
+        body: JSON.stringify({ token: resetToken, password }),
       });
 
       if (!response.ok) {

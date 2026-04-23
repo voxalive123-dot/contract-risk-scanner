@@ -28,7 +28,9 @@ class AccountProvisioningError(Exception):
 
 
 class AccountTokenError(AccountProvisioningError):
-    pass
+    def __init__(self, message: str, *, reason: str = "invalid_token") -> None:
+        super().__init__(message)
+        self.reason = reason
 
 
 @dataclass(frozen=True)
@@ -168,30 +170,31 @@ def complete_password_token(
     purpose: str,
 ) -> AccountContext:
     if not raw_token.strip() or not password:
-        raise AccountTokenError("Invalid token or password")
+        raise AccountTokenError("Invalid token or password", reason="missing_token_or_password")
 
-    stmt = select(AccountPasswordToken).where(
-        AccountPasswordToken.token_hash == hash_account_token(raw_token),
-        AccountPasswordToken.purpose == purpose,
-    )
+    stmt = select(AccountPasswordToken).where(AccountPasswordToken.token_hash == hash_account_token(raw_token))
     token = db.execute(stmt).scalars().first()
-    if token is None or token.used_at is not None:
-        raise AccountTokenError("Invalid or used token")
+    if token is None:
+        raise AccountTokenError("Token not found", reason="token_not_found")
+    if token.purpose != purpose:
+        raise AccountTokenError("Token not found", reason="token_not_found")
+    if token.used_at is not None:
+        raise AccountTokenError("Token already used", reason="token_already_used")
 
     expires_at = token.expires_at
     if expires_at.tzinfo is None:
         expires_at = expires_at.replace(tzinfo=timezone.utc)
     if expires_at < utcnow():
-        raise AccountTokenError("Expired token")
+        raise AccountTokenError("Expired token", reason="token_expired")
 
     user = db.get(User, token.user_id)
     if user is None or not user.is_active:
-        raise AccountTokenError("Invalid token user")
+        raise AccountTokenError("Invalid token user", reason="token_user_invalid")
 
     try:
         context = account_context_for_user(db, user)
     except (InvalidCredentialsError, InvalidMembershipError) as exc:
-        raise AccountTokenError("Invalid token user") from exc
+        raise AccountTokenError("Invalid token user", reason="token_user_invalid") from exc
 
     user.password_hash = hash_password(password)
     token.used_at = utcnow()
