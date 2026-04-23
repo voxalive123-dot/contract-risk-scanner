@@ -11,7 +11,7 @@ import ai_explain
 import api
 from auth_keys import hash_api_key
 from db import Base
-from models import ApiKey, Organization
+from models import ApiKey, Organization, Subscription
 
 
 @pytest.fixture
@@ -48,6 +48,7 @@ def create_org_and_key(
     plan_type: str,
     plan_status: str,
     plan_limit: int = 1000,
+    with_subscription: bool = False,
 ):
     raw_key = f"vxrk-ai-{uuid.uuid4()}"
 
@@ -70,6 +71,19 @@ def create_org_and_key(
             active=True,
         )
         db.add(api_key)
+        if with_subscription:
+            db.add(
+                Subscription(
+                    org_id=org.id,
+                    provider="stripe",
+                    external_subscription_id=f"sub_{uuid.uuid4().hex}",
+                    external_customer_id=f"cus_{uuid.uuid4().hex}",
+                    plan_name=plan_type,
+                    status=plan_status,
+                    is_current=True,
+                    source="test",
+                )
+            )
         db.commit()
 
     return raw_key
@@ -164,7 +178,12 @@ def test_starter_plan_denied_ai_access(ai_test_client, monkeypatch):
 
 def test_active_business_plan_allowed_and_provider_receives_only_deterministic_fields(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status="active")
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     captured: dict[str, object] = {}
@@ -206,7 +225,12 @@ def test_active_business_plan_allowed_and_provider_receives_only_deterministic_f
 @pytest.mark.parametrize("status_value", ["past_due", "canceled", "mystery_status"])
 def test_restricted_or_unknown_plan_status_denied(ai_test_client, monkeypatch, status_value):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status=status_value)
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status=status_value,
+        with_subscription=True,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     response = client.post(
@@ -222,7 +246,12 @@ def test_restricted_or_unknown_plan_status_denied(ai_test_client, monkeypatch, s
 
 def test_missing_openai_api_key_returns_disabled_response(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status="active")
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
     monkeypatch.delenv("OPENAI_API_KEY", raising=False)
 
     response = client.post(
@@ -240,7 +269,12 @@ def test_missing_openai_api_key_returns_disabled_response(ai_test_client, monkey
 
 def test_provider_failure_returns_unavailable_response(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status="active")
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
     def raise_provider_error(*args, **kwargs):
@@ -263,7 +297,12 @@ def test_provider_failure_returns_unavailable_response(ai_test_client, monkeypat
 
 def test_ai_route_does_not_return_changed_deterministic_score_or_severity(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status="active")
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(ai_explain, "_call_openai_json", lambda *args, **kwargs: build_provider_summary())
 
@@ -283,7 +322,12 @@ def test_ai_route_does_not_return_changed_deterministic_score_or_severity(ai_tes
 
 def test_low_confidence_or_sparse_findings_produce_uncertainty_notes(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
-    raw_key = create_org_and_key(session_factory, plan_type="business", plan_status="active")
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
     monkeypatch.setattr(ai_explain, "_call_openai_json", lambda *args, **kwargs: build_provider_summary())
 

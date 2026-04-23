@@ -14,6 +14,7 @@ from sqlalchemy import (
     Column,
     func,
     ForeignKey,
+    UniqueConstraint,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -255,3 +256,178 @@ class StripeWebhookEvent(Base):
     stripe_price_lookup_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     billing_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
     error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class Membership(Base):
+    __tablename__ = "memberships"
+    __table_args__ = (
+        UniqueConstraint("user_id", "org_id", name="uq_memberships_user_org"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    role: Mapped[str] = mapped_column(String(50), nullable=False, server_default="member")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="active")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AccountPasswordToken(Base):
+    __tablename__ = "account_password_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    purpose: Mapped[str] = mapped_column(String(50), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+class OrganizationInvite(Base):
+    __tablename__ = "organization_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    invited_email: Mapped[str] = mapped_column(String(320), nullable=False)
+    role: Mapped[str] = mapped_column(String(50), nullable=False, server_default="member")
+    token_hash: Mapped[str] = mapped_column(String(255), nullable=False, unique=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="pending")
+    invited_by_user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    accepted_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    accepted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+class BillingCustomerReference(Base):
+    __tablename__ = "billing_customer_references"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_customer_id", name="uq_billing_provider_customer"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, server_default="stripe")
+    external_customer_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    billing_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_subscription_id", name="uq_subscription_provider_external"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, server_default="stripe")
+    external_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    external_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    plan_name: Mapped[str] = mapped_column(String(50), nullable=False, server_default="starter")
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="no_subscription")
+    current_period_end: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    cancel_at_period_end: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="false")
+    is_current: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    source: Mapped[str] = mapped_column(String(50), nullable=False, server_default="system")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class AIUsageMeter(Base):
+    __tablename__ = "ai_usage_meters"
+    __table_args__ = (
+        UniqueConstraint("org_id", "period_start", "period_end", name="uq_ai_usage_org_period"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    period_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    period_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    usage_count: Mapped[int] = mapped_column(Integer, nullable=False, server_default="0")
+    last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class MonitoringSignal(Base):
+    __tablename__ = "monitoring_signals"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    category: Mapped[str] = mapped_column(String(80), nullable=False)
+    signal_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    severity: Mapped[str] = mapped_column(String(50), nullable=False, server_default="info")
+    request_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    message: Mapped[str] = mapped_column(Text, nullable=False)
+    details_json: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )

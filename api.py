@@ -16,7 +16,28 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from account_auth import (
+    AccountConfigError,
+    InvalidCredentialsError,
+    InvalidMembershipError,
+    account_context_for_user,
+    account_context_from_token,
+    authenticate_user,
+    create_session_token,
+    serialize_account_context,
+)
+from account_provisioning import (
+    AccountTokenError,
+    complete_password_token,
+    request_password_reset,
+)
 from ai_explain import AIExplainRequest, AIProviderError, generate_ai_explanation, openai_api_configured
+from billing_portal import (
+    BillingPortalConfigError,
+    BillingPortalMissingCustomerError,
+    BillingPortalProviderError,
+    create_billing_portal_session,
+)
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
 from crud import (
@@ -29,19 +50,18 @@ from crud import (
     touch_api_key_last_used,
 )
 from db import get_db
+from entitlement_spine import resolve_entitlement_for_org
 from models import StripeWebhookEvent
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
-from stripe_billing import (
-    PAID_ACTIVE_STATUSES,
-    RESTRICTED_STATUSES,
-    apply_default_entitlement,
-    apply_paid_entitlement,
-    bind_billing_identity,
-    extract_event_context,
-    get_effective_plan_limit,
-    get_effective_plan_name,
-    map_lookup_key_to_plan,
-    resolve_org_match,
+from stripe_reconciliation import reconcile_stripe_event
+from stripe_billing import DEFAULT_PLAN_LIMIT, DEFAULT_PLAN_NAME
+from team_invites import (
+    TeamInviteError,
+    TeamInvitePermissionError,
+    TeamInviteTokenError,
+    accept_team_invite,
+    create_team_invite,
+    team_snapshot,
 )
 
 
@@ -123,6 +143,115 @@ class AnalyzeResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+class AccountPasswordActionRequest(BaseModel):
+    token: str = Field(...)
+    password: str = Field(...)
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("token is required")
+        return value.strip()
+
+    @field_validator("password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value) < 12:
+            raise ValueError("password must be at least 12 characters")
+        return value
+
+
+class AccountPasswordResetRequest(BaseModel):
+    email: str = Field(...)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("email is required")
+        return value.strip().lower()
+
+
+class AccountBillingPortalRequest(BaseModel):
+    return_url: str | None = None
+
+    @field_validator("return_url")
+    @classmethod
+    def validate_return_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        stripped = value.strip()
+        if not stripped.startswith(("https://", "http://")):
+            raise ValueError("return_url must be absolute HTTP(S)")
+        return stripped
+
+
+class TeamInviteCreateRequest(BaseModel):
+    email: str = Field(...)
+    role: str = Field(default="member")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("email is required")
+        return value.strip().lower()
+
+    @field_validator("role")
+    @classmethod
+    def validate_role(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("role is required")
+        return value.strip().lower()
+
+
+class TeamInviteAcceptRequest(BaseModel):
+    token: str = Field(...)
+    email: str = Field(...)
+    password: str = Field(...)
+
+    @field_validator("token")
+    @classmethod
+    def validate_token(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("token is required")
+        return value.strip()
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("email is required")
+        return value.strip().lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value) < 12:
+            raise ValueError("password must be at least 12 characters")
+        return value
+
+
+class AccountLoginRequest(BaseModel):
+    email: str = Field(...)
+    password: str = Field(...)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("email is required")
+        return value.strip().lower()
+
+    @field_validator("password")
+    @classmethod
+    def validate_password(cls, value: str) -> str:
+        if not isinstance(value, str) or not value:
+            raise ValueError("password is required")
+        return value
+
+
 # ==========================================================
 # REAL API KEY DEPENDENCY
 # ==========================================================
@@ -146,6 +275,36 @@ def get_api_key_ctx(
 
     touch_api_key_last_used(db, api_key)
     return api_key
+
+
+def get_account_ctx(
+    authorization: str = Header("", alias="Authorization"),
+    db: Session = Depends(get_db),
+):
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token.strip():
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing account session",
+        )
+
+    try:
+        return account_context_from_token(db, token.strip())
+    except AccountConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account session configuration missing",
+        ) from exc
+    except InvalidMembershipError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account membership is not valid",
+        ) from exc
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid account session",
+        ) from exc
 
 
 # ==========================================================
@@ -172,18 +331,18 @@ def enforce_ai_plan_access(
         )
 
     org = get_organization_by_id(db, org_id)
-    effective_plan = get_effective_plan_name(org)
-    if effective_plan not in {"business", "executive", "enterprise"}:
+    entitlement = resolve_entitlement_for_org(db, org)
+    if not entitlement.ai_review_notes_allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "ai_explain_not_available_for_plan",
-                "current_plan": effective_plan,
+                "current_plan": entitlement.effective_plan,
                 "feature": "ai_explain",
             },
         )
 
-    return effective_plan
+    return entitlement.effective_plan
 
 
 def enforce_org_plan_quota(
@@ -197,15 +356,16 @@ def enforce_org_plan_quota(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "error": "organization_context_missing",
-                "current_plan": "starter",
-                "monthly_limit": get_effective_plan_limit(None),
+                "current_plan": DEFAULT_PLAN_NAME,
+                "monthly_limit": DEFAULT_PLAN_LIMIT,
                 "scans_used": 0,
             },
         )
 
     org = get_organization_by_id(db, org_id)
-    effective_plan = get_effective_plan_name(org)
-    monthly_limit = get_effective_plan_limit(org)
+    entitlement = resolve_entitlement_for_org(db, org)
+    effective_plan = entitlement.effective_plan
+    monthly_limit = entitlement.monthly_scan_limit
     scans_used = count_scans_for_org_since(
         db=db,
         org_id=org_id,
@@ -392,6 +552,221 @@ def root(request: Request):
         "status": "Contract Risk API running",
         "request_id": getattr(request.state, "request_id", None),
     }
+
+
+@app.post("/account/login")
+def account_login(
+    request: AccountLoginRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        context = authenticate_user(db, email=request.email, password=request.password)
+        token = create_session_token(context.user)
+    except AccountConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account session configuration missing",
+        ) from exc
+    except InvalidCredentialsError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        ) from exc
+    except InvalidMembershipError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account membership is not valid",
+        ) from exc
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "account": serialize_account_context(context),
+    }
+
+@app.post("/account/password/setup")
+def account_password_setup(
+    request: AccountPasswordActionRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        context = complete_password_token(
+            db,
+            raw_token=request.token,
+            password=request.password,
+            purpose="setup",
+        )
+        token = create_session_token(context.user)
+    except AccountConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account session configuration missing",
+        ) from exc
+    except AccountTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password setup token is invalid or expired",
+        ) from exc
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "account": serialize_account_context(context),
+    }
+
+
+@app.post("/account/password/reset/request")
+def account_password_reset_request(
+    request: AccountPasswordResetRequest,
+    db: Session = Depends(get_db),
+):
+    request_password_reset(db, email=request.email)
+    return {"status": "reset_requested"}
+
+
+@app.post("/account/password/reset/complete")
+def account_password_reset_complete(
+    request: AccountPasswordActionRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        context = complete_password_token(
+            db,
+            raw_token=request.token,
+            password=request.password,
+            purpose="reset",
+        )
+        token = create_session_token(context.user)
+    except AccountConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Account session configuration missing",
+        ) from exc
+    except AccountTokenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Password reset token is invalid or expired",
+        ) from exc
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "account": serialize_account_context(context),
+    }
+
+@app.get("/account/team")
+def account_team(
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    return team_snapshot(db, account_ctx)
+
+
+@app.post("/account/team/invites")
+def account_team_invite_create(
+    request: TeamInviteCreateRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        result = create_team_invite(
+            db,
+            context=account_ctx,
+            invited_email=request.email,
+            role=request.role,
+        )
+    except TeamInvitePermissionError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Account role cannot create this team invite",
+        ) from exc
+    except TeamInviteError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(exc),
+        ) from exc
+
+    return {
+        "status": "invite_created",
+        "invite": {
+            "id": str(result.invite.id),
+            "email": result.invite.invited_email,
+            "role": result.invite.role,
+            "status": result.invite.status,
+            "expires_at": result.invite.expires_at.isoformat(),
+        },
+        "invite_token": result.raw_token,
+        "accept_url": result.accept_url,
+        "authority_notice": "Invite acceptance creates membership only; organisation entitlement remains resolver-backed.",
+    }
+
+
+@app.post("/account/team/invites/accept")
+def account_team_invite_accept(
+    request: TeamInviteAcceptRequest,
+    db: Session = Depends(get_db),
+):
+    try:
+        accepted = accept_team_invite(
+            db,
+            raw_token=request.token,
+            email=request.email,
+            password=request.password,
+        )
+        context = account_context_for_user(db, accepted.user)
+        token = create_session_token(context.user)
+    except (InvalidMembershipError, InvalidCredentialsError, TeamInviteTokenError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Team invite is invalid, expired, or cannot be accepted",
+        ) from exc
+
+    return {
+        "access_token": token,
+        "token_type": "bearer",
+        "account": serialize_account_context(context),
+    }
+@app.post("/account/billing/portal")
+def account_billing_portal(
+    request: AccountBillingPortalRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        portal_session = create_billing_portal_session(
+            db,
+            context=account_ctx,
+            return_url=request.return_url,
+        )
+    except BillingPortalMissingCustomerError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Billing portal is not available for this organisation",
+        ) from exc
+    except BillingPortalConfigError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Billing portal configuration is not available",
+        ) from exc
+    except BillingPortalProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="Billing portal provider is temporarily unavailable",
+        ) from exc
+
+    return {
+        "url": portal_session.url,
+        "organization_id": portal_session.organization_id,
+    }
+
+@app.get("/account/me")
+def account_me(account_ctx=Depends(get_account_ctx)):
+    return serialize_account_context(account_ctx)
+
+
+@app.post("/account/logout")
+def account_logout():
+    return {"status": "signed_out"}
 
 
 @app.post("/ai/explain")
@@ -629,70 +1004,15 @@ async def stripe_webhook(
         return {"status": "duplicate", "event_id": event_id}
 
     payload_object = event.get("data", {}).get("object", {}) or {}
-    context = extract_event_context(event_type, payload_object)
-    plan_name = map_lookup_key_to_plan(context.get("price_lookup_key"))
-    org = resolve_org_match(
+    result = reconcile_stripe_event(
         db,
-        metadata_org_id=context.get("metadata_org_id"),
-        stripe_customer_id=context.get("customer_id"),
-        stripe_subscription_id=context.get("subscription_id"),
-    )
-
-    processing_status = "processed"
-    error: str | None = None
-
-    if org is None:
-        processing_status = "unmatched"
-    elif event_type == "checkout.session.completed":
-        bind_billing_identity(org, context)
-    elif event_type in {
-        "customer.subscription.created",
-        "customer.subscription.updated",
-        "customer.subscription.deleted",
-        "invoice.payment_failed",
-    }:
-        subscription_status = context.get("subscription_status")
-        if subscription_status in PAID_ACTIVE_STATUSES:
-            if plan_name is None:
-                processing_status = "unmatched"
-                error = "Unable to determine VoxaRisk plan from Stripe price lookup key."
-            else:
-                apply_paid_entitlement(
-                    db,
-                    org,
-                    plan_name=plan_name,
-                    subscription_status=subscription_status,
-                    context=context,
-                )
-        elif subscription_status in RESTRICTED_STATUSES:
-            apply_default_entitlement(
-                db,
-                org,
-                subscription_status=subscription_status,
-                context=context,
-            )
-        else:
-            processing_status = "ignored"
-    else:
-        processing_status = "ignored"
-
-    event_row = StripeWebhookEvent(
-        stripe_event_id=event_id,
+        event_id=event_id,
         event_type=event_type,
-        processing_status=processing_status,
-        org_id=org.id if org else None,
-        stripe_customer_id=context.get("customer_id"),
-        stripe_subscription_id=context.get("subscription_id"),
-        stripe_price_id=context.get("price_id"),
-        stripe_price_lookup_key=context.get("price_lookup_key"),
-        billing_email=context.get("billing_email"),
-        error=error,
+        payload_object=payload_object,
     )
-    db.add(event_row)
-    db.commit()
 
     return {
-        "status": processing_status,
+        "status": result.processing_status,
         "event_id": event_id,
-        "matched_org_id": str(org.id) if org else None,
+        "matched_org_id": str(result.org.id) if result.org else None,
     }

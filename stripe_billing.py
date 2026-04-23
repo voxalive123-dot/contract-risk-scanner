@@ -45,6 +45,10 @@ def map_lookup_key_to_plan(lookup_key: str | None) -> str | None:
 
 
 def get_effective_plan_name(org: Organization | None) -> str:
+    """Legacy Organisation-field resolver retained for transitional compatibility.
+
+    Live runtime enforcement should use entitlement_spine.resolve_entitlement_for_org.
+    """
     if org is None:
         return DEFAULT_PLAN_NAME
 
@@ -149,9 +153,9 @@ def extract_event_context(event_type: str, payload: dict[str, Any]) -> dict[str,
     if event_type.startswith("customer.subscription."):
         subscription_id = subscription_id or _string_or_none(payload.get("id"))
         price_id, price_lookup_key = _first_subscription_item_price(payload.get("items"))
-    elif event_type == "invoice.payment_failed":
+    elif event_type in {"invoice.paid", "invoice.payment_failed"}:
         price_id, price_lookup_key = _first_invoice_line_price(payload.get("lines"))
-        subscription_status = subscription_status or "past_due"
+        subscription_status = "active" if event_type == "invoice.paid" else subscription_status or "past_due"
     elif event_type == "checkout.session.completed":
         price_id = _string_or_none(metadata.get("price_id"))
         price_lookup_key = _string_or_none(metadata.get("price_lookup_key"))

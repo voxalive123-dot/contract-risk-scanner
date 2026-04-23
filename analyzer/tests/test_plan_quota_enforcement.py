@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 import api
 from crud import month_start_utc
 from db import Base
-from models import Organization, Scan
+from models import Organization, Scan, Subscription
 
 
 @pytest.fixture
@@ -84,6 +84,23 @@ def create_scan_rows(session_factory, *, org_id, count: int):
         db.commit()
 
 
+def create_subscription(session_factory, *, org_id, plan_name: str, status: str):
+    with session_factory() as db:
+        db.add(
+            Subscription(
+                org_id=org_id,
+                provider="stripe",
+                external_subscription_id=f"sub-{uuid.uuid4()}",
+                external_customer_id=f"cus-{uuid.uuid4()}",
+                plan_name=plan_name,
+                status=status,
+                is_current=True,
+                source="test",
+            )
+        )
+        db.commit()
+
+
 def override_api_key_ctx(org_id):
     return lambda: SimpleNamespace(org_id=org_id, user_id=None, id=None)
 
@@ -144,6 +161,7 @@ def test_starter_quota_blocks_over_limit(quota_client, monkeypatch):
 def test_active_business_uses_business_quota(quota_client):
     client, session_factory = quota_client
     org_id = create_org(session_factory, plan_type="business", plan_status="active")
+    create_subscription(session_factory, org_id=org_id, plan_name="business", status="active")
     create_scan_rows(session_factory, org_id=org_id, count=99)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 
@@ -158,6 +176,7 @@ def test_active_business_uses_business_quota(quota_client):
 def test_active_executive_uses_executive_quota(quota_client):
     client, session_factory = quota_client
     org_id = create_org(session_factory, plan_type="executive", plan_status="trialing")
+    create_subscription(session_factory, org_id=org_id, plan_name="executive", status="trialing")
     create_scan_rows(session_factory, org_id=org_id, count=499)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 
@@ -172,6 +191,7 @@ def test_active_executive_uses_executive_quota(quota_client):
 def test_active_enterprise_uses_enterprise_quota(quota_client):
     client, session_factory = quota_client
     org_id = create_org(session_factory, plan_type="enterprise", plan_status="active")
+    create_subscription(session_factory, org_id=org_id, plan_name="enterprise", status="active")
     create_scan_rows(session_factory, org_id=org_id, count=1999)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 
@@ -187,6 +207,7 @@ def test_active_enterprise_uses_enterprise_quota(quota_client):
 def test_restricted_paid_org_falls_back_to_starter_safe_quota(quota_client, status_value):
     client, session_factory = quota_client
     org_id = create_org(session_factory, plan_type="business", plan_status=status_value)
+    create_subscription(session_factory, org_id=org_id, plan_name="business", status=status_value)
     create_scan_rows(session_factory, org_id=org_id, count=5)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 
@@ -203,6 +224,32 @@ def test_restricted_paid_org_falls_back_to_starter_safe_quota(quota_client, stat
 def test_unknown_plan_status_fails_safe(quota_client):
     client, session_factory = quota_client
     org_id = create_org(session_factory, plan_type="enterprise", plan_status="mystery_status")
+    create_subscription(
+        session_factory,
+        org_id=org_id,
+        plan_name="enterprise",
+        status="mystery_status",
+    )
+    create_scan_rows(session_factory, org_id=org_id, count=5)
+    api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
+
+    try:
+        response = client.post("/analyze", json={"text": "Jurisdiction is England and Wales."})
+    finally:
+        api.app.dependency_overrides.pop(api.get_api_key_ctx, None)
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == {
+        "error": "monthly_scan_quota_exceeded",
+        "current_plan": "starter",
+        "monthly_limit": 5,
+        "scans_used": 5,
+    }
+
+
+def test_legacy_paid_org_without_phase_10_subscription_does_not_widen_access(quota_client):
+    client, session_factory = quota_client
+    org_id = create_org(session_factory, plan_type="business", plan_status="active")
     create_scan_rows(session_factory, org_id=org_id, count=5)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 

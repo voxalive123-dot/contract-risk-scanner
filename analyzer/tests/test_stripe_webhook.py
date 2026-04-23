@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 import api
 from db import Base
-from models import Organization, StripeWebhookEvent
+from models import BillingCustomerReference, Organization, StripeWebhookEvent, Subscription
 from stripe_billing import map_lookup_key_to_plan
 
 
@@ -139,7 +139,9 @@ def test_duplicate_event_is_idempotent(stripe_test_client, monkeypatch):
 
     with session_factory() as db:
         events = db.execute(select(StripeWebhookEvent)).scalars().all()
+        subscriptions = db.execute(select(Subscription)).scalars().all()
         assert len(events) == 1
+        assert subscriptions == []
 
 
 def test_unmatched_checkout_does_not_upgrade_org(stripe_test_client, monkeypatch):
@@ -189,6 +191,9 @@ def test_unmatched_checkout_does_not_upgrade_org(stripe_test_client, monkeypatch
         assert event.processing_status == "unmatched"
         assert event.org_id is None
         assert event.billing_email == "billing@unmatched.test"
+
+        subscriptions = db.execute(select(Subscription)).scalars().all()
+        assert subscriptions == []
 
 
 def test_matched_subscription_updates_org_plan(stripe_test_client, monkeypatch):
@@ -246,6 +251,20 @@ def test_matched_subscription_updates_org_plan(stripe_test_client, monkeypatch):
             1_800_000_000,
             tz=timezone.utc,
         ).replace(tzinfo=None)
+
+        reference = db.execute(select(BillingCustomerReference)).scalars().first()
+        assert reference is not None
+        assert reference.org_id == org_id
+        assert reference.external_customer_id == "cus_business_1"
+
+        subscription = db.execute(select(Subscription)).scalars().first()
+        assert subscription is not None
+        assert subscription.org_id == org_id
+        assert subscription.external_subscription_id == "sub_business_1"
+        assert subscription.external_customer_id == "cus_business_1"
+        assert subscription.plan_name == "business"
+        assert subscription.status == "active"
+        assert subscription.is_current is True
 
 
 @pytest.mark.parametrize(
@@ -319,6 +338,136 @@ def test_restricted_subscription_status_downgrades_org(
         assert org.stripe_customer_id == "cus_restricted"
         assert org.stripe_subscription_id == "sub_restricted"
 
+        subscription = db.execute(select(Subscription)).scalars().first()
+        assert subscription is not None
+        assert subscription.org_id == org_id
+        assert subscription.external_subscription_id == "sub_restricted"
+        assert subscription.plan_name == "business"
+        assert subscription.status == status_value
+
+
+def test_invoice_paid_reconciles_existing_subscription_customer_truth(
+    stripe_test_client,
+    monkeypatch,
+):
+    client, session_factory = stripe_test_client
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+    org_id = create_org(
+        session_factory,
+        name="invoice-paid-org",
+        stripe_customer_id="cus_invoice_paid",
+        stripe_subscription_id="sub_invoice_paid",
+    )
+
+    monkeypatch.setattr(
+        api.stripe.Webhook,
+        "construct_event",
+        lambda *args, **kwargs: {
+            "id": "evt_invoice_paid",
+            "type": "invoice.paid",
+            "data": {
+                "object": {
+                    "customer": "cus_invoice_paid",
+                    "subscription": "sub_invoice_paid",
+                    "customer_email": "billing@paid.test",
+                    "lines": {
+                        "data": [
+                            {
+                                "price": {
+                                    "id": "price_executive_yearly",
+                                    "lookup_key": "executive_yearly_gbp",
+                                }
+                            }
+                        ]
+                    },
+                }
+            },
+        },
+    )
+
+    response = client.post(
+        "/stripe/webhook",
+        data=b"{}",
+        headers={"Stripe-Signature": "sig"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processed"
+
+    with session_factory() as db:
+        org = db.get(Organization, org_id)
+        assert org is not None
+        assert org.plan_type == "executive"
+        assert org.plan_status == "active"
+
+        subscription = db.execute(select(Subscription)).scalars().first()
+        assert subscription is not None
+        assert subscription.org_id == org_id
+        assert subscription.external_subscription_id == "sub_invoice_paid"
+        assert subscription.plan_name == "executive"
+        assert subscription.status == "active"
+
+        reference = db.execute(select(BillingCustomerReference)).scalars().first()
+        assert reference is not None
+        assert reference.external_customer_id == "cus_invoice_paid"
+        assert reference.billing_email == "billing@paid.test"
+
+
+def test_missing_org_mapping_fails_closed_without_subscription_activation(
+    stripe_test_client,
+    monkeypatch,
+):
+    client, session_factory = stripe_test_client
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    monkeypatch.setattr(
+        api.stripe.Webhook,
+        "construct_event",
+        lambda *args, **kwargs: {
+            "id": "evt_missing_org_mapping",
+            "type": "customer.subscription.updated",
+            "data": {
+                "object": {
+                    "id": "sub_missing_org",
+                    "customer": "cus_missing_org",
+                    "status": "active",
+                    "items": {
+                        "data": [
+                            {
+                                "price": {
+                                    "id": "price_enterprise_monthly",
+                                    "lookup_key": "enterprise_monthly_gbp",
+                                }
+                            }
+                        ]
+                    },
+                }
+            },
+        },
+    )
+
+    response = client.post(
+        "/stripe/webhook",
+        data=b"{}",
+        headers={"Stripe-Signature": "sig"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unmatched"
+    assert response.json()["matched_org_id"] is None
+
+    with session_factory() as db:
+        assert db.execute(select(Subscription)).scalars().all() == []
+        event = db.execute(
+            select(StripeWebhookEvent).where(
+                StripeWebhookEvent.stripe_event_id == "evt_missing_org_mapping"
+            )
+        ).scalars().first()
+        assert event is not None
+        assert event.processing_status == "unmatched"
+        assert event.org_id is None
+        assert event.error == "No deterministic organization mapping found."
+
 
 def test_analyzer_endpoint_still_works_when_entitlement_allows(
     stripe_test_client,
@@ -332,6 +481,20 @@ def test_analyzer_endpoint_still_works_when_entitlement_allows(
         plan_limit=5000,
         plan_status="active",
     )
+    with session_factory() as db:
+        db.add(
+            Subscription(
+                org_id=org_id,
+                provider="stripe",
+                external_subscription_id=f"sub_{uuid.uuid4().hex}",
+                external_customer_id=f"cus_{uuid.uuid4().hex}",
+                plan_name="business",
+                status="active",
+                is_current=True,
+                source="test",
+            )
+        )
+        db.commit()
 
     api.app.dependency_overrides[api.get_api_key_ctx] = lambda: SimpleNamespace(
         org_id=org_id,
