@@ -40,7 +40,7 @@ const workflowSteps = [
 
 function SiteHeader() {
   return (
-    <header className="border-b border-[#dfd0b6] bg-[#f6efe1]">
+    <header className="sticky top-0 z-50 border-b border-[#dfd0b6] bg-[#f6efe1]">
       <div className="mx-auto flex max-w-[1360px] flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
         <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
           <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">

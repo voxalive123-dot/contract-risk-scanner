@@ -75,7 +75,7 @@ type AIExplainResponse = {
 
 function DashboardHeader() {
   return (
-    <header className="report-print-hidden border-b border-[#dccaa8] bg-[#f7f3ea]/95 backdrop-blur">
+    <header className="sticky top-0 z-50 report-print-hidden border-b border-[#dccaa8] bg-[#f7f3ea]/95 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
         <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
           <img

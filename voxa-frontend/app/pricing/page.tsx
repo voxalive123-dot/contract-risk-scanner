@@ -73,7 +73,7 @@ const upgradeReasons = [
 
 function SiteHeader() {
   return (
-    <header className="border-b border-[#dfd0b6] bg-[#f6efe1]">
+    <header className="sticky top-0 z-50 border-b border-[#dfd0b6] bg-[#f6efe1]">
       <div className="mx-auto flex max-w-[1360px] flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
         <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
           <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
@@ -95,6 +95,7 @@ function SiteHeader() {
 
         <nav className="flex items-center gap-3 text-sm text-neutral-700">
           <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">Product</Link>
+          <Link href="/#workflow" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">Workflow</Link>
           <Link href="/pricing" className="rounded-full border border-[#c6aa72] bg-[#fff8ea] px-4 py-2 font-semibold text-[#765a2b]">Pricing</Link>
           <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Dashboard</Link>
         </nav>
