@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ChangeEvent, useMemo, useRef, useState } from "react";
 
+import AccountNavLink from "../account-nav-link";
 import SiteFooter from "../site-footer";
 type ScoreAdjustment = {
   type?: string;
@@ -103,6 +104,7 @@ function DashboardHeader() {
           <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-medium text-stone-100">
             Dashboard
           </Link>
+          <AccountNavLink className="rounded-xl border border-[#cbb891] bg-[#fcf2df] px-4 py-2 font-medium text-[#6f552d] transition hover:bg-[#efe4d0]" />
         </nav>
       </div>
     </header>

@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import AccountNavLink from "../account-nav-link";
 import SiteFooter from "../site-footer";
 
 type QuestionCard = {
@@ -210,6 +211,7 @@ function SiteHeader() {
           >
             Dashboard
           </Link>
+          <AccountNavLink />
         </nav>
       </div>
     </header>

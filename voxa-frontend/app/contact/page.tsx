@@ -2,6 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 import Link from "next/link";
+import AccountNavLink from "../account-nav-link";
 import SiteFooter from "../site-footer";
 
 function SiteHeader() {
@@ -22,6 +23,7 @@ function SiteHeader() {
           <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">Product</Link>
           <Link href="/pricing" className="rounded-full border border-[#c6aa72] bg-[#fff8ea] px-4 py-2 font-semibold text-[#765a2b]">Pricing</Link>
           <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Dashboard</Link>
+          <AccountNavLink />
         </nav>
       </div>
     </header>

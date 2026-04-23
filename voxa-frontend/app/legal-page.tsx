@@ -1,4 +1,5 @@
 import Link from "next/link";
+import AccountNavLink from "./account-nav-link";
 import SiteFooter from "./site-footer";
 
 type LegalSection = {
@@ -48,6 +49,7 @@ function SiteHeader() {
           <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
             Dashboard
           </Link>
+          <AccountNavLink />
         </nav>
       </div>
     </header>
