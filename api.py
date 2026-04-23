@@ -6,6 +6,7 @@ import logging
 import time
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 from tempfile import NamedTemporaryFile
 from typing import Any
 
@@ -403,6 +404,14 @@ def get_account_ctx(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid account session",
         ) from exc
+
+
+def account_ctx_as_runtime_subject(account_ctx) -> SimpleNamespace:
+    return SimpleNamespace(
+        org_id=account_ctx.organization.id,
+        user_id=account_ctx.user.id,
+        id=None,
+    )
 
 
 def get_internal_admin_ctx(account_ctx=Depends(get_account_ctx)):
@@ -1079,6 +1088,126 @@ def account_me(account_ctx=Depends(get_account_ctx)):
 @app.post("/account/logout")
 def account_logout():
     return {"status": "signed_out"}
+
+
+@app.post("/account/analyze_detailed")
+def account_analyze_detailed(
+    request: AnalyzeRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    account_ctx=Depends(get_account_ctx),
+):
+    runtime_subject = account_ctx_as_runtime_subject(account_ctx)
+    enforce_org_plan_quota(db=db, api_key_ctx=runtime_subject)
+    enforce_rate_limit(http_request)
+
+    payload = _build_detailed_payload(request.text)
+    _persist_analysis(
+        db=db,
+        api_key_ctx=runtime_subject,
+        http_request=http_request,
+        endpoint="/account/analyze_detailed",
+        payload=payload,
+    )
+    return payload
+
+
+@app.post("/account/analyze_pdf")
+async def account_analyze_pdf(
+    file: UploadFile = File(...),
+    http_request: Request = None,
+    db: Session = Depends(get_db),
+    account_ctx=Depends(get_account_ctx),
+):
+    runtime_subject = account_ctx_as_runtime_subject(account_ctx)
+    enforce_org_plan_quota(db=db, api_key_ctx=runtime_subject)
+    enforce_rate_limit(http_request)
+
+    if file.content_type not in {"application/pdf"}:
+        raise HTTPException(status_code=400, detail="Only PDF files are supported")
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded PDF is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Uploaded PDF exceeds size limit")
+
+    temp_path: Path | None = None
+    try:
+        temp_path = _write_temp_file(data, ".pdf")
+        extraction = extract_text_from_pdf(str(temp_path))
+
+        if not extraction.text.strip():
+            raise HTTPException(status_code=400, detail="No readable text found in PDF")
+
+        payload = _build_detailed_payload(extraction.text)
+        payload["extraction_method"] = extraction.extraction_method
+        payload["confidence_hint"] = extraction.confidence_hint
+        payload["source_type"] = "pdf"
+        payload["page_count"] = extraction.page_count
+        payload["has_extractable_text"] = extraction.has_extractable_text
+
+        _persist_analysis(
+            db=db,
+            api_key_ctx=runtime_subject,
+            http_request=http_request,
+            endpoint="/account/analyze_pdf",
+            payload=payload,
+        )
+        return payload
+    except PdfExtractionError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
+
+
+@app.post("/account/analyze_image")
+async def account_analyze_image(
+    file: UploadFile = File(...),
+    http_request: Request = None,
+    db: Session = Depends(get_db),
+    account_ctx=Depends(get_account_ctx),
+):
+    runtime_subject = account_ctx_as_runtime_subject(account_ctx)
+    enforce_org_plan_quota(db=db, api_key_ctx=runtime_subject)
+    enforce_rate_limit(http_request)
+
+    if file.content_type not in ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="Only JPG, PNG, and WEBP images are supported",
+        )
+
+    data = await file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Uploaded image is empty")
+    if len(data) > MAX_UPLOAD_BYTES:
+        raise HTTPException(status_code=400, detail="Uploaded image exceeds size limit")
+
+    suffix = Path(file.filename or "upload.jpg").suffix or ".jpg"
+
+    temp_path: Path | None = None
+    try:
+        temp_path = _write_temp_file(data, suffix)
+        text, confidence_hint = _extract_text_from_image(temp_path)
+
+        payload = _build_detailed_payload(text)
+        payload["extraction_method"] = "ocr"
+        payload["confidence_hint"] = confidence_hint
+        payload["source_type"] = "image"
+
+        _persist_analysis(
+            db=db,
+            api_key_ctx=runtime_subject,
+            http_request=http_request,
+            endpoint="/account/analyze_image",
+            payload=payload,
+        )
+        return payload
+    finally:
+        if temp_path and temp_path.exists():
+            temp_path.unlink(missing_ok=True)
 
 
 @app.post("/ai/explain")

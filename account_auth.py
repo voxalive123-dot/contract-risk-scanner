@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from entitlement_spine import EntitlementResolution, resolve_entitlement_for_org
 from models import Membership, Organization, User
+from platform_owner import choose_canonical_platform_org, is_platform_owner_email
 
 
 SESSION_TTL_SECONDS = 60 * 60 * 8
@@ -172,6 +173,12 @@ def _active_membership_for_user(db: Session, user: User) -> Membership:
         Membership.status == "active",
     )
     memberships = list(db.execute(stmt).scalars().all())
+    if len(memberships) > 1 and is_platform_owner_email(user.email):
+        canonical_org, _reason = choose_canonical_platform_org(db)
+        if canonical_org is not None:
+            preferred = next((membership for membership in memberships if membership.org_id == canonical_org.id), None)
+            if preferred is not None:
+                return preferred
     if len(memberships) != 1:
         raise InvalidMembershipError("User must have exactly one active membership")
     return memberships[0]

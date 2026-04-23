@@ -24,6 +24,11 @@ from models import (
     UsageLog,
     User,
 )
+from platform_owner import (
+    choose_canonical_platform_org,
+    is_platform_like_org_name,
+    platform_owner_membership_statuses,
+)
 
 
 class InternalOpsError(Exception):
@@ -144,6 +149,26 @@ def _membership_snapshot(db: Session, membership: Membership) -> dict[str, Any]:
     }
 
 
+def _platform_context(db: Session, org: Organization) -> dict[str, Any] | None:
+    canonical_org, reason = choose_canonical_platform_org(db)
+    if canonical_org is None:
+        return None
+
+    owner_statuses = platform_owner_membership_statuses(db, org=org)
+    is_platform_org = is_platform_like_org_name(org.name) or bool(owner_statuses) or org.id == canonical_org.id
+    if not is_platform_org:
+        return None
+
+    status = "canonical_platform_org" if org.id == canonical_org.id else "legacy_platform_org"
+    return {
+        "status": status,
+        "reason": reason,
+        "canonical_org_id": str(canonical_org.id),
+        "canonical_org_name": canonical_org.name,
+        "owner_memberships": owner_statuses,
+    }
+
+
 def list_internal_organizations(db: Session, *, limit: int = 100) -> dict[str, Any]:
     orgs = list(
         db.execute(
@@ -155,6 +180,7 @@ def list_internal_organizations(db: Session, *, limit: int = 100) -> dict[str, A
         entitlement = resolve_entitlement_for_org(db, org)
         subscription = _current_subscription(db, org.id)
         reference = _billing_reference(db, org.id)
+        platform_context = _platform_context(db, org)
         summaries.append(
             {
                 "id": str(org.id),
@@ -185,6 +211,7 @@ def list_internal_organizations(db: Session, *, limit: int = 100) -> dict[str, A
                     OrganizationInvite.status == "pending",
                 ),
                 "scan_count": _count(db, Scan, Scan.org_id == org.id),
+                "platform_context": platform_context,
             }
         )
     return {"read_only": True, "organizations": summaries}
@@ -235,6 +262,7 @@ def get_internal_organization_detail(db: Session, *, org_id: uuid.UUID | str) ->
             "name": org.name,
             "created_at": _serialize_dt(org.created_at),
         },
+        "platform_context": _platform_context(db, org),
         "diagnostics": build_entitlement_diagnostics(db, org_id=org.id, webhook_limit=5),
         "memberships": [_membership_snapshot(db, membership) for membership in memberships],
         "recent_invites": [_invite_snapshot(invite) for invite in invites],

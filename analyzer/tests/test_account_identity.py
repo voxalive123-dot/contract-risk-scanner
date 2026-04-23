@@ -5,6 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
@@ -12,7 +13,7 @@ import api
 from account_auth import hash_password
 from auth_keys import hash_api_key
 from db import Base
-from models import ApiKey, Membership, Organization, Subscription, User
+from models import ApiKey, Membership, Organization, Scan, Subscription, User
 
 
 @pytest.fixture
@@ -309,3 +310,30 @@ def test_existing_analyze_and_ai_gating_stay_resolver_backed(account_client, mon
     assert set(analyze_response.json().keys()) == {"risk_score", "severity", "flags"}
     assert ai_response.status_code == 200
     assert ai_response.json()["status"] == "available"
+
+
+def test_account_scoped_analyze_uses_signed_in_org_truth(account_client):
+    client, session_factory = account_client
+    account = create_account(
+        session_factory,
+        plan_name="business",
+        subscription_status="active",
+    )
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    response = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "risk_score" in body
+    assert "severity" in body
+    assert "findings" in body
+    assert "meta" in body
+
+    with session_factory() as db:
+        scans = list(db.execute(select(Scan).where(Scan.org_id == account["org_id"])).scalars().all())
+        assert len(scans) == 1

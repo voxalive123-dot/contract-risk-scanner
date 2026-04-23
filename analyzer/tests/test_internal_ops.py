@@ -52,10 +52,17 @@ def internal_ops_client(tmp_path, monkeypatch):
         engine.dispose()
 
 
-def create_user_org(session_factory, *, email: str, role: str = "owner", subscription: bool = False):
+def create_user_org(
+    session_factory,
+    *,
+    email: str,
+    role: str = "owner",
+    subscription: bool = False,
+    org_name: str | None = None,
+):
     with session_factory() as db:
         org = Organization(
-            name=f"org-{uuid.uuid4()}",
+            name=org_name or f"org-{uuid.uuid4()}",
             plan_type="starter",
             plan_status="active",
             plan_limit=5,
@@ -178,6 +185,41 @@ def test_platform_owner_email_grants_internal_ops_without_admin_list(internal_op
 
     assert response.status_code == 200
     assert response.json()["read_only"] is True
+
+
+def test_internal_ops_marks_canonical_and_legacy_platform_orgs(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+    )
+    with session_factory() as db:
+        legacy_org = Organization(
+            name="voxarisk-platform-org",
+            plan_type="starter",
+            plan_status="active",
+            plan_limit=5,
+        )
+        db.add(legacy_org)
+        db.commit()
+        db.refresh(legacy_org)
+
+    response = client.get(
+        "/internal/ops/organizations",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+
+    assert response.status_code == 200
+    summaries = {item["name"]: item for item in response.json()["organizations"]}
+    assert summaries["VoxaRisk Platform"]["platform_context"]["status"] == "canonical_platform_org"
+    assert summaries["VoxaRisk Platform"]["platform_context"]["canonical_org_name"] == "VoxaRisk Platform"
+    assert summaries["voxarisk-platform-org"]["platform_context"]["status"] == "legacy_platform_org"
+    assert summaries["voxarisk-platform-org"]["platform_context"]["canonical_org_name"] == "VoxaRisk Platform"
 
 
 def test_old_gmail_owner_identity_no_longer_grants_internal_ops(internal_ops_client):

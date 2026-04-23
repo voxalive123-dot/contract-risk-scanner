@@ -23,11 +23,25 @@ type OrgSummary = {
   member_count: number;
   pending_invite_count: number;
   scan_count: number;
+  platform_context?: {
+    status: "canonical_platform_org" | "legacy_platform_org";
+    reason: string;
+    canonical_org_id: string;
+    canonical_org_name: string;
+    owner_memberships: Array<{ membership_id: string; role: string; status: string }>;
+  } | null;
 };
 
 type OrgDetail = {
   found: boolean;
   organization?: { id: string; name: string };
+  platform_context?: {
+    status: "canonical_platform_org" | "legacy_platform_org";
+    reason: string;
+    canonical_org_id: string;
+    canonical_org_name: string;
+    owner_memberships: Array<{ membership_id: string; role: string; status: string }>;
+  } | null;
   diagnostics?: {
     effective_entitlement: { effective_plan: string; subscription_state: string; reason: string };
     mismatch_flags: Array<{ code: string; severity: string; message: string }>;
@@ -206,6 +220,13 @@ export default function InternalOperationsPage() {
                       className={`w-full rounded-xl border p-4 text-left transition ${selectedOrgId === org.id ? "border-[#8a6a34] bg-[#fff8ea]" : "border-[#d2bd96] bg-[#fffdf8] hover:bg-[#fff8ea]"}`}
                     >
                       <div className="text-sm font-semibold text-neutral-950">{org.name}</div>
+                      {org.platform_context && (
+                        <div className="mt-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#8a6a34]">
+                          {org.platform_context.status === "canonical_platform_org"
+                            ? "Canonical platform org"
+                            : "Legacy platform org"}
+                        </div>
+                      )}
                       <div className="mt-2 text-xs leading-5 text-neutral-600">
                         {org.effective_entitlement.effective_plan} / {org.effective_entitlement.subscription_state} / {org.member_count} members / {org.scan_count} scans
                       </div>
@@ -221,6 +242,25 @@ export default function InternalOperationsPage() {
                   <div className="mt-5 space-y-5 text-sm leading-6 text-neutral-700">
                     <div className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-4">
                       <div className="font-semibold text-neutral-950">{detail.organization?.name}</div>
+                      {detail.platform_context && (
+                        <div className="mt-2 rounded-lg border border-[#ead9bb] bg-[#fffaf0] p-3 text-xs leading-5 text-neutral-700">
+                          <div className="font-semibold uppercase tracking-[0.14em] text-[#8a6a34]">
+                            {detail.platform_context.status === "canonical_platform_org"
+                              ? "Canonical platform org"
+                              : "Legacy platform org"}
+                          </div>
+                          <div className="mt-2">Canonical name: {detail.platform_context.canonical_org_name}</div>
+                          <div>Selection reason: {detail.platform_context.reason}</div>
+                          {detail.platform_context.owner_memberships.length > 0 && (
+                            <div>
+                              Owner memberships:{" "}
+                              {detail.platform_context.owner_memberships
+                                .map((item) => `${item.role} / ${item.status}`)
+                                .join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="mt-2">Effective plan: {detail.diagnostics?.effective_entitlement.effective_plan}</div>
                       <div>Subscription state: {detail.diagnostics?.effective_entitlement.subscription_state}</div>
                       <div>Reason: {detail.diagnostics?.effective_entitlement.reason}</div>

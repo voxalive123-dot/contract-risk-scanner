@@ -177,3 +177,36 @@ def test_platform_owner_bootstrap_resolves_existing_membership_ambiguity(provisi
             password="new owner password",
         )
         assert str(context.organization.id) == str(platform_org_id)
+
+
+def test_platform_owner_bootstrap_reuses_legacy_platform_alias_without_creating_duplicate_org(provisioning_client, monkeypatch):
+    _client, session_factory = provisioning_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    with session_factory() as db:
+        legacy_org = Organization(
+            name="voxarisk-platform-org",
+            plan_type="starter",
+            plan_status="active",
+            plan_limit=5,
+        )
+        db.add(legacy_org)
+        db.commit()
+        db.refresh(legacy_org)
+        legacy_org_id = legacy_org.id
+
+    with session_factory() as db:
+        payload = bootstrap_platform_owner(db, password="owner direct password")
+
+    assert payload["org_id"] == str(legacy_org_id)
+    assert payload["org_name"] == "VoxaRisk Platform"
+
+    with session_factory() as db:
+        orgs = list(
+            db.execute(
+                select(Organization).where(Organization.name.in_(["VoxaRisk Platform", "voxarisk-platform-org"]))
+            ).scalars().all()
+        )
+        assert len(orgs) == 1
+        assert str(orgs[0].id) == str(legacy_org_id)

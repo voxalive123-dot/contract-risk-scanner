@@ -1,11 +1,17 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const API_BASE = process.env.VOXA_API_BASE_URL || "http://localhost:8000";
 const API_KEY = process.env.VOXA_API_KEY;
+const SESSION_COOKIE = "voxarisk_account_session";
 
 export async function POST(request: Request) {
   try {
-    if (!API_KEY) {
+    const cookieStore = await cookies();
+    const accountSession = cookieStore.get(SESSION_COOKIE)?.value ?? "";
+    const useAccountSession = !!accountSession;
+
+    if (!useAccountSession && !API_KEY) {
       return NextResponse.json(
         { error: "Server API key is not configured." },
         { status: 500 },
@@ -25,11 +31,13 @@ export async function POST(request: Request) {
         );
       }
 
-      const upstream = await fetch(`${API_BASE}/analyze_detailed`, {
+      const upstream = await fetch(`${API_BASE}${useAccountSession ? "/account/analyze_detailed" : "/analyze_detailed"}`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-API-Key": API_KEY,
+          ...(useAccountSession
+            ? { Authorization: `Bearer ${accountSession}` }
+            : { "X-API-Key": API_KEY as string }),
         },
         body: JSON.stringify({ text }),
         cache: "no-store",
@@ -78,10 +86,14 @@ export async function POST(request: Request) {
         );
       }
 
-      const upstream = await fetch(`${API_BASE}${upstreamPath}`, {
+      const upstream = await fetch(
+        `${API_BASE}${useAccountSession ? `/account${upstreamPath}` : upstreamPath}`,
+        {
         method: "POST",
         headers: {
-          "X-API-Key": API_KEY,
+          ...(useAccountSession
+            ? { Authorization: `Bearer ${accountSession}` }
+            : { "X-API-Key": API_KEY as string }),
         },
         body: upstreamForm,
         cache: "no-store",

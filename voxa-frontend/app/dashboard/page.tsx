@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, useMemo, useRef, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import AccountNavLink from "../account-nav-link";
 import SiteFooter from "../site-footer";
@@ -72,6 +72,18 @@ type AIExplainResponse = {
   model?: string;
   reason?: string;
   ai_summary?: AIReviewSummary;
+};
+
+type DashboardAccountContext = {
+  user: { email: string };
+  organization: { id: string; name: string };
+  membership: { role: string; status: string };
+  entitlement: {
+    effective_plan: string;
+    subscription_state: string;
+    monthly_scan_limit: number;
+    reason: string;
+  };
 };
 
 function DashboardHeader() {
@@ -591,8 +603,35 @@ export default function DashboardPage() {
     "idle" | "loading" | "available" | "disabled" | "unavailable" | "denied" | "error"
   >("idle");
   const [aiMessage, setAIMessage] = useState<string | null>(null);
+  const [accountContext, setAccountContext] = useState<DashboardAccountContext | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAccountContext() {
+      try {
+        const response = await fetch("/api/account/me", { cache: "no-store" });
+        if (!response.ok || cancelled) {
+          return;
+        }
+        const payload: DashboardAccountContext = await response.json();
+        if (!cancelled) {
+          setAccountContext(payload);
+        }
+      } catch {
+        if (!cancelled) {
+          setAccountContext(null);
+        }
+      }
+    }
+
+    loadAccountContext();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function resetAIReview() {
     setAIReview(null);
@@ -942,6 +981,23 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {accountContext && (
+          <div className="report-print-hidden mb-8 rounded-2xl border border-[#dccaa8] bg-[#fff8ea] p-5 text-sm leading-6 text-neutral-700 shadow-[0_8px_18px_rgba(80,60,30,0.05)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+              Signed-in account context
+            </div>
+            <div className="mt-3">
+              {accountContext.user.email} is operating under {accountContext.organization.name} as{" "}
+              {accountContext.membership.role} / {accountContext.membership.status}.
+            </div>
+            <div>
+              Resolver-backed entitlement: {accountContext.entitlement.effective_plan} /{" "}
+              {accountContext.entitlement.subscription_state} / monthly limit{" "}
+              {accountContext.entitlement.monthly_scan_limit}.
+            </div>
+          </div>
+        )}
 
         <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
           <div className="mb-4 flex items-center justify-between gap-4">
