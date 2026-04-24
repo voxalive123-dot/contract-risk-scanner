@@ -168,6 +168,7 @@ def test_internal_admin_access_allowed(internal_ops_client):
 
     assert response.status_code == 200
     assert response.json()["read_only"] is True
+    assert response.json()["overview"]["total_organizations"] == 1
     assert len(response.json()["organizations"]) == 1
 
 
@@ -278,11 +279,18 @@ def test_organisations_and_entitlement_summaries_load(internal_ops_client):
     )
 
     assert response.status_code == 200
-    org = response.json()["organizations"][0]
+    body = response.json()
+    assert body["overview"]["total_organizations"] == 1
+    assert body["overview"]["total_accounts"] == 1
+    assert body["overview"]["total_memberships"] == 1
+    org = body["organizations"][0]
     assert org["effective_entitlement"]["source"] == "subscription"
     assert org["effective_entitlement"]["effective_plan"] == "business"
+    assert org["plan_limit"] == 5
+    assert org["account_count"] == 1
     assert org["subscription"]["status"] == "active"
     assert org["billing_customer_reference"]["external_customer_id"].startswith("cus_")
+    assert org["status_badge"]["tone"] == "success"
 
 
 def test_recent_usage_scans_invites_and_signals_visible(internal_ops_client):
@@ -299,7 +307,9 @@ def test_recent_usage_scans_invites_and_signals_visible(internal_ops_client):
     assert response.status_code == 200
     body = response.json()
     assert body["read_only"] is True
-    assert body["manual_controls"] == []
+    assert "manual_override_organization" in body["manual_controls"]
+    assert body["accounts"][0]["email"] == "internal@example.test"
+    assert body["effective_entitlement"]["effective_plan"] == "business"
     assert body["recent_scans"][0]["request_id"] == "req-internal-ops"
     assert body["recent_usage"][0]["endpoint"] == "/analyze"
     assert body["recent_invites"][0]["email"] == "pending@example.test"

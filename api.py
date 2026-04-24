@@ -77,6 +77,10 @@ from internal_workflows import (
     InternalWorkflowNotFoundError,
     cancel_pending_invite,
     create_operator_note,
+    downgrade_organization_to_starter,
+    manual_override_organization,
+    reactivate_organization,
+    restrict_organization,
     workflow_view,
 )
 from models import StripeWebhookEvent
@@ -287,6 +291,33 @@ class InternalWorkflowReasonRequest(BaseModel):
         if not isinstance(value, str) or len(value.strip()) < 8:
             raise ValueError("a clear operator reason is required")
         return value.strip()
+
+
+class InternalOrganizationOverrideRequest(InternalWorkflowReasonRequest):
+    plan_type: str = Field(...)
+    plan_status: str = Field(...)
+    plan_limit: int = Field(...)
+
+    @field_validator("plan_type")
+    @classmethod
+    def validate_plan_type(cls, value: str) -> str:
+        if value.strip().lower() not in {"starter", "business", "executive", "enterprise"}:
+            raise ValueError("unsupported override plan_type")
+        return value.strip().lower()
+
+    @field_validator("plan_status")
+    @classmethod
+    def validate_plan_status(cls, value: str) -> str:
+        if value.strip().lower() not in {"active", "trialing", "manual_override", "restricted"}:
+            raise ValueError("unsupported override plan_status")
+        return value.strip().lower()
+
+    @field_validator("plan_limit")
+    @classmethod
+    def validate_plan_limit(cls, value: int) -> int:
+        if not isinstance(value, int) or value <= 0:
+            raise ValueError("plan_limit must be positive")
+        return value
 
 
 class TeamInviteCreateRequest(BaseModel):
@@ -974,6 +1005,78 @@ def internal_ops_invite_cancel(
     except InternalWorkflowInvalidActionError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"status": "invite_cancelled", "action": action}
+
+
+@app.post("/internal/ops/organizations/{org_id}/restrict")
+def internal_ops_org_restrict(
+    org_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = restrict_organization(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "organization_restricted", "action": action}
+
+
+@app.post("/internal/ops/organizations/{org_id}/reactivate")
+def internal_ops_org_reactivate(
+    org_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = reactivate_organization(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "organization_reactivated", "action": action}
+
+
+@app.post("/internal/ops/organizations/{org_id}/manual-override")
+def internal_ops_org_manual_override(
+    org_id: str,
+    request: InternalOrganizationOverrideRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = manual_override_organization(
+            db,
+            actor=_internal_ctx,
+            org_id=org_id,
+            reason=request.reason,
+            plan_type=request.plan_type,
+            plan_status=request.plan_status,
+            plan_limit=request.plan_limit,
+        )
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "organization_manual_override_applied", "action": action}
+
+
+@app.post("/internal/ops/organizations/{org_id}/downgrade")
+def internal_ops_org_downgrade(
+    org_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        action = downgrade_organization_to_starter(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
+    except InternalWorkflowNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except InternalWorkflowInvalidActionError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"status": "organization_downgraded_to_starter", "action": action}
 
 @app.get("/account/team")
 def account_team(

@@ -24,6 +24,7 @@ SUBSCRIPTION_STATES = {
     "manual_override",
 }
 ENTITLEMENT_GRANTING_STATES = {"active", "trialing", "manual_override"}
+ORGANIZATION_OVERRIDE_STATES = {"restricted", "manual_override"}
 
 
 @dataclass(frozen=True)
@@ -54,6 +55,51 @@ def _positive_limit(value: int | None) -> int | None:
     return None
 
 
+def _organization_override_resolution(org: Organization) -> EntitlementResolution | None:
+    plan_name = _normalize(org.plan_type, DEFAULT_PLAN_NAME)
+    raw_state = org.plan_status
+    state = _normalize(org.plan_status, "restricted")
+
+    if state not in ORGANIZATION_OVERRIDE_STATES:
+        return None
+
+    if state == "restricted":
+        return EntitlementResolution(
+            organization_id=str(org.id),
+            source="organization_override",
+            subscription_state="restricted",
+            raw_subscription_state=raw_state,
+            plan_name=plan_name,
+            effective_plan=DEFAULT_PLAN_NAME,
+            monthly_scan_limit=DEFAULT_PLAN_LIMIT,
+            paid_access=False,
+            ai_review_notes_allowed=False,
+            fail_closed=True,
+            reason="organization_restricted_override",
+        )
+
+    paid_access = plan_name in PAID_PLAN_NAMES
+    effective_plan = plan_name if paid_access else DEFAULT_PLAN_NAME
+    monthly_scan_limit = (
+        _positive_limit(org.plan_limit) or PLAN_QUOTAS.get(effective_plan, DEFAULT_PLAN_LIMIT)
+        if paid_access
+        else DEFAULT_PLAN_LIMIT
+    )
+    return EntitlementResolution(
+        organization_id=str(org.id),
+        source="organization_override",
+        subscription_state="manual_override",
+        raw_subscription_state=raw_state,
+        plan_name=plan_name,
+        effective_plan=effective_plan,
+        monthly_scan_limit=monthly_scan_limit,
+        paid_access=paid_access,
+        ai_review_notes_allowed=paid_access,
+        fail_closed=not paid_access,
+        reason="organization_manual_override_active" if paid_access else "organization_manual_override_starter",
+    )
+
+
 def _current_subscription(db: Session, org: Organization) -> Subscription | None:
     stmt = (
         select(Subscription)
@@ -82,6 +128,10 @@ def resolve_entitlement_for_org(
             fail_closed=True,
             reason="organization_missing",
         )
+
+    organization_override = _organization_override_resolution(org)
+    if organization_override is not None:
+        return organization_override
 
     subscription = _current_subscription(db, org)
     if subscription:

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from account_auth import AccountContext
 from entitlement_diagnostics import build_entitlement_diagnostics
 from internal_ops import get_internal_organization_detail
+from stripe_billing import DEFAULT_PLAN_LIMIT, DEFAULT_PLAN_NAME
 from models import InternalOperatorAction, Organization, OrganizationInvite
 
 
@@ -140,6 +141,159 @@ def _invite_snapshot(invite: OrganizationInvite) -> dict[str, Any]:
     }
 
 
+def _organization_snapshot(org: Organization) -> dict[str, Any]:
+    return {
+        "id": str(org.id),
+        "name": org.name,
+        "plan_type": org.plan_type,
+        "plan_status": org.plan_status,
+        "plan_limit": org.plan_limit,
+        "stripe_customer_id": org.stripe_customer_id,
+        "stripe_subscription_id": org.stripe_subscription_id,
+        "billing_email": org.billing_email,
+    }
+
+
+def restrict_organization(
+    db: Session,
+    *,
+    actor: AccountContext,
+    org_id: uuid.UUID | str,
+    reason: str,
+) -> dict[str, Any]:
+    parsed_org_id = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+    org = db.get(Organization, parsed_org_id)
+    if org is None:
+        raise InternalWorkflowNotFoundError("Organisation not found")
+
+    before = _organization_snapshot(org)
+    org.plan_status = "restricted"
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    action = log_operator_action(
+        db,
+        actor=actor,
+        action_type="organization_restricted",
+        reason=reason,
+        target_type="organization",
+        target_id=str(org.id),
+        org_id=org.id,
+        before=before,
+        after=_organization_snapshot(org),
+    )
+    return _action_snapshot(action)
+
+
+def reactivate_organization(
+    db: Session,
+    *,
+    actor: AccountContext,
+    org_id: uuid.UUID | str,
+    reason: str,
+) -> dict[str, Any]:
+    parsed_org_id = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+    org = db.get(Organization, parsed_org_id)
+    if org is None:
+        raise InternalWorkflowNotFoundError("Organisation not found")
+
+    before = _organization_snapshot(org)
+    org.plan_status = "active"
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    action = log_operator_action(
+        db,
+        actor=actor,
+        action_type="organization_reactivated",
+        reason=reason,
+        target_type="organization",
+        target_id=str(org.id),
+        org_id=org.id,
+        before=before,
+        after=_organization_snapshot(org),
+    )
+    return _action_snapshot(action)
+
+
+def manual_override_organization(
+    db: Session,
+    *,
+    actor: AccountContext,
+    org_id: uuid.UUID | str,
+    reason: str,
+    plan_type: str,
+    plan_status: str,
+    plan_limit: int,
+) -> dict[str, Any]:
+    normalized_plan = plan_type.strip().lower()
+    normalized_status = plan_status.strip().lower()
+    if normalized_plan not in {"starter", "business", "executive", "enterprise"}:
+        raise InternalWorkflowInvalidActionError("Unsupported override plan_type")
+    if normalized_status not in {"active", "trialing", "manual_override", "restricted"}:
+        raise InternalWorkflowInvalidActionError("Unsupported override plan_status")
+    if plan_limit <= 0:
+        raise InternalWorkflowInvalidActionError("plan_limit must be positive")
+
+    parsed_org_id = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+    org = db.get(Organization, parsed_org_id)
+    if org is None:
+        raise InternalWorkflowNotFoundError("Organisation not found")
+
+    before = _organization_snapshot(org)
+    org.plan_type = normalized_plan
+    org.plan_status = normalized_status
+    org.plan_limit = int(plan_limit)
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    action = log_operator_action(
+        db,
+        actor=actor,
+        action_type="organization_manual_override",
+        reason=reason,
+        target_type="organization",
+        target_id=str(org.id),
+        org_id=org.id,
+        before=before,
+        after=_organization_snapshot(org),
+    )
+    return _action_snapshot(action)
+
+
+def downgrade_organization_to_starter(
+    db: Session,
+    *,
+    actor: AccountContext,
+    org_id: uuid.UUID | str,
+    reason: str,
+) -> dict[str, Any]:
+    parsed_org_id = org_id if isinstance(org_id, uuid.UUID) else uuid.UUID(str(org_id))
+    org = db.get(Organization, parsed_org_id)
+    if org is None:
+        raise InternalWorkflowNotFoundError("Organisation not found")
+
+    before = _organization_snapshot(org)
+    org.plan_type = DEFAULT_PLAN_NAME
+    org.plan_status = "restricted"
+    org.plan_limit = DEFAULT_PLAN_LIMIT
+    db.add(org)
+    db.commit()
+    db.refresh(org)
+    action = log_operator_action(
+        db,
+        actor=actor,
+        action_type="organization_downgraded_to_starter",
+        reason=reason,
+        target_type="organization",
+        target_id=str(org.id),
+        org_id=org.id,
+        before=before,
+        after=_organization_snapshot(org),
+    )
+    return _action_snapshot(action)
+
+
 def cancel_pending_invite(
     db: Session,
     *,
@@ -180,6 +334,13 @@ def workflow_view(db: Session, *, org_id: uuid.UUID | str) -> dict[str, Any]:
     return {
         "read_only_truth": detail,
         "operator_actions": recent_operator_actions(db, org_id=org_id, limit=25),
-        "manual_controls": ["operator_note", "cancel_pending_invite"],
-        "authority_notice": "Workflow actions are audited and do not override resolver-backed entitlement truth.",
+        "manual_controls": [
+            "operator_note",
+            "cancel_pending_invite",
+            "restrict_organization",
+            "reactivate_organization",
+            "manual_override_organization",
+            "downgrade_organization_to_starter",
+        ],
+        "authority_notice": "Workflow actions are audited and applied through the same resolver-backed entitlement spine used by live product enforcement.",
     }
