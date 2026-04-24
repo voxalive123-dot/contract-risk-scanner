@@ -291,7 +291,7 @@ def test_reset_request_sends_email_and_reset_link_completes_password_change(
     assert validate_used.json()["code"] == "token_already_used"
 
 
-def test_password_reset_completion_changes_password_without_widening_entitlement(provisioning_client):
+def test_password_reset_completion_preserves_legacy_org_entitlement(provisioning_client):
     client, session_factory = provisioning_client
     org_id = create_org(session_factory, plan_type="enterprise")
     with session_factory() as db:
@@ -315,14 +315,16 @@ def test_password_reset_completion_changes_password_without_widening_entitlement
 
     assert response.status_code == 200
     entitlement = response.json()["account"]["entitlement"]
-    assert entitlement["effective_plan"] == "starter"
-    assert entitlement["paid_access"] is False
-    assert entitlement["ai_review_notes_allowed"] is False
+    assert entitlement["source"] == "legacy_organization"
+    assert entitlement["effective_plan"] == "enterprise"
+    assert entitlement["monthly_scan_limit"] == 1000
+    assert entitlement["paid_access"] is True
+    assert entitlement["ai_review_notes_allowed"] is True
 
     with session_factory() as db:
         context = authenticate_user(db, email="reset@example.test", password="updated password")
         assert str(context.organization.id) == str(org_id)
-        assert context.entitlement.effective_plan == "starter"
+        assert context.entitlement.effective_plan == "enterprise"
 
 
 def test_owner_password_reset_loop_signs_in_and_accesses_internal_ops(provisioning_client, monkeypatch):

@@ -206,7 +206,7 @@ def test_authenticated_paid_org_gets_premium_only_from_resolver_subscription(acc
     assert entitlement["ai_review_notes_allowed"] is True
 
 
-def test_legacy_paid_user_without_subscription_remains_starter_safe(account_client):
+def test_legacy_paid_user_without_subscription_is_honoured_from_org_fields(account_client):
     client, session_factory = account_client
     account = create_account(
         session_factory,
@@ -222,9 +222,10 @@ def test_legacy_paid_user_without_subscription_remains_starter_safe(account_clie
 
     assert response.status_code == 200
     entitlement = response.json()["entitlement"]
-    assert entitlement["effective_plan"] == "starter"
-    assert entitlement["paid_access"] is False
-    assert entitlement["ai_review_notes_allowed"] is False
+    assert entitlement["source"] == "legacy_organization"
+    assert entitlement["effective_plan"] == "enterprise"
+    assert entitlement["paid_access"] is True
+    assert entitlement["ai_review_notes_allowed"] is True
 
 
 def test_missing_membership_fails_closed(account_client):

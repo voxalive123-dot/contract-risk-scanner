@@ -173,8 +173,8 @@ def test_legacy_paid_without_subscription_is_flagged(diagnostics_session):
 
     codes = {flag["code"] for flag in report["mismatch_flags"]}
     assert "legacy_paid_without_current_subscription" in codes
-    assert "legacy_paid_but_resolver_starter_safe" in codes
-    assert report["effective_entitlement"]["effective_plan"] == "starter"
+    assert "legacy_paid_but_resolver_starter_safe" not in codes
+    assert report["effective_entitlement"]["effective_plan"] == "enterprise"
 
 
 def test_active_subscription_missing_customer_reference_is_flagged(diagnostics_session):

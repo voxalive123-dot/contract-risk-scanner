@@ -127,7 +127,8 @@ def test_dry_run_reports_without_mutating(backfill_session):
         assert db.execute(select(BillingCustomerReference)).scalars().all() == []
         assert db.execute(select(MonitoringSignal)).scalars().all() == []
         entitlement = resolve_entitlement_for_org(db, db.get(Organization, org_id))
-        assert entitlement.effective_plan == "starter"
+        assert entitlement.source == "legacy_organization"
+        assert entitlement.effective_plan == "executive"
 
 
 def test_ambiguous_missing_subscription_id_flagged_for_manual_review(backfill_session):

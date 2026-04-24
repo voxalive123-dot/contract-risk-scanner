@@ -247,10 +247,15 @@ def test_unknown_plan_status_fails_safe(quota_client):
     }
 
 
-def test_legacy_paid_org_without_phase_10_subscription_does_not_widen_access(quota_client):
+def test_legacy_enterprise_org_without_current_subscription_uses_org_quota(quota_client):
     client, session_factory = quota_client
-    org_id = create_org(session_factory, plan_type="business", plan_status="active")
-    create_scan_rows(session_factory, org_id=org_id, count=5)
+    org_id = create_org(
+        session_factory,
+        plan_type="enterprise",
+        plan_status="active",
+        plan_limit=2000,
+    )
+    create_scan_rows(session_factory, org_id=org_id, count=11)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 
     try:
@@ -258,13 +263,7 @@ def test_legacy_paid_org_without_phase_10_subscription_does_not_widen_access(quo
     finally:
         api.app.dependency_overrides.pop(api.get_api_key_ctx, None)
 
-    assert response.status_code == 429
-    assert response.json()["detail"] == {
-        "error": "monthly_scan_quota_exceeded",
-        "current_plan": "starter",
-        "monthly_limit": 5,
-        "scans_used": 5,
-    }
+    assert response.status_code == 200
 
 
 def test_analyzer_output_unchanged_when_under_quota(quota_client):

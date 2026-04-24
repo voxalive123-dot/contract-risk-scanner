@@ -42,13 +42,19 @@ def phase_10_client(tmp_path):
         engine.dispose()
 
 
-def create_org(session_factory, *, plan_type: str = "starter", plan_status: str = "active"):
+def create_org(
+    session_factory,
+    *,
+    plan_type: str = "starter",
+    plan_status: str = "active",
+    plan_limit: int = 5,
+):
     with session_factory() as db:
         org = Organization(
             name=f"org-{uuid.uuid4()}",
             plan_type=plan_type,
             plan_status=plan_status,
-            plan_limit=5,
+            plan_limit=plan_limit,
         )
         db.add(org)
         db.commit()
@@ -173,17 +179,80 @@ def test_non_paid_plan_never_gets_ai_even_with_active_subscription(phase_10_clie
     assert entitlement.ai_review_notes_allowed is False
 
 
-def test_legacy_organization_paid_fields_are_not_primary_entitlement_authority(phase_10_client):
+def test_active_enterprise_legacy_org_without_current_subscription_is_honoured(phase_10_client):
     _client, session_factory = phase_10_client
-    org_id = create_org(session_factory, plan_type="enterprise", plan_status="active")
+    org_id = create_org(
+        session_factory,
+        plan_type="enterprise",
+        plan_status="active",
+        plan_limit=2000,
+    )
 
     entitlement = resolve_for(session_factory, org_id)
 
-    assert entitlement.source == "no_current_subscription"
-    assert entitlement.subscription_state == "no_subscription"
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.subscription_state == "active"
+    assert entitlement.effective_plan == "enterprise"
+    assert entitlement.monthly_scan_limit == 2000
+    assert entitlement.paid_access is True
+    assert entitlement.ai_review_notes_allowed is True
+    assert entitlement.reason == "legacy_organization_entitlement_honored"
+
+
+def test_active_business_legacy_org_without_current_subscription_is_honoured(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        plan_limit=250,
+    )
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.subscription_state == "active"
+    assert entitlement.effective_plan == "business"
+    assert entitlement.monthly_scan_limit == 250
+    assert entitlement.paid_access is True
+    assert entitlement.ai_review_notes_allowed is True
+
+
+def test_starter_legacy_org_without_current_subscription_remains_starter_safe(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=999)
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.subscription_state == "active"
     assert entitlement.effective_plan == "starter"
+    assert entitlement.monthly_scan_limit == 5
     assert entitlement.paid_access is False
     assert entitlement.ai_review_notes_allowed is False
+
+
+def test_restricted_or_unknown_legacy_status_fails_closed(phase_10_client):
+    _client, session_factory = phase_10_client
+    restricted_org_id = create_org(session_factory, plan_type="enterprise", plan_status="canceled", plan_limit=2000)
+    unknown_org_id = create_org(session_factory, plan_type="enterprise", plan_status="mystery_status", plan_limit=2000)
+
+    restricted = resolve_for(session_factory, restricted_org_id)
+    unknown = resolve_for(session_factory, unknown_org_id)
+
+    assert restricted.source == "legacy_organization"
+    assert restricted.effective_plan == "starter"
+    assert restricted.paid_access is False
+    assert restricted.ai_review_notes_allowed is False
+    assert restricted.fail_closed is True
+
+    assert unknown.source == "legacy_organization"
+    assert unknown.subscription_state == "restricted"
+    assert unknown.raw_subscription_state == "mystery_status"
+    assert unknown.effective_plan == "starter"
+    assert unknown.paid_access is False
+    assert unknown.ai_review_notes_allowed is False
+    assert unknown.fail_closed is True
 
 
 def test_existing_analyze_endpoint_still_works_with_api_key_flow(phase_10_client):
