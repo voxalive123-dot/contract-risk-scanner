@@ -1,5 +1,4 @@
-import Link from "next/link";
-import AccountNavLink from "./account-nav-link";
+import SiteHeader from "./site-header";
 import SiteFooter from "./site-footer";
 
 type LegalSection = {
@@ -13,48 +12,6 @@ type LegalPageProps = {
   intro: string;
   sections: LegalSection[];
 };
-
-function SiteHeader() {
-  return (
-    <header className="sticky top-0 z-50 border-b border-[#dfd0b6] bg-[#f6efe1]">
-      <div className="mx-auto flex max-w-[1360px] flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
-        <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
-          <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
-            <img
-              src="/brand/voxa-circle-logo.png"
-              alt="VOXA"
-              className="h-full w-full rounded-full object-cover object-center"
-            />
-          </div>
-          <div className="leading-none">
-            <div className="text-[20px] font-black uppercase tracking-[0.24em] text-neutral-950">
-              VOXARISK
-            </div>
-            <div className="mt-2 text-[11px] font-semibold uppercase tracking-[0.32em] text-[#8a6a34]">
-              Contract Risk Intelligence
-            </div>
-          </div>
-        </Link>
-
-        <nav className="flex flex-wrap items-center justify-center gap-2 text-sm font-medium text-neutral-700 md:justify-end md:gap-4">
-          <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">
-            Product
-          </Link>
-          <Link href="/#workflow" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">
-            Workflow
-          </Link>
-          <Link href="/pricing" className="rounded-full border border-[#c6aa72] bg-[#fff8ea] px-4 py-2 font-semibold text-[#765a2b]">
-            Pricing
-          </Link>
-          <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
-            Dashboard
-          </Link>
-          <AccountNavLink />
-        </nav>
-      </div>
-    </header>
-  );
-}
 
 export default function LegalPage({ eyebrow, title, intro, sections }: LegalPageProps) {
   return (

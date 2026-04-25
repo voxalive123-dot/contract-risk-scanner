@@ -1,44 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { FormEvent, useEffect, useState } from "react";
 
+import SiteHeader from "../../site-header";
 import SiteFooter from "../../site-footer";
-
-function SiteHeader() {
-  return (
-    <header className="border-b border-[#dfd0b6] bg-[#f6efe1]">
-      <div className="mx-auto flex max-w-[1360px] flex-col gap-5 px-5 py-5 md:flex-row md:items-center md:justify-between md:px-8">
-        <Link href="/" className="flex items-center justify-center gap-4 md:justify-start">
-          <div className="flex h-[76px] w-[76px] shrink-0 items-center justify-center overflow-hidden rounded-full shadow-[0_12px_28px_rgba(75,55,25,0.18)]">
-            <img
-              src="/brand/voxa-circle-logo.png"
-              alt="VOXA"
-              className="h-full w-full rounded-full object-cover object-center"
-            />
-          </div>
-          <div className="leading-none">
-            <div className="text-[20px] font-black uppercase tracking-[0.24em] text-neutral-950">
-              VOXARISK
-            </div>
-            <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#7b5d2c]">
-              CONTRACT RISK INTELLIGENCE
-            </div>
-          </div>
-        </Link>
-
-        <nav className="flex items-center gap-3 text-sm text-neutral-700">
-          <Link href="/" className="rounded-full px-3 py-2 transition hover:bg-[#eadcc4] hover:text-neutral-950">
-            Product
-          </Link>
-          <Link href="/signin" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
-            Sign in
-          </Link>
-        </nav>
-      </div>
-    </header>
-  );
-}
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
@@ -94,7 +59,7 @@ export default function TeamInviteAcceptPage() {
   return (
     <>
       <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
-        <SiteHeader />
+        <SiteHeader emphasizeSignIn />
         <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
           <div className="grid gap-8 rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-stretch">
             <div className="flex min-h-[430px] flex-col justify-center">

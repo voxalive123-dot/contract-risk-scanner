@@ -85,6 +85,7 @@ from internal_workflows import (
 )
 from models import StripeWebhookEvent
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
+from platform_owner import is_platform_owner_account
 from stripe_reconciliation import reconcile_stripe_event
 from stripe_billing import DEFAULT_PLAN_LIMIT, DEFAULT_PLAN_NAME
 from team_invites import (
@@ -524,6 +525,13 @@ def enforce_org_plan_quota(
         org_id=org_id,
         since_dt=month_start_utc(),
     )
+
+    if is_platform_owner_account(
+        db,
+        user_id=str(getattr(api_key_ctx, "user_id", "") or ""),
+        org_id=str(org_id),
+    ):
+        return
 
     if scans_used >= monthly_limit:
         raise HTTPException(
@@ -1186,6 +1194,32 @@ def account_billing_portal(
 @app.get("/account/me")
 def account_me(account_ctx=Depends(get_account_ctx)):
     return serialize_account_context(account_ctx)
+
+
+@app.post("/account/ai/explain")
+def account_ai_explain(
+    request: AIExplainRequest,
+    db: Session = Depends(get_db),
+    account_ctx=Depends(get_account_ctx),
+):
+    runtime_subject = account_ctx_as_runtime_subject(account_ctx)
+    enforce_ai_plan_access(db=db, api_key_ctx=runtime_subject)
+
+    if not openai_api_configured():
+        return {
+            "status": "disabled",
+            "reason": "openai_api_key_not_configured",
+        }
+
+    try:
+        response = generate_ai_explanation(request)
+    except AIProviderError:
+        return {
+            "status": "unavailable",
+            "reason": "ai_provider_error",
+        }
+
+    return response.model_dump(mode="json")
 
 
 @app.post("/account/logout")

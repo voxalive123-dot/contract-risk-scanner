@@ -76,6 +76,37 @@ def test_platform_owner_bootstrap_is_idempotent_and_invalidates_previous_setup_t
         assert memberships[0].org_id == org_id
         assert memberships[0].status == "active"
 
+
+def test_platform_owner_bootstrap_only_latest_setup_token_is_usable(provisioning_client, monkeypatch):
+    client, session_factory = provisioning_client
+    org_id = create_org(session_factory)
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+
+    with session_factory() as db:
+        first = bootstrap_platform_owner(db, org_id=str(org_id))
+        second = bootstrap_platform_owner(db, org_id=str(org_id))
+
+    rejected = client.post(
+        "/account/password/setup",
+        json={"token": first["setup_token"], "password": "older owner password"},
+    )
+    accepted = client.post(
+        "/account/password/setup",
+        json={"token": second["setup_token"], "password": "latest owner password"},
+    )
+
+    assert rejected.status_code == 400
+    assert rejected.json()["detail"] == "Password setup token is invalid or expired"
+    assert accepted.status_code == 200
+
+    with session_factory() as db:
+        context = authenticate_user(
+            db,
+            email="admin.dashboard@voxarisk.com",
+            password="latest owner password",
+        )
+        assert str(context.organization.id) == str(org_id)
+
 def test_platform_owner_bootstrap_can_create_deterministic_owner_org_and_set_password(provisioning_client, monkeypatch):
     client, session_factory = provisioning_client
     monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")

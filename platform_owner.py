@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import func, select
@@ -141,3 +142,37 @@ def platform_owner_membership_statuses(db: Session, *, org: Organization) -> lis
         }
         for row in rows
     ]
+
+
+def is_platform_owner_account(
+    db: Session,
+    *,
+    user_id: str | None,
+    org_id: str | None,
+) -> bool:
+    if not user_id or not org_id:
+        return False
+
+    try:
+        normalized_user_id = uuid.UUID(str(user_id))
+        normalized_org_id = uuid.UUID(str(org_id))
+    except (TypeError, ValueError, AttributeError):
+        return False
+
+    canonical_org, _reason = choose_canonical_platform_org(db)
+    if canonical_org is None or canonical_org.id != normalized_org_id:
+        return False
+
+    stmt = (
+        select(Membership)
+        .join(User, User.id == Membership.user_id)
+        .where(
+            Membership.user_id == normalized_user_id,
+            Membership.org_id == canonical_org.id,
+            Membership.role == "owner",
+            Membership.status == "active",
+            func.lower(User.email) == owner_email(),
+        )
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first() is not None

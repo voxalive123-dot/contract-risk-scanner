@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import timedelta
 from types import SimpleNamespace
 
 import pytest
@@ -13,7 +14,9 @@ import api
 from account_auth import hash_password
 from auth_keys import hash_api_key
 from db import Base
+from crud import month_start_utc
 from models import ApiKey, Membership, Organization, Scan, Subscription, User
+from platform_owner import DEFAULT_OWNER_EMAIL, DEFAULT_OWNER_ORG_NAME
 
 
 @pytest.fixture
@@ -52,16 +55,19 @@ def create_account(
     subscription_status: str | None = None,
     membership_status: str = "active",
     email: str | None = None,
+    org_name: str | None = None,
+    role: str = "owner",
+    plan_limit: int = 1000,
 ):
     raw_password = "correct horse battery staple"
     raw_key = f"vxrk-account-{uuid.uuid4()}"
 
     with session_factory() as db:
         org = Organization(
-            name=f"org-{uuid.uuid4()}",
+            name=org_name or f"org-{uuid.uuid4()}",
             plan_type=plan_name,
             plan_status=subscription_status or "active",
-            plan_limit=1000,
+            plan_limit=plan_limit,
         )
         db.add(org)
         db.commit()
@@ -71,7 +77,7 @@ def create_account(
             org_id=org.id,
             email=email or f"user-{uuid.uuid4()}@example.test",
             password_hash=hash_password(raw_password),
-            role="owner",
+            role=role,
             is_active=True,
         )
         db.add(user)
@@ -83,7 +89,7 @@ def create_account(
                 Membership(
                     user_id=user.id,
                     org_id=org.id,
-                    role="owner",
+                    role=role,
                     status=membership_status,
                 )
             )
@@ -118,6 +124,26 @@ def create_account(
             "org_id": org.id,
             "api_key": raw_key,
         }
+
+
+def create_scan_rows(session_factory, *, org_id, count: int):
+    with session_factory() as db:
+        month_start = month_start_utc()
+        for index in range(count):
+            db.add(
+                Scan(
+                    org_id=org_id,
+                    user_id=None,
+                    request_id=f"account-existing-{index}",
+                    risk_score=10,
+                    risk_density=1,
+                    confidence=1,
+                    ruleset_version="test",
+                    scan_input_length=0,
+                    created_at=month_start + timedelta(minutes=index),
+                )
+            )
+        db.commit()
 
 
 def login(client: TestClient, *, email: str, password: str):
@@ -338,3 +364,85 @@ def test_account_scoped_analyze_uses_signed_in_org_truth(account_client):
     with session_factory() as db:
         scans = list(db.execute(select(Scan).where(Scan.org_id == account["org_id"])).scalars().all())
         assert len(scans) == 1
+
+
+def test_account_scoped_analyze_requires_authentication(account_client):
+    client, _session_factory = account_client
+
+    response = client.post(
+        "/account/analyze_detailed",
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing account session"
+
+
+def test_platform_owner_account_bypasses_monthly_quota(account_client, monkeypatch):
+    client, session_factory = account_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", DEFAULT_OWNER_EMAIL)
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", DEFAULT_OWNER_ORG_NAME)
+    account = create_account(
+        session_factory,
+        plan_name="starter",
+        subscription_status=None,
+        email=DEFAULT_OWNER_EMAIL,
+        org_name=DEFAULT_OWNER_ORG_NAME,
+        role="owner",
+        plan_limit=5,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=7)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+    text = "Either party may terminate this agreement without notice."
+    expected = api._build_detailed_payload(text)
+
+    first = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": text},
+    )
+    second = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": text},
+    )
+
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["risk_score"] == expected["risk_score"]
+    assert first.json()["severity"] == expected["severity"]
+
+    with session_factory() as db:
+        scans = list(db.execute(select(Scan).where(Scan.org_id == account["org_id"])).scalars().all())
+        assert len(scans) == 9
+
+
+def test_non_owner_role_in_platform_org_still_hits_quota(account_client, monkeypatch):
+    client, session_factory = account_client
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", DEFAULT_OWNER_EMAIL)
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", DEFAULT_OWNER_ORG_NAME)
+    account = create_account(
+        session_factory,
+        plan_name="starter",
+        subscription_status=None,
+        email=DEFAULT_OWNER_EMAIL,
+        org_name=DEFAULT_OWNER_ORG_NAME,
+        role="admin",
+        plan_limit=5,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=5)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    response = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert response.status_code == 429
+    assert response.json()["detail"] == {
+        "error": "monthly_scan_quota_exceeded",
+        "current_plan": "starter",
+        "monthly_limit": 5,
+        "scans_used": 5,
+    }

@@ -1,27 +1,31 @@
+import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
 
 const API_BASE = process.env.VOXA_API_BASE_URL || "http://localhost:8000";
-const API_KEY = process.env.VOXA_API_KEY;
+const SESSION_COOKIE = "voxarisk_account_session";
 
 export async function POST(request: Request) {
   try {
-    if (!API_KEY) {
+    const cookieStore = await cookies();
+    const accountSession = cookieStore.get(SESSION_COOKIE)?.value ?? "";
+
+    if (!accountSession) {
       return NextResponse.json(
         {
-          status: "unavailable",
-          reason: "server_api_key_not_configured",
+          status: "denied",
+          reason: "account_session_required",
         },
-        { status: 500 },
+        { status: 401 },
       );
     }
 
     const body = await request.json();
 
-    const upstream = await fetch(`${API_BASE}/ai/explain`, {
+    const upstream = await fetch(`${API_BASE}/account/ai/explain`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "X-API-Key": API_KEY,
+        Authorization: `Bearer ${accountSession}`,
       },
       body: JSON.stringify(body),
       cache: "no-store",
