@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -12,7 +12,7 @@ from sqlalchemy.orm import sessionmaker
 import api
 from crud import month_start_utc
 from db import Base
-from models import Organization, Scan, Subscription
+from models import Organization, OwnerEntitlementGrant, Scan, Subscription, User
 
 
 @pytest.fixture
@@ -103,6 +103,47 @@ def create_subscription(session_factory, *, org_id, plan_name: str, status: str)
 
 def override_api_key_ctx(org_id):
     return lambda: SimpleNamespace(org_id=org_id, user_id=None, id=None)
+
+
+def add_owner_grant(session_factory, *, org_id, granted_plan: str, scan_quota_override: int | None = None):
+    with session_factory() as db:
+        now = datetime.now(timezone.utc)
+        owner_org = Organization(
+            name=f"owner-org-{uuid.uuid4()}",
+            plan_type="starter",
+            plan_status="active",
+            plan_limit=5,
+        )
+        db.add(owner_org)
+        db.commit()
+        db.refresh(owner_org)
+
+        owner = User(
+            org_id=owner_org.id,
+            email=f"owner-{uuid.uuid4()}@example.test",
+            password_hash="unused",
+            role="owner",
+            is_active=True,
+        )
+        db.add(owner)
+        db.commit()
+        db.refresh(owner)
+
+        db.add(
+            OwnerEntitlementGrant(
+                org_id=org_id,
+                user_id=None,
+                granted_plan=granted_plan,
+                grant_type="trial",
+                scan_quota_override=scan_quota_override,
+                reason="quota test",
+                starts_at=now,
+                expires_at=now + timedelta(days=14),
+                status="active",
+                created_by_user_id=owner.id,
+            )
+        )
+        db.commit()
 
 
 def test_starter_quota_allows_scans_under_limit(quota_client):
@@ -255,6 +296,21 @@ def test_legacy_enterprise_org_without_current_subscription_uses_org_quota(quota
         plan_status="active",
         plan_limit=2000,
     )
+    create_scan_rows(session_factory, org_id=org_id, count=11)
+    api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
+
+    try:
+        response = client.post("/analyze", json={"text": "Jurisdiction is England and Wales."})
+    finally:
+        api.app.dependency_overrides.pop(api.get_api_key_ctx, None)
+
+    assert response.status_code == 200
+
+
+def test_owner_grant_elevates_quota_without_subscription(quota_client):
+    client, session_factory = quota_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(session_factory, org_id=org_id, granted_plan="executive")
     create_scan_rows(session_factory, org_id=org_id, count=11)
     api.app.dependency_overrides[api.get_api_key_ctx] = override_api_key_ctx(org_id)
 

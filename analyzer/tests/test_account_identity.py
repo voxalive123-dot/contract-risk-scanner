@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import pytest
@@ -15,7 +15,7 @@ from account_auth import hash_password
 from auth_keys import hash_api_key
 from db import Base
 from crud import month_start_utc
-from models import ApiKey, Membership, Organization, Scan, Subscription, User
+from models import ApiKey, Membership, Organization, OwnerEntitlementGrant, Scan, Subscription, User
 from platform_owner import DEFAULT_OWNER_EMAIL, DEFAULT_OWNER_ORG_NAME
 
 
@@ -122,8 +122,57 @@ def create_account(
             "email": user.email,
             "password": raw_password,
             "org_id": org.id,
+            "user_id": user.id,
             "api_key": raw_key,
         }
+
+
+def add_owner_grant(
+    session_factory,
+    *,
+    org_id,
+    user_id=None,
+    granted_plan: str,
+    scan_quota_override: int | None = None,
+):
+    with session_factory() as db:
+        now = datetime.now(timezone.utc)
+        owner_org = Organization(
+            name=f"owner-org-{uuid.uuid4()}",
+            plan_type="starter",
+            plan_status="active",
+            plan_limit=5,
+        )
+        db.add(owner_org)
+        db.commit()
+        db.refresh(owner_org)
+
+        owner = User(
+            org_id=owner_org.id,
+            email=f"owner-{uuid.uuid4()}@example.test",
+            password_hash="unused",
+            role="owner",
+            is_active=True,
+        )
+        db.add(owner)
+        db.commit()
+        db.refresh(owner)
+
+        db.add(
+            OwnerEntitlementGrant(
+                org_id=org_id,
+                user_id=user_id,
+                granted_plan=granted_plan,
+                grant_type="trial",
+                scan_quota_override=scan_quota_override,
+                reason="account test",
+                starts_at=now,
+                expires_at=now + timedelta(days=14),
+                status="active",
+                created_by_user_id=owner.id,
+            )
+        )
+        db.commit()
 
 
 def create_scan_rows(session_factory, *, org_id, count: int):
@@ -446,3 +495,38 @@ def test_non_owner_role_in_platform_org_still_hits_quota(account_client, monkeyp
         "monthly_limit": 5,
         "scans_used": 5,
     }
+
+
+def test_user_scoped_owner_grant_elevates_account_access_and_quota(account_client):
+    client, session_factory = account_client
+    account = create_account(
+        session_factory,
+        plan_name="starter",
+        subscription_status=None,
+        plan_limit=5,
+    )
+    add_owner_grant(
+        session_factory,
+        org_id=account["org_id"],
+        user_id=account["user_id"],
+        granted_plan="enterprise",
+        scan_quota_override=3500,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=11)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    me_response = client.get(
+        "/account/me",
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    analyze_response = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert me_response.status_code == 200
+    assert me_response.json()["entitlement"]["source"] == "owner_grant"
+    assert me_response.json()["entitlement"]["effective_plan"] == "enterprise"
+    assert me_response.json()["entitlement"]["monthly_scan_limit"] == 3500
+    assert analyze_response.status_code == 200

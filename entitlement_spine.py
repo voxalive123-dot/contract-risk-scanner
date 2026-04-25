@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from models import Organization, Subscription
+from owner_entitlement_grants import select_active_owner_grant
 from stripe_billing import DEFAULT_PLAN_LIMIT, DEFAULT_PLAN_NAME, PLAN_QUOTAS
 
 
@@ -113,6 +114,8 @@ def _current_subscription(db: Session, org: Organization) -> Subscription | None
 def resolve_entitlement_for_org(
     db: Session,
     org: Organization | None,
+    *,
+    user_id: str | None = None,
 ) -> EntitlementResolution:
     if org is None:
         return EntitlementResolution(
@@ -144,6 +147,43 @@ def resolve_entitlement_for_org(
         plan_name = _normalize(org.plan_type, DEFAULT_PLAN_NAME)
         raw_state = org.plan_status
         state = _normalize(org.plan_status, "restricted")
+
+    if subscription and plan_name in PAID_PLAN_NAMES and state in ENTITLEMENT_GRANTING_STATES:
+        monthly_scan_limit = PLAN_QUOTAS.get(plan_name, DEFAULT_PLAN_LIMIT)
+        return EntitlementResolution(
+            organization_id=str(org.id),
+            source="subscription",
+            subscription_state=state,
+            raw_subscription_state=raw_state,
+            plan_name=plan_name,
+            effective_plan=plan_name,
+            monthly_scan_limit=monthly_scan_limit,
+            paid_access=True,
+            ai_review_notes_allowed=True,
+            fail_closed=False,
+            reason="paid_entitlement_active",
+        )
+
+    active_owner_grant = select_active_owner_grant(db, org=org, user_id=user_id)
+    if active_owner_grant is not None:
+        granted_plan = _normalize(active_owner_grant.granted_plan, DEFAULT_PLAN_NAME)
+        monthly_scan_limit = (
+            _positive_limit(active_owner_grant.scan_quota_override)
+            or PLAN_QUOTAS.get(granted_plan, DEFAULT_PLAN_LIMIT)
+        )
+        return EntitlementResolution(
+            organization_id=str(org.id),
+            source="owner_grant",
+            subscription_state="manual_override",
+            raw_subscription_state=active_owner_grant.status,
+            plan_name=granted_plan,
+            effective_plan=granted_plan,
+            monthly_scan_limit=monthly_scan_limit,
+            paid_access=True,
+            ai_review_notes_allowed=True,
+            fail_closed=False,
+            reason=f"owner_grant_{_normalize(active_owner_grant.grant_type, 'trial')}_active",
+        )
 
     if state not in SUBSCRIPTION_STATES:
         return EntitlementResolution(

@@ -110,13 +110,25 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "before_json" in internal_action_columns
     assert "after_json" in internal_action_columns
 
+    owner_grant_columns = table_columns(DB_PATH, "owner_entitlement_grants")
+    assert "org_id" in owner_grant_columns
+    assert "user_id" in owner_grant_columns
+    assert "granted_plan" in owner_grant_columns
+    assert "grant_type" in owner_grant_columns
+    assert "scan_quota_override" in owner_grant_columns
+    assert "starts_at" in owner_grant_columns
+    assert "expires_at" in owner_grant_columns
+    assert "status" in owner_grant_columns
+    assert "created_by_user_id" in owner_grant_columns
+    assert "revoked_at" in owner_grant_columns
+
     conn = sqlite3.connect(DB_PATH)
     try:
         cur = conn.cursor()
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "b1c2d3e4f5a6"
+        assert row[0] == "c3f4e5a6b7d8"
     finally:
         conn.close()
 
@@ -154,6 +166,10 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='internal_operator_actions'"
         )
         assert cur.fetchone() is None
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='owner_entitlement_grants'"
+        )
+        assert cur.fetchone() is None
     finally:
         conn.close()
 
@@ -170,3 +186,5 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
 
     internal_action_columns_after_reupgrade = table_columns(DB_PATH, "internal_operator_actions")
     assert "action_type" in internal_action_columns_after_reupgrade
+    owner_grant_columns_after_reupgrade = table_columns(DB_PATH, "owner_entitlement_grants")
+    assert "granted_plan" in owner_grant_columns_after_reupgrade

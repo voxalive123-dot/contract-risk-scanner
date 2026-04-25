@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import sessionmaker
 
 import api
 from auth_keys import hash_api_key
 from db import Base
 from entitlement_spine import resolve_entitlement_for_org
-from models import ApiKey, Organization, Subscription
+from models import ApiKey, Organization, OwnerEntitlementGrant, Subscription, User
+from stripe_billing import PLAN_QUOTAS
 
 
 @pytest.fixture
@@ -98,6 +100,56 @@ def add_api_key(session_factory, *, org_id) -> str:
         db.add(api_key)
         db.commit()
     return raw_key
+
+
+def add_owner_grant(
+    session_factory,
+    *,
+    org_id,
+    granted_plan: str,
+    expires_delta: timedelta | None,
+    user_id=None,
+    status: str = "active",
+    scan_quota_override: int | None = None,
+):
+    with session_factory() as db:
+        now = datetime.now(timezone.utc)
+        owner_org = Organization(
+            name=f"owner-org-{uuid.uuid4()}",
+            plan_type="starter",
+            plan_status="active",
+            plan_limit=5,
+        )
+        db.add(owner_org)
+        db.commit()
+        db.refresh(owner_org)
+
+        owner_user = User(
+            org_id=owner_org.id,
+            email=f"owner-{uuid.uuid4()}@example.test",
+            password_hash="unused",
+            role="owner",
+            is_active=True,
+        )
+        db.add(owner_user)
+        db.commit()
+        db.refresh(owner_user)
+
+        db.add(
+            OwnerEntitlementGrant(
+                org_id=org_id,
+                user_id=user_id,
+                granted_plan=granted_plan,
+                grant_type="trial",
+                scan_quota_override=scan_quota_override,
+                reason="entitlement test",
+                starts_at=now,
+                expires_at=now + expires_delta if expires_delta is not None else None,
+                status=status,
+                created_by_user_id=owner_user.id,
+            )
+        )
+        db.commit()
 
 
 def resolve_for(session_factory, org_id):
@@ -216,6 +268,102 @@ def test_active_business_legacy_org_without_current_subscription_is_honoured(pha
     assert entitlement.monthly_scan_limit == 250
     assert entitlement.paid_access is True
     assert entitlement.ai_review_notes_allowed is True
+
+
+def test_active_executive_owner_grant_gives_executive_access(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(session_factory, org_id=org_id, granted_plan="executive", expires_delta=timedelta(days=14))
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "owner_grant"
+    assert entitlement.effective_plan == "executive"
+    assert entitlement.monthly_scan_limit == PLAN_QUOTAS["executive"]
+    assert entitlement.paid_access is True
+
+
+def test_active_enterprise_owner_grant_gives_enterprise_access(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(
+        session_factory,
+        org_id=org_id,
+        granted_plan="enterprise",
+        expires_delta=timedelta(days=30),
+        scan_quota_override=3500,
+    )
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "owner_grant"
+    assert entitlement.effective_plan == "enterprise"
+    assert entitlement.monthly_scan_limit == 3500
+    assert entitlement.paid_access is True
+
+
+def test_expired_owner_grant_does_not_apply(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(session_factory, org_id=org_id, granted_plan="executive", expires_delta=timedelta(days=-1))
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.effective_plan == "starter"
+    assert entitlement.paid_access is False
+
+
+def test_revoked_owner_grant_does_not_apply(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(session_factory, org_id=org_id, granted_plan="executive", expires_delta=timedelta(days=14))
+
+    with session_factory() as db:
+        grant = db.execute(
+            select(OwnerEntitlementGrant).where(OwnerEntitlementGrant.org_id == org_id)
+        ).scalars().first()
+        assert grant is not None
+        grant.status = "revoked"
+        grant.revoked_at = api.month_start_utc()
+        grant.revocation_reason = "entitlement test revoke"
+        db.commit()
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.effective_plan == "starter"
+    assert entitlement.paid_access is False
+
+
+def test_active_subscription_remains_source_of_truth_when_owner_grant_exists(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_subscription(session_factory, org_id=org_id, plan_name="business", status="active")
+    add_owner_grant(session_factory, org_id=org_id, granted_plan="enterprise", expires_delta=timedelta(days=30))
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "subscription"
+    assert entitlement.effective_plan == "business"
+
+
+def test_unknown_owner_grant_state_does_not_unlock_paid_access(phase_10_client):
+    _client, session_factory = phase_10_client
+    org_id = create_org(session_factory, plan_type="starter", plan_status="active", plan_limit=5)
+    add_owner_grant(
+        session_factory,
+        org_id=org_id,
+        granted_plan="enterprise",
+        expires_delta=timedelta(days=30),
+        status="mystery_state",
+    )
+
+    entitlement = resolve_for(session_factory, org_id)
+
+    assert entitlement.source == "legacy_organization"
+    assert entitlement.effective_plan == "starter"
+    assert entitlement.paid_access is False
 
 
 def test_starter_legacy_org_without_current_subscription_remains_starter_safe(phase_10_client):

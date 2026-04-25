@@ -485,7 +485,11 @@ def enforce_ai_plan_access(
         )
 
     org = get_organization_by_id(db, org_id)
-    entitlement = resolve_entitlement_for_org(db, org)
+    entitlement = resolve_entitlement_for_org(
+        db,
+        org,
+        user_id=str(getattr(api_key_ctx, "user_id", "") or ""),
+    )
     if not entitlement.ai_review_notes_allowed:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -517,7 +521,11 @@ def enforce_org_plan_quota(
         )
 
     org = get_organization_by_id(db, org_id)
-    entitlement = resolve_entitlement_for_org(db, org)
+    entitlement = resolve_entitlement_for_org(
+        db,
+        org,
+        user_id=str(getattr(api_key_ctx, "user_id", "") or ""),
+    )
     effective_plan = entitlement.effective_plan
     monthly_limit = entitlement.monthly_scan_limit
     scans_used = count_scans_for_org_since(

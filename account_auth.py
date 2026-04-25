@@ -197,7 +197,7 @@ def account_context_for_user(db: Session, user: User) -> AccountContext:
         user=user,
         organization=org,
         membership=membership,
-        entitlement=resolve_entitlement_for_org(db, org),
+        entitlement=resolve_entitlement_for_org(db, org, user_id=str(user.id)),
     )
 
 
