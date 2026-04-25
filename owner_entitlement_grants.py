@@ -85,6 +85,17 @@ def _owner_actor(db: Session) -> User:
     return actor
 
 
+def _grant_actor(db: Session, actor_user_id: str | uuid.UUID | None = None) -> User:
+    normalized_actor_user_id = _coerce_uuid(actor_user_id, field_name="actor_user_id")
+    if normalized_actor_user_id is None:
+        return _owner_actor(db)
+
+    actor = db.get(User, normalized_actor_user_id)
+    if actor is None or not actor.is_active:
+        raise OwnerGrantError("Grant actor is not valid")
+    return actor
+
+
 def _grant_snapshot(grant: OwnerEntitlementGrant) -> dict[str, str | int | None]:
     return {
         "id": str(grant.id),
@@ -188,9 +199,10 @@ def create_owner_entitlement_grant(
     expires_at: datetime | None = None,
     scan_quota_override: int | None = None,
     allow_indefinite: bool = False,
+    actor_user_id: str | uuid.UUID | None = None,
 ) -> OwnerEntitlementGrant:
     org, user = _resolve_target(db, org_id=org_id, email=email)
-    actor = _owner_actor(db)
+    actor = _grant_actor(db, actor_user_id)
 
     normalized_plan = _normalize(granted_plan)
     if normalized_plan not in OWNER_GRANT_PLANS:
@@ -255,8 +267,9 @@ def revoke_owner_entitlement_grant(
     *,
     grant_id: str | uuid.UUID,
     reason: str,
+    actor_user_id: str | uuid.UUID | None = None,
 ) -> OwnerEntitlementGrant:
-    actor = _owner_actor(db)
+    actor = _grant_actor(db, actor_user_id)
     normalized_grant_id = _coerce_uuid(grant_id, field_name="grant_id")
     if normalized_grant_id is None:
         raise OwnerGrantError("Grant id is required")

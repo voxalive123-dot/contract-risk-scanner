@@ -13,11 +13,13 @@ from account_auth import create_session_token, hash_password
 from crud import create_scan, create_usage_log
 from db import Base
 from models import (
+    AccountPasswordToken,
     BillingCustomerReference,
     Membership,
     MonitoringSignal,
     Organization,
     OrganizationInvite,
+    OwnerEntitlementGrant,
     Subscription,
     User,
 )
@@ -336,3 +338,200 @@ def test_internal_ops_does_not_mutate_entitlement(internal_ops_client):
 
     assert response.status_code == 200
     assert before == after
+
+
+def test_internal_owner_can_create_access_grant_for_existing_user(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+    )
+    target = create_user_org(session_factory, email="tester@example.test", role="member")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    response = client.post(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+        json={
+            "email": "tester@example.test",
+            "granted_plan": "executive",
+            "duration_days": 10,
+            "reason": "family_beta_testing",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "granted_existing_account"
+    assert body["setup_token"] is None
+    assert body["grant"]["email"] == "tester@example.test"
+    assert body["grant"]["granted_plan"] == "executive"
+
+    account = client.get("/account/me", headers={"Authorization": f"Bearer {target['token']}"})
+    assert account.status_code == 200
+    assert account.json()["entitlement"]["source"] == "owner_grant"
+    assert account.json()["entitlement"]["effective_plan"] == "executive"
+
+    with session_factory() as db:
+        grants = db.query(OwnerEntitlementGrant).all()
+        assert len(grants) == 1
+        assert grants[0].user_id == target["user_id"]
+        assert grants[0].status == "active"
+
+
+def test_non_owner_cannot_create_access_grant(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    customer = create_user_org(session_factory, email="customer@example.test", role="owner")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    response = client.post(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {customer['token']}"},
+        json={
+            "email": "tester@example.test",
+            "granted_plan": "executive",
+            "duration_days": 10,
+            "reason": "family_beta_testing",
+        },
+    )
+
+    assert response.status_code == 403
+
+
+def test_unknown_email_creates_setup_flow_and_grant(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+    )
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    response = client.post(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+        json={
+            "email": "new-beta@example.test",
+            "granted_plan": "enterprise",
+            "duration_days": 30,
+            "reason": "family_beta_testing",
+        },
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "needs_account_setup"
+    assert isinstance(body["setup_token"], str)
+    assert body["grant"]["granted_plan"] == "enterprise"
+    assert body["grant"]["organization_name"] == "VoxaRisk Platform"
+
+    with session_factory() as db:
+        created_user = db.query(User).filter_by(email="new-beta@example.test").one()
+        membership = db.query(Membership).filter_by(user_id=created_user.id, status="active").one()
+        grant = db.query(OwnerEntitlementGrant).filter_by(user_id=created_user.id, status="active").one()
+        token = db.query(AccountPasswordToken).filter_by(user_id=created_user.id, purpose="setup").one()
+        assert membership.role == "member"
+        assert grant.granted_plan == "enterprise"
+        assert token.used_at is None
+
+
+def test_internal_access_grants_list_and_revoke_work(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+    )
+    target = create_user_org(session_factory, email="grantee@example.test", role="member")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    created = client.post(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+        json={
+            "email": "grantee@example.test",
+            "granted_plan": "enterprise",
+            "duration_days": 30,
+            "reason": "family_beta_testing",
+        },
+    )
+    assert created.status_code == 200
+    grant_id = created.json()["grant"]["id"]
+
+    listed = client.get(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+    assert listed.status_code == 200
+    assert len(listed.json()["grants"]) == 1
+    assert listed.json()["grants"][0]["email"] == "grantee@example.test"
+
+    revoked = client.post(
+        f"/internal/ops/access-grants/{grant_id}/revoke",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+        json={"reason": "Testing window complete"},
+    )
+    assert revoked.status_code == 200
+    assert revoked.json()["status"] == "grant_revoked"
+    assert revoked.json()["grant"]["status"] == "revoked"
+
+    account = client.get("/account/me", headers={"Authorization": f"Bearer {target['token']}"})
+    assert account.status_code == 200
+    assert account.json()["entitlement"]["source"] != "owner_grant"
+
+    relisted = client.get(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+    assert relisted.status_code == 200
+    assert relisted.json()["grants"] == []
+
+
+def test_access_grants_endpoints_require_internal_auth(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+    )
+    target = create_user_org(session_factory, email="tester@example.test", role="member")
+    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    monkeypatch.setenv("PLATFORM_OWNER_ORG_NAME", "VoxaRisk Platform")
+
+    grant = client.post(
+        "/internal/ops/access-grants",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+        json={
+            "email": "tester@example.test",
+            "granted_plan": "executive",
+            "duration_days": 10,
+            "reason": "family_beta_testing",
+        },
+    )
+    assert grant.status_code == 200
+    grant_id = grant.json()["grant"]["id"]
+
+    listed = client.get("/internal/ops/access-grants")
+    created = client.post(
+        "/internal/ops/access-grants",
+        json={
+            "email": "tester@example.test",
+            "granted_plan": "executive",
+            "duration_days": 10,
+            "reason": "family_beta_testing",
+        },
+    )
+    revoked = client.post(
+        f"/internal/ops/access-grants/{grant_id}/revoke",
+        headers={"Authorization": f"Bearer {target['token']}"},
+        json={"reason": "Trying to revoke without internal access"},
+    )
+
+    assert listed.status_code == 401
+    assert created.status_code == 401
+    assert revoked.status_code == 403

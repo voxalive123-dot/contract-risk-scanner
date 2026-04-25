@@ -3,13 +3,14 @@ from __future__ import annotations
 import os
 import uuid
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from account_auth import AccountContext
+from account_provisioning import ProvisionedAccount, provision_customer_account
 from crud import month_start_utc
 from entitlement_diagnostics import build_entitlement_diagnostics
 from entitlement_spine import resolve_entitlement_for_org
@@ -21,6 +22,7 @@ from models import (
     MonitoringSignal,
     Organization,
     OrganizationInvite,
+    OwnerEntitlementGrant,
     Scan,
     StripeWebhookEvent,
     Subscription,
@@ -31,6 +33,12 @@ from platform_owner import (
     choose_canonical_platform_org,
     is_platform_like_org_name,
     platform_owner_membership_statuses,
+)
+from owner_entitlement_grants import (
+    OwnerGrantError,
+    create_owner_entitlement_grant,
+    list_owner_entitlement_grants,
+    revoke_owner_entitlement_grant,
 )
 
 
@@ -180,6 +188,176 @@ def _operator_action_snapshot(action: InternalOperatorAction) -> dict[str, Any]:
         "before": action.before_json,
         "after": action.after_json,
         "created_at": _serialize_dt(action.created_at),
+    }
+
+
+def _owner_grant_snapshot(db: Session, grant_row: dict[str, Any]) -> dict[str, Any]:
+    user = db.get(User, uuid.UUID(grant_row["user_id"])) if grant_row.get("user_id") else None
+    org = db.get(Organization, uuid.UUID(grant_row["org_id"])) if grant_row.get("org_id") else None
+    created_by = db.get(User, uuid.UUID(grant_row["created_by_user_id"])) if grant_row.get("created_by_user_id") else None
+    return {
+        "id": grant_row["id"],
+        "email": user.email if user else None,
+        "user_id": grant_row.get("user_id"),
+        "organization_id": grant_row["org_id"],
+        "organization_name": org.name if org else None,
+        "granted_plan": grant_row["granted_plan"],
+        "grant_type": grant_row["grant_type"],
+        "scan_quota_override": grant_row["scan_quota_override"],
+        "reason": grant_row["reason"],
+        "starts_at": grant_row["starts_at"],
+        "expires_at": grant_row["expires_at"],
+        "status": grant_row["status"],
+        "effective_active": grant_row["effective_active"],
+        "created_by_user_id": grant_row["created_by_user_id"],
+        "created_by_email": created_by.email if created_by else None,
+        "created_at": grant_row["created_at"],
+        "revoked_at": grant_row["revoked_at"],
+        "revocation_reason": grant_row["revocation_reason"],
+    }
+
+
+def _single_user_by_email(db: Session, email: str) -> User | None:
+    stmt = select(User).where(func.lower(User.email) == email.strip().lower())
+    users = list(db.execute(stmt).scalars().all())
+    if len(users) > 1:
+        raise OwnerGrantError("Multiple users exist for this email")
+    return users[0] if users else None
+
+
+def _active_memberships_for_user(db: Session, user: User) -> list[Membership]:
+    stmt = select(Membership).where(
+        Membership.user_id == user.id,
+        Membership.status == "active",
+    )
+    return list(db.execute(stmt).scalars().all())
+
+
+def list_internal_access_grants(db: Session) -> dict[str, Any]:
+    grants = [
+        _owner_grant_snapshot(db, row)
+        for row in list_owner_entitlement_grants(db, active_only=True)
+    ]
+    return {
+        "read_only": True,
+        "grants": grants,
+    }
+
+
+def _provision_setup_for_new_tester(
+    db: Session,
+    *,
+    email: str,
+) -> ProvisionedAccount:
+    canonical_org, _reason = choose_canonical_platform_org(db)
+    if canonical_org is None:
+        raise OwnerGrantError("Canonical platform organization is not available")
+    return provision_customer_account(
+        db,
+        org_id=canonical_org.id,
+        email=email,
+        role="member",
+    )
+
+
+def create_internal_access_grant(
+    db: Session,
+    *,
+    actor: AccountContext,
+    email: str,
+    granted_plan: str,
+    duration_days: int | None,
+    reason: str,
+    scan_quota_override: int | None = None,
+) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        raise OwnerGrantError("Email is required")
+
+    user = _single_user_by_email(db, normalized_email)
+    setup_token: str | None = None
+    target_org_id: str | None = None
+
+    if user is None:
+        provisioned = _provision_setup_for_new_tester(db, email=normalized_email)
+        user = provisioned.user
+        setup_token = provisioned.setup_token
+        target_org_id = str(provisioned.organization.id)
+    else:
+        memberships = _active_memberships_for_user(db, user)
+        if len(memberships) != 1:
+            raise OwnerGrantError("Existing user must have exactly one active membership")
+        target_org_id = str(memberships[0].org_id)
+
+    expires_at = None
+    if duration_days is not None:
+        expires_at = datetime.now(timezone.utc) + timedelta(days=duration_days)
+
+    grant = create_owner_entitlement_grant(
+        db,
+        org_id=target_org_id,
+        email=normalized_email,
+        granted_plan=granted_plan,
+        reason=reason,
+        scan_quota_override=scan_quota_override,
+        expires_at=expires_at,
+        actor_user_id=actor.user.id,
+    )
+    row = next(
+        (
+            _owner_grant_snapshot(db, item)
+            for item in list_owner_entitlement_grants(db, active_only=False, email=normalized_email)
+            if item["id"] == str(grant.id)
+        ),
+        None,
+    )
+    if row is None:
+        raise OwnerGrantError("Created grant could not be reloaded")
+    return {
+        "status": "needs_account_setup" if setup_token else "granted_existing_account",
+        "grant": row,
+        "setup_token": setup_token,
+    }
+
+
+def revoke_internal_access_grant(
+    db: Session,
+    *,
+    actor: AccountContext,
+    grant_id: str,
+    reason: str,
+) -> dict[str, Any]:
+    grant = revoke_owner_entitlement_grant(
+        db,
+        grant_id=grant_id,
+        reason=reason,
+        actor_user_id=actor.user.id,
+    )
+    rows = list_owner_entitlement_grants(db, active_only=False, org_id=str(grant.org_id))
+    row = next((item for item in rows if item["id"] == str(grant.id)), None)
+    if row is None:
+        row = {
+            **{
+                "id": str(grant.id),
+                "org_id": str(grant.org_id),
+                "user_id": str(grant.user_id) if grant.user_id else None,
+                "granted_plan": grant.granted_plan,
+                "grant_type": grant.grant_type,
+                "scan_quota_override": grant.scan_quota_override,
+                "reason": grant.reason,
+                "starts_at": _serialize_dt(grant.starts_at),
+                "expires_at": _serialize_dt(grant.expires_at),
+                "status": grant.status,
+                "effective_active": False,
+                "created_by_user_id": str(grant.created_by_user_id),
+                "created_at": _serialize_dt(grant.created_at),
+                "revoked_at": _serialize_dt(grant.revoked_at),
+                "revocation_reason": grant.revocation_reason,
+            }
+        }
+    return {
+        "status": "grant_revoked",
+        "grant": _owner_grant_snapshot(db, row),
     }
 
 

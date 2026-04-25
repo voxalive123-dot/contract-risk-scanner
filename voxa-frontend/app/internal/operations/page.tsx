@@ -157,6 +157,7 @@ function SiteHeader() {
           </div>
         </Link>
         <nav className="flex items-center gap-3 text-sm text-neutral-700">
+          <Link href="/internal/ops/access-grants" className="rounded-xl border border-[#d8c49e] px-4 py-2 font-semibold text-[#6f5328] transition hover:bg-[#fbf5ea]">Access grants</Link>
           <Link href="/account" className="rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Account</Link>
         </nav>
       </div>

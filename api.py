@@ -68,8 +68,11 @@ from entitlement_spine import resolve_entitlement_for_org
 from internal_ops import (
     InternalOpsConfigError,
     InternalOpsForbiddenError,
+    create_internal_access_grant,
     get_internal_organization_detail,
+    list_internal_access_grants,
     list_internal_organizations,
+    revoke_internal_access_grant,
     require_internal_admin,
 )
 from internal_workflows import (
@@ -84,6 +87,7 @@ from internal_workflows import (
     workflow_view,
 )
 from models import StripeWebhookEvent
+from owner_entitlement_grants import OwnerGrantError
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
 from platform_owner import is_platform_owner_account
 from stripe_reconciliation import reconcile_stripe_event
@@ -319,6 +323,54 @@ class InternalOrganizationOverrideRequest(InternalWorkflowReasonRequest):
         if not isinstance(value, int) or value <= 0:
             raise ValueError("plan_limit must be positive")
         return value
+
+
+class InternalAccessGrantCreateRequest(BaseModel):
+    email: str = Field(...)
+    granted_plan: str = Field(...)
+    duration_days: int | None = Field(default=None)
+    scan_quota_override: int | None = Field(default=None)
+    reason: str = Field(default="family_beta_testing")
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("email is required")
+        return value.strip().lower()
+
+    @field_validator("granted_plan")
+    @classmethod
+    def validate_granted_plan(cls, value: str) -> str:
+        plan = value.strip().lower()
+        if plan not in {"executive", "enterprise"}:
+            raise ValueError("granted_plan must be executive or enterprise")
+        return plan
+
+    @field_validator("duration_days")
+    @classmethod
+    def validate_duration_days(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if not isinstance(value, int) or value <= 0 or value > 365:
+            raise ValueError("duration_days must be between 1 and 365")
+        return value
+
+    @field_validator("scan_quota_override")
+    @classmethod
+    def validate_scan_quota_override(cls, value: int | None) -> int | None:
+        if value is None:
+            return None
+        if not isinstance(value, int) or value <= 0:
+            raise ValueError("scan_quota_override must be positive")
+        return value
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("a clear grant reason is required")
+        return value.strip()
 
 
 class TeamInviteCreateRequest(BaseModel):
@@ -965,6 +1017,52 @@ def internal_ops_organization_detail(
     db: Session = Depends(get_db),
 ):
     return get_internal_organization_detail(db, org_id=org_id)
+
+
+@app.get("/internal/ops/access-grants")
+def internal_ops_access_grants(
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return list_internal_access_grants(db)
+
+
+@app.post("/internal/ops/access-grants")
+def internal_ops_access_grants_create(
+    request: InternalAccessGrantCreateRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return create_internal_access_grant(
+            db,
+            actor=_internal_ctx,
+            email=request.email,
+            granted_plan=request.granted_plan,
+            duration_days=request.duration_days,
+            reason=request.reason,
+            scan_quota_override=request.scan_quota_override,
+        )
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/access-grants/{grant_id}/revoke")
+def internal_ops_access_grants_revoke(
+    grant_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return revoke_internal_access_grant(
+            db,
+            actor=_internal_ctx,
+            grant_id=grant_id,
+            reason=request.reason,
+        )
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
 
 @app.get("/internal/ops/organizations/{org_id}/workflow")
