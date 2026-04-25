@@ -680,7 +680,7 @@ export default function DashboardPage() {
         setAIReview(null);
         setAIState("unavailable");
         setAIMessage(
-          "AI Review Notes could not be generated for this report. The deterministic VoxaRisk analysis remains available.",
+          "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
         );
         return;
       }
@@ -696,13 +696,13 @@ export default function DashboardPage() {
       setAIReview(null);
       setAIState(aiPayload?.status === "disabled" ? "disabled" : "unavailable");
       setAIMessage(
-        "AI Review Notes could not be generated for this report. The deterministic VoxaRisk analysis remains available.",
+        "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
       );
     } catch {
       setAIReview(null);
       setAIState("unavailable");
       setAIMessage(
-        "AI Review Notes could not be generated for this report. The deterministic VoxaRisk analysis remains available.",
+        "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
       );
     }
   }
@@ -1402,125 +1402,9 @@ export default function DashboardPage() {
               </div>
 
               <section className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] md:p-8">
-                <div className="report-print-hidden border-b border-[#dccaa8] pb-6">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                    Prepare Executive Report
-                  </div>
-                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
-                    Prepare Executive Report
-                  </h2>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">
-                    Add a concise reference so the exported report is titled, filed, and presented professionally.
-                  </p>
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#8f7245]">
-                    Use a short contract or matter reference and avoid unnecessary personal data.
-                  </p>
-
-                  <div className="mt-6 grid gap-4 md:grid-cols-2">
-                    <label className="block">
-                      <span className="text-sm font-semibold text-neutral-900">
-                        Report title / reference
-                      </span>
-                      <input
-                        value={reportTitle}
-                        onChange={(event) => setReportTitle(event.target.value.slice(0, 100))}
-                        placeholder="HSBC Supplier Agreement Review"
-                        maxLength={100}
-                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-semibold text-neutral-900">
-                        Prepared for
-                      </span>
-                      <input
-                        value={preparedFor}
-                        onChange={(event) => setPreparedFor(event.target.value.slice(0, 80))}
-                        placeholder="Board Review"
-                        maxLength={80}
-                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-                      />
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-semibold text-neutral-900">
-                        Document type
-                      </span>
-                      <select
-                        value={documentType}
-                        onChange={(event) => setDocumentType(event.target.value)}
-                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-                      >
-                        <option value="">Select document type</option>
-                        {DOCUMENT_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="block">
-                      <span className="text-sm font-semibold text-neutral-900">
-                        Review purpose
-                      </span>
-                      <select
-                        value={reviewPurpose}
-                        onChange={(event) => setReviewPurpose(event.target.value)}
-                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-                      >
-                        <option value="">Select review purpose</option>
-                        {REVIEW_PURPOSE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-
-                    <label className="block md:col-span-2">
-                      <span className="text-sm font-semibold text-neutral-900">
-                        Internal reference
-                      </span>
-                      <input
-                        value={internalReference}
-                        onChange={(event) => setInternalReference(event.target.value.slice(0, 50))}
-                        placeholder="VR-2026-0041"
-                        maxLength={50}
-                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-                      />
-                    </label>
-                  </div>
-
-                  {reportValidationMessage && (
-                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
-                      {reportValidationMessage}
-                    </div>
-                  )}
-
-                  <div className="mt-6 flex flex-col gap-3">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                      <div className="text-sm text-[#8f7245]">
-                        Export filename: {reportFilename}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={handlePrintReport}
-                        className="rounded-2xl bg-[#11110f] px-5 py-3 text-sm font-medium text-stone-100 transition hover:opacity-90"
-                      >
-                        Generate Executive Report
-                      </button>
-                    </div>
-                    <div className="text-xs text-neutral-500">
-                      For a clean PDF, turn off browser Headers and footers in the print dialog.
-                    </div>
-                  </div>
-                </div>
-
                 <div
                   data-report-root
-                  className="report-surface mx-auto mt-8 max-w-[920px] rounded-[24px] border border-[#dccaa8] bg-[#fffaf0] px-6 py-6 md:px-8 md:py-7"
+                  className="report-surface mx-auto max-w-[920px] rounded-[24px] border border-[#dccaa8] bg-[#fffaf0] px-6 py-6 md:px-8 md:py-7"
                 >
                   <header className="report-section border-b border-[#dccaa8] pb-4">
                     <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -1749,6 +1633,124 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </section>
+                </div>
+              </section>
+
+              <section className="report-print-hidden rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] md:p-8">
+                <div className="border-t border-[#dccaa8] pt-6">
+                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
+                    Prepare Executive Report
+                  </div>
+                  <h2 className="mt-2 text-2xl font-semibold tracking-tight text-neutral-950">
+                    Prepare Executive Report
+                  </h2>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">
+                    Add a concise reference so the exported report is titled, filed, and presented professionally.
+                  </p>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-[#8f7245]">
+                    Use a short contract or matter reference and avoid unnecessary personal data.
+                  </p>
+
+                  <div className="mt-6 grid gap-4 md:grid-cols-2">
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Report title / reference
+                      </span>
+                      <input
+                        value={reportTitle}
+                        onChange={(event) => setReportTitle(event.target.value.slice(0, 100))}
+                        placeholder="HSBC Supplier Agreement Review"
+                        maxLength={100}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Prepared for
+                      </span>
+                      <input
+                        value={preparedFor}
+                        onChange={(event) => setPreparedFor(event.target.value.slice(0, 80))}
+                        placeholder="Board Review"
+                        maxLength={80}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Document type
+                      </span>
+                      <select
+                        value={documentType}
+                        onChange={(event) => setDocumentType(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select document type</option>
+                        {DOCUMENT_TYPE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Review purpose
+                      </span>
+                      <select
+                        value={reviewPurpose}
+                        onChange={(event) => setReviewPurpose(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select review purpose</option>
+                        {REVIEW_PURPOSE_OPTIONS.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block md:col-span-2">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Internal reference
+                      </span>
+                      <input
+                        value={internalReference}
+                        onChange={(event) => setInternalReference(event.target.value.slice(0, 50))}
+                        placeholder="VR-2026-0041"
+                        maxLength={50}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+                  </div>
+
+                  {reportValidationMessage && (
+                    <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
+                      {reportValidationMessage}
+                    </div>
+                  )}
+
+                  <div className="mt-6 flex flex-col gap-3">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="text-sm text-[#8f7245]">
+                        Export filename: {reportFilename}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handlePrintReport}
+                        className="rounded-2xl bg-[#11110f] px-5 py-3 text-sm font-medium text-stone-100 transition hover:opacity-90"
+                      >
+                        Generate Executive Report
+                      </button>
+                    </div>
+                    <div className="text-xs text-neutral-500">
+                      For a clean PDF, use Save as PDF where available and turn off browser Headers and footers in the print dialog.
+                    </div>
+                  </div>
                 </div>
               </section>
             </>

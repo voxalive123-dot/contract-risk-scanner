@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import DesktopDisclosure from "./desktop-disclosure";
 import SiteHeader from "./site-header";
 import SiteFooter from "./site-footer";
 const trustPillars = [
@@ -104,16 +105,15 @@ export default function HomePage() {
 
       <section className="mx-auto max-w-[1360px] px-6 pb-14 md:px-8">
         <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr]">
-          <section id="product" className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>What VoxaRisk does</Eyebrow>
-            <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
-              Structured contract risk intelligence for commercial review.
-            </h2>
-            <p className="mt-5 max-w-5xl text-base leading-8 text-neutral-700">
-              VoxaRisk is designed for executive and commercial users who need a fast exposure view before a contract moves deeper into internal approval or external negotiation. The product stays focused on structured review support rather than legal conclusions.
-            </p>
-
-            <div className="mt-8 grid gap-5 md:grid-cols-3">
+          <DesktopDisclosure
+            id="product"
+            eyebrow="Why VoxaRisk exists"
+            title="Structured contract risk intelligence for commercial review."
+            intro="VoxaRisk is designed for executive and commercial users who need a fast exposure view before a contract moves deeper into internal approval or external negotiation."
+            defaultDesktopOpen
+            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+          >
+            <div className="grid gap-5 md:grid-cols-3">
               {trustPillars.map((pillar) => (
                 <article key={pillar.title} className="flex h-full flex-col rounded-[1.2rem] border border-[#e0d1b7] bg-[#fbf3e5] p-5">
                   <h3 className="min-h-[48px] text-base font-semibold text-neutral-950">
@@ -125,65 +125,58 @@ export default function HomePage() {
                 </article>
               ))}
             </div>
-          </section>
+          </DesktopDisclosure>
 
-          <section id="fit" className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>Best fit</Eyebrow>
-            <h2 className="mt-5 text-[28px] font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
-              For commercial teams that need clarity before escalation.
-            </h2>
-            <div className="mt-7 space-y-3">
+          <DesktopDisclosure
+            id="fit"
+            eyebrow="Decision discipline"
+            title="For commercial teams that need clarity before escalation."
+            intro="Use the platform to improve review discipline, strengthen approval consistency, and focus escalation only where the consequence warrants it."
+            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+          >
+            <div className="space-y-3">
               {bestFitGroups.map((item) => (
                 <div key={item} className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm leading-6 text-neutral-700">
                   {item}
                 </div>
               ))}
             </div>
-          </section>
+          </DesktopDisclosure>
         </div>
 
-        <section className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-          <div className="grid gap-8 lg:grid-cols-[1.05fr_0.95fr]">
-            <div>
-              <Eyebrow>AI positioning</Eyebrow>
-              <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
-                AI, governed by evidence - not guesswork.
-              </h2>
-              <p className="mt-5 max-w-4xl text-base leading-8 text-neutral-700">
-                VoxaRisk uses deterministic risk detection first, then applies AI as a
-                controlled explanation layer for eligible plans. AI Review Notes can help
-                translate flagged clauses into clearer commercial review priorities, while
-                the underlying score, severity, findings, and evidence remain governed by
-                the VoxaRisk engine.
-              </p>
-            </div>
-
-            <div className="grid gap-3">
-              {[
-                "Deterministic findings first",
-                "AI explanation second",
-                "Evidence-backed review notes",
-                "No legal-advice substitution",
-                "No AI override of score or severity",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm font-medium leading-6 text-neutral-800"
-                >
-                  {item}
-                </div>
-              ))}
-            </div>
+        <DesktopDisclosure
+          eyebrow="AI-assisted, evidence-governed"
+          title="AI, governed by evidence rather than guesswork."
+          intro="VoxaRisk uses deterministic risk detection first, then applies AI as a controlled explanation layer for eligible plans. The underlying score, severity, findings, and evidence remain engine-governed."
+          className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {[
+              "Deterministic findings first",
+              "AI explanation second",
+              "Evidence-backed review notes",
+              "No legal-advice substitution",
+              "No AI override of score or severity",
+            ].map((item) => (
+              <div
+                key={item}
+                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm font-medium leading-6 text-neutral-800"
+              >
+                {item}
+              </div>
+            ))}
           </div>
-        </section>
+        </DesktopDisclosure>
 
         <div id="workflow" className="mt-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>Review workflow</Eyebrow>
-            <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
-              Detection to user decision, without pretending to decide for you.
-            </h2>
-            <div className="mt-7 grid gap-4">
+          <DesktopDisclosure
+            id="workflow"
+            eyebrow="How the intelligence works"
+            title="Detection to user decision, without pretending to decide for you."
+            intro="The product turns clause-level signals into a disciplined commercial review sequence so teams can move from scan to decision with a clearer evidence trail."
+            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+          >
+            <div className="grid gap-4">
               {workflowSteps.map((step, index) => (
                 <article key={step.title} className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] p-5">
                   <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a34]">
@@ -194,21 +187,15 @@ export default function HomePage() {
                 </article>
               ))}
             </div>
-          </section>
+          </DesktopDisclosure>
 
-          <section className="flex h-full flex-col rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>How to use the result</Eyebrow>
-            <h2 className="mt-5 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
-              Use the platform to focus review, not to outsource accountability.
-            </h2>
-
-            <p className="mt-4 text-sm leading-7 text-neutral-700">
-              Treat the output as a disciplined review layer: start with the
-              decision signal, inspect the evidence, then escalate only where
-              the commercial consequence warrants it.
-            </p>
-
-            <div className="mt-6 grid gap-3 md:grid-cols-2">
+          <DesktopDisclosure
+            eyebrow="What the report shows"
+            title="Use the platform to focus review, not to outsource accountability."
+            intro="Treat the output as a disciplined review layer: start with the decision signal, inspect the evidence, then escalate only where the commercial consequence warrants it."
+            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+          >
+            <div className="grid gap-3 md:grid-cols-2">
               {[
                 "Read the decision signal first",
                 "Inspect clause evidence",
@@ -229,23 +216,19 @@ export default function HomePage() {
                 Escalation triggers
               </div>
               <p className="mt-3 text-sm leading-6 text-neutral-700">
-                Escalate when the scan surfaces uncapped liability, broad
-                indemnity, unilateral price movement, suspension rights,
-                unusual jurisdiction, weak termination protection, or repeated
-                high-priority findings across the same contract.
+                Escalate when the scan surfaces uncapped liability, broad indemnity, unilateral price movement, suspension rights, unusual jurisdiction, weak termination protection, or repeated high-priority findings across the same contract.
               </p>
             </div>
 
             <div className="mt-4 rounded-[1rem] border border-[#d2bd96] bg-[#fbf3e5] p-5">
               <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                What this helps prevent
+                Product boundaries
               </div>
               <p className="mt-3 text-sm leading-6 text-neutral-700">
-                Missed redlines, late-stage approval surprises, uneven reviewer
-                judgment, and commercial sign-off without a clear evidence trail.
+                VoxaRisk supports disciplined review and evidence-led escalation. It does not replace commercial judgment, legal advice, or approval accountability.
               </p>
             </div>
-          </section>
+          </DesktopDisclosure>
         </div>
       </section>
     </main>
