@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 
+import PasswordInput from "../../password-input";
 import SiteHeader from "../../site-header";
 import SiteFooter from "../../site-footer";
 
@@ -99,9 +100,9 @@ export default function TeamInviteAcceptPage() {
               <label className="mt-5 text-sm font-semibold text-neutral-900" htmlFor="password">
                 Password
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
+                name="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -113,9 +114,9 @@ export default function TeamInviteAcceptPage() {
               <label className="mt-5 text-sm font-semibold text-neutral-900" htmlFor="confirmPassword">
                 Confirm password
               </label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
+                name="confirmPassword"
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}

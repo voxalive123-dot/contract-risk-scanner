@@ -104,7 +104,7 @@ export default function HomePage() {
       </section>
 
       <section className="mx-auto max-w-[1360px] px-6 pb-14 md:px-8">
-        <div className="grid gap-8 lg:grid-cols-[1.25fr_0.75fr]">
+        <div className="space-y-8">
           <DesktopDisclosure
             id="product"
             eyebrow="Why VoxaRisk exists"
@@ -147,20 +147,19 @@ export default function HomePage() {
         <DesktopDisclosure
           eyebrow="AI-assisted, evidence-governed"
           title="AI, governed by evidence rather than guesswork."
-          intro="VoxaRisk uses deterministic risk detection first, then applies AI as a controlled explanation layer for eligible plans. The underlying score, severity, findings, and evidence remain engine-governed."
+          intro="VoxaRisk uses deterministic risk detection first, then applies AI as a controlled explanation layer for eligible plans. The underlying score, severity, findings, and evidence remain engine-governed; AI does not override the score."
           className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
         >
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {[
-              "Deterministic findings first",
-              "AI explanation second",
-              "Evidence-backed review notes",
-              "No legal-advice substitution",
-              "No AI override of score or severity",
+              "Deterministic findings",
+              "AI explanation",
+              "Evidence-backed notes",
+              "Legal boundary preserved",
             ].map((item) => (
               <div
                 key={item}
-                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-sm font-medium leading-6 text-neutral-800"
+                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-3 text-center text-[13px] font-medium leading-6 text-neutral-800 xl:whitespace-nowrap"
               >
                 {item}
               </div>
@@ -168,68 +167,81 @@ export default function HomePage() {
           </div>
         </DesktopDisclosure>
 
-        <div id="workflow" className="mt-8 grid gap-8 lg:grid-cols-[0.95fr_1.05fr]">
-          <DesktopDisclosure
-            id="workflow"
-            eyebrow="How the intelligence works"
-            title="Detection to user decision, without pretending to decide for you."
-            intro="The product turns clause-level signals into a disciplined commercial review sequence so teams can move from scan to decision with a clearer evidence trail."
-            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
-          >
-            <div className="grid gap-4">
-              {workflowSteps.map((step, index) => (
-                <article key={step.title} className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] p-5">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a34]">
-                    Step {index + 1}
-                  </div>
-                  <h3 className="mt-2 text-base font-semibold text-neutral-950">{step.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-neutral-700">{step.body}</p>
-                </article>
-              ))}
-            </div>
-          </DesktopDisclosure>
+        <DesktopDisclosure
+          id="workflow"
+          eyebrow="From Detection to Decision"
+          title="From Detection to Decision"
+          intro="The product turns clause-level signals into a disciplined commercial review sequence so teams can move from scan to decision with a clearer evidence trail."
+          className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
+        >
+          <div className="grid gap-8 lg:grid-cols-2 lg:items-stretch">
+            <section className="flex h-full flex-col rounded-[1.15rem] border border-[#e0d1b7] bg-[#fcf6ec] p-6">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                How the intelligence works
+              </div>
+              <div className="mt-5 grid flex-1 gap-4 content-start">
+                {workflowSteps.map((step, index) => (
+                  <article key={step.title} className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] p-5">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8a6a34]">
+                      Step {index + 1}
+                    </div>
+                    <h3 className="mt-2 text-base font-semibold text-neutral-950">{step.title}</h3>
+                    <p className="mt-3 text-sm leading-6 text-neutral-700">{step.body}</p>
+                  </article>
+                ))}
+              </div>
+            </section>
 
-          <DesktopDisclosure
-            eyebrow="What the report shows"
-            title="Use the platform to focus review, not to outsource accountability."
-            intro="Treat the output as a disciplined review layer: start with the decision signal, inspect the evidence, then escalate only where the commercial consequence warrants it."
-            className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              {[
-                "Read the decision signal first",
-                "Inspect clause evidence",
-                "Prioritise redlines",
-                "Escalate where consequence warrants",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] p-4 text-sm font-medium leading-6 text-neutral-800"
-                >
-                  {item}
+            <section className="flex h-full flex-col rounded-[1.15rem] border border-[#e0d1b7] bg-[#fcf6ec] p-6">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                What the report shows
+              </div>
+              <div className="mt-5 flex flex-1 flex-col gap-4">
+                <div className="rounded-[1rem] border border-[#e0d1b7] bg-[#fffdf8] p-5">
+                  <p className="text-sm leading-7 text-neutral-700">
+                    Use the report to read the decision signal, inspect the evidence, and escalate material exposure.
+                  </p>
                 </div>
-              ))}
-            </div>
 
-            <div className="mt-6 rounded-[1rem] border border-[#d2bd96] bg-[#fcf7ee] p-5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                Escalation triggers
-              </div>
-              <p className="mt-3 text-sm leading-6 text-neutral-700">
-                Escalate when the scan surfaces uncapped liability, broad indemnity, unilateral price movement, suspension rights, unusual jurisdiction, weak termination protection, or repeated high-priority findings across the same contract.
-              </p>
-            </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {[
+                    "Read the decision signal first",
+                    "Inspect clause evidence",
+                    "Prioritise redlines",
+                    "Escalate where consequence warrants",
+                  ].map((item) => (
+                    <div
+                      key={item}
+                      className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] p-4 text-sm font-medium leading-6 text-neutral-800"
+                    >
+                      {item}
+                    </div>
+                  ))}
+                </div>
 
-            <div className="mt-4 rounded-[1rem] border border-[#d2bd96] bg-[#fbf3e5] p-5">
-              <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                Product boundaries
+                <div className="mt-auto grid gap-4 xl:grid-cols-2">
+                  <div className="rounded-[1rem] border border-[#d2bd96] bg-[#fcf7ee] p-5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                      Escalation triggers
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-neutral-700">
+                      Escalate when the scan surfaces uncapped liability, broad indemnity, unilateral price movement, suspension rights, unusual jurisdiction, weak termination protection, or repeated high-priority findings across the same contract.
+                    </p>
+                  </div>
+
+                  <div className="rounded-[1rem] border border-[#d2bd96] bg-[#fbf3e5] p-5">
+                    <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                      Product boundaries
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-neutral-700">
+                      VoxaRisk supports disciplined review and evidence-led escalation. It does not replace commercial judgment, legal advice, or approval accountability.
+                    </p>
+                  </div>
+                </div>
               </div>
-              <p className="mt-3 text-sm leading-6 text-neutral-700">
-                VoxaRisk supports disciplined review and evidence-led escalation. It does not replace commercial judgment, legal advice, or approval accountability.
-              </p>
-            </div>
-          </DesktopDisclosure>
-        </div>
+            </section>
+          </div>
+        </DesktopDisclosure>
       </section>
     </main>
       <SiteFooter />

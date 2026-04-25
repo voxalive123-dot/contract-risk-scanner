@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 
+import PasswordInput from "../password-input";
 import SiteHeader from "../site-header";
 import SiteFooter from "../site-footer";
 
@@ -90,9 +91,9 @@ export default function SignInPage() {
               <label className="mt-5 text-sm font-semibold text-neutral-900" htmlFor="password">
                 Password
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
+                name="password"
                 autoComplete="current-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}

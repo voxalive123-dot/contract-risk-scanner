@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { FormEvent, Suspense, useEffect, useState } from "react";
 
+import PasswordInput from "../../password-input";
 import SiteHeader from "../../site-header";
 import SiteFooter from "../../site-footer";
 
@@ -106,9 +107,9 @@ function AccountSetupContent() {
               <label className="mt-6 text-sm font-semibold text-neutral-900" htmlFor="password">
                 New password
               </label>
-              <input
+              <PasswordInput
                 id="password"
-                type="password"
+                name="password"
                 autoComplete="new-password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -120,9 +121,9 @@ function AccountSetupContent() {
               <label className="mt-5 text-sm font-semibold text-neutral-900" htmlFor="confirmPassword">
                 Confirm password
               </label>
-              <input
+              <PasswordInput
                 id="confirmPassword"
-                type="password"
+                name="confirmPassword"
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
