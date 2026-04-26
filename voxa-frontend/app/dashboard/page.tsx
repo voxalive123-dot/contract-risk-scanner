@@ -800,6 +800,10 @@ export default function DashboardPage() {
   const reliabilityAssessment = reviewReliability(effectiveConfidence);
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
+  const reportPriorityWrapperClass =
+    reportPriorityItems.length === 1
+      ? "mx-auto mt-6 mb-6 max-w-xl"
+      : "mt-6 grid grid-cols-1 gap-6 md:grid-cols-2";
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
   const duplicatedSummaryDetail =
     !isLowSignalResult &&
@@ -1217,20 +1221,14 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div
-                    className={`mt-6 grid gap-4 ${
-                      reportPriorityItems.length <= 1 ? "mx-auto max-w-3xl" : ""
-                    } ${reportPriorityItems.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}
-                  >
-                    {reportPriorityItems.length ? (
-                      reportPriorityItems.map((item, index) => {
+                  {reportPriorityItems.length ? (
+                    <div className={reportPriorityWrapperClass}>
+                      {reportPriorityItems.map((item, index) => {
                         const category = item.category ?? "";
                         return (
                           <div
                             key={`negotiation-${item.title ?? "risk"}-${index}`}
-                            className={`rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 ${
-                              reportPriorityItems.length === 1 ? "lg:col-span-1" : ""
-                            }`}
+                            className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
                           >
                             <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                               Priority {index + 1}
@@ -1251,13 +1249,13 @@ export default function DashboardPage() {
                             </div>
                           </div>
                         );
-                      })
-                    ) : (
-                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245] lg:col-span-3">
-                        No material automated risk signals were elevated into negotiation priorities for this scan. This remains a low-signal result, not a contract clearance outcome.
-                      </div>
-                    )}
-                  </div>
+                      })}
+                    </div>
+                  ) : (
+                    <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
+                      No material automated risk signals were elevated into negotiation priorities for this scan. This remains a low-signal result, not a contract clearance outcome.
+                    </div>
+                  )}
                 </div>
 
                 <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
