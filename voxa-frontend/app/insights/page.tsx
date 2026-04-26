@@ -13,8 +13,6 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 }
 
 export default function InsightsPage() {
-  const article = insightArticles[0];
-
   return (
     <InsightsShell activeItem="insights">
       <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
@@ -55,20 +53,24 @@ export default function InsightsPage() {
       <section className="mx-auto max-w-[1360px] px-6 pb-16 md:px-8">
         <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px]">
           <div className="rounded-[1.75rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>Featured insight</Eyebrow>
-            <article className="mt-6 rounded-[1.25rem] border border-[#e0d1b7] bg-[#fbf3e5] p-6">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">{article.category}</div>
-              <h2 className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-neutral-950">{article.title}</h2>
-              <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-700">{article.summary}</p>
-              <div className="mt-6">
-                <Link
-                  href={`/insights/${article.slug}`}
-                  className="inline-flex rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]"
-                >
-                  Read insight
-                </Link>
-              </div>
-            </article>
+            <Eyebrow>Published insights</Eyebrow>
+            <div className="mt-6 grid gap-5">
+              {insightArticles.map((article) => (
+                <article key={article.slug} className="rounded-[1.25rem] border border-[#e0d1b7] bg-[#fbf3e5] p-6">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">{article.category}</div>
+                  <h2 className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-neutral-950">{article.title}</h2>
+                  <p className="mt-4 max-w-3xl text-sm leading-7 text-neutral-700">{article.summary}</p>
+                  <div className="mt-6">
+                    <Link
+                      href={`/insights/${article.slug}`}
+                      className="inline-flex rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]"
+                    >
+                      Read insight
+                    </Link>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
 
           <aside className="rounded-[1.75rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
