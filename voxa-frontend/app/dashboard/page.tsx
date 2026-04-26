@@ -802,7 +802,7 @@ export default function DashboardPage() {
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
   const reportPriorityWrapperClass =
     reportPriorityItems.length === 1
-      ? "mx-auto mt-6 mb-6 max-w-xl"
+      ? "mx-auto mt-4 mb-4 max-w-2xl"
       : "mt-6 grid grid-cols-1 gap-6 md:grid-cols-2";
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
   const duplicatedSummaryDetail =
@@ -1115,8 +1115,8 @@ export default function DashboardPage() {
           {result && (
             <>
               <div className="report-print-hidden space-y-8">
-                <div className="grid items-start gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-stretch">
+                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] xl:h-full">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
@@ -1178,7 +1178,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] xl:h-full">
                     <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                       Decision Posture
                     </div>
