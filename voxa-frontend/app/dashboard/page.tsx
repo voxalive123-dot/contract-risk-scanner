@@ -801,9 +801,15 @@ export default function DashboardPage() {
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
+  const duplicatedSummaryDetail =
+    !isLowSignalResult &&
+    primarySummary.trim().length > 0 &&
+    primarySummary.trim() === (posture?.detail ?? "").trim();
   const executiveSummaryDetail = isLowSignalResult
     ? "Final acceptance should still consider commercial dependency, deal context, and professional review where appropriate."
-    : posture?.detail ?? "";
+    : duplicatedSummaryDetail
+      ? ""
+      : posture?.detail ?? "";
   const decisionSnapshotSeverity = result
     ? `${severityTone(result.severity === "HIGH" ? 4 : result.severity === "MEDIUM" ? 3 : 1)} severity`
     : "Not stated";
@@ -1211,14 +1217,20 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="mt-6 grid gap-4 lg:grid-cols-3">
+                  <div
+                    className={`mt-6 grid gap-4 ${
+                      reportPriorityItems.length <= 1 ? "mx-auto max-w-3xl" : ""
+                    } ${reportPriorityItems.length === 2 ? "lg:grid-cols-2" : "lg:grid-cols-3"}`}
+                  >
                     {reportPriorityItems.length ? (
                       reportPriorityItems.map((item, index) => {
                         const category = item.category ?? "";
                         return (
                           <div
                             key={`negotiation-${item.title ?? "risk"}-${index}`}
-                            className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
+                            className={`rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 ${
+                              reportPriorityItems.length === 1 ? "lg:col-span-1" : ""
+                            }`}
                           >
                             <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                               Priority {index + 1}
@@ -1526,7 +1538,7 @@ export default function DashboardPage() {
                           ? primarySummary
                           : lowSignalSummary()}
                       </p>
-                      <p>{executiveSummaryDetail}</p>
+                      {executiveSummaryDetail ? <p>{executiveSummaryDetail}</p> : null}
                     </div>
                   </section>
 
