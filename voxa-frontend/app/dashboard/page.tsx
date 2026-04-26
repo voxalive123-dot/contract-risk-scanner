@@ -800,10 +800,6 @@ export default function DashboardPage() {
   const reliabilityAssessment = reviewReliability(effectiveConfidence);
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
-  const reportPriorityWrapperClass =
-    reportPriorityItems.length === 1
-      ? "mx-auto mt-4 mb-4 max-w-2xl"
-      : "mt-6 grid grid-cols-1 gap-6 md:grid-cols-2";
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
   const duplicatedSummaryDetail =
     !isLowSignalResult &&
@@ -1116,7 +1112,7 @@ export default function DashboardPage() {
             <>
               <div className="report-print-hidden space-y-8">
                 <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-stretch">
-                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] xl:h-full">
+                  <div className="flex h-full flex-col rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
@@ -1139,7 +1135,7 @@ export default function DashboardPage() {
                       </div>
                     </div>
 
-                    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:mt-auto xl:grid-cols-4">
                       <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
                         <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                           Exposure score
@@ -1178,7 +1174,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
 
-                  <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] xl:h-full">
+                  <div className="flex h-full flex-col rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                     <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                       Decision Posture
                     </div>
@@ -1198,7 +1194,7 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
-                    <div className="mt-3 rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-3">
+                    <div className="mt-3 rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-3 xl:mt-auto">
                       <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Product boundary
                       </div>
@@ -1222,35 +1218,69 @@ export default function DashboardPage() {
                   </div>
 
                   {reportPriorityItems.length ? (
-                    <div className={reportPriorityWrapperClass}>
-                      {reportPriorityItems.map((item, index) => {
+                    reportPriorityItems.length === 1 ? (
+                      reportPriorityItems.map((item, index) => {
                         const category = item.category ?? "";
                         return (
                           <div
                             key={`negotiation-${item.title ?? "risk"}-${index}`}
-                            className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
+                            className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
                           >
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Priority {index + 1}
-                            </div>
-                            <h4 className="mt-2 text-base font-semibold text-neutral-950">
-                              {item.title ?? "Unlabeled risk"}
-                            </h4>
-                            <p className="mt-3 text-sm leading-6 text-neutral-700">
-                              {negotiationPriority(category)}
-                            </p>
-                            <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                Why first
+                            <div className="grid gap-5 md:grid-cols-[1.15fr_0.85fr] md:items-start">
+                              <div>
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                                  Priority {index + 1}
+                                </div>
+                                <h4 className="mt-2 text-base font-semibold text-neutral-950">
+                                  {item.title ?? "Unlabeled risk"}
+                                </h4>
+                                <p className="mt-3 text-sm leading-6 text-neutral-700">
+                                  {negotiationPriority(category)}
+                                </p>
                               </div>
-                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                {priorityReason(category)}
-                              </p>
+                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                                  Why first
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                  {priorityReason(category)}
+                                </p>
+                              </div>
                             </div>
                           </div>
                         );
-                      })}
-                    </div>
+                      })
+                    ) : (
+                      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+                        {reportPriorityItems.map((item, index) => {
+                          const category = item.category ?? "";
+                          return (
+                            <div
+                              key={`negotiation-${item.title ?? "risk"}-${index}`}
+                              className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
+                            >
+                              <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                                Priority {index + 1}
+                              </div>
+                              <h4 className="mt-2 text-base font-semibold text-neutral-950">
+                                {item.title ?? "Unlabeled risk"}
+                              </h4>
+                              <p className="mt-3 text-sm leading-6 text-neutral-700">
+                                {negotiationPriority(category)}
+                              </p>
+                              <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                                  Why first
+                                </div>
+                                <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                  {priorityReason(category)}
+                                </p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )
                   ) : (
                     <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
                       No material automated risk signals were elevated into negotiation priorities for this scan. This remains a low-signal result, not a contract clearance outcome.
