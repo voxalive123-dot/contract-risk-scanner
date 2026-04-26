@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-type HeaderItem = "product" | "pricing" | "dashboard" | "account";
+type HeaderItem = "product" | "pricing" | "insights" | "dashboard" | "account";
 type AuthMode = "auto" | "authenticated" | "unauthenticated";
 
 const ACTIVE_CLASS =
@@ -99,6 +99,9 @@ export default function SiteHeader({
           </Link>
           <Link href="/pricing" className={navClass(activeItem === "pricing")}>
             Pricing
+          </Link>
+          <Link href="/insights" className={navClass(activeItem === "insights")}>
+            Insights
           </Link>
           <Link href="/dashboard" className={navClass(activeItem === "dashboard")}>
             Dashboard
