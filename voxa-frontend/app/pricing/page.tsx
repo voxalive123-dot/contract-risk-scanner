@@ -161,7 +161,7 @@ export default function PricingPage() {
               Pricing for disciplined contract risk intelligence.
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-              Start with limited exposure signals, then upgrade for full reports, negotiation priorities, and executive-grade review output.
+              Select the review level your contracts demand — from basic signal testing to executive-grade risk reports, negotiation priorities, and governed AI review notes.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">

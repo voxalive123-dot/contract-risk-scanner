@@ -52,6 +52,37 @@ const questionGroups: QuestionGroup[] = [
     ],
   },
   {
+    eyebrow: "Where VoxaRisk fits",
+    title: "Fast first-pass contract risk intelligence before heavier review routes.",
+    items: [
+      {
+        question: "Where does VoxaRisk fit between Legal Contract Management (LCM) platforms and AI contract review firms?",
+        answer:
+          "Legal Contract Management (LCM) platforms usually focus on the contract lifecycle: storage, workflows, approvals, templates, obligations, renewals, and process control. AI contract review firms may support deeper review, often with more onboarding, human involvement, and longer review cycles. VoxaRisk fills the gap before those heavier routes by providing fast first-pass contract risk intelligence: clause risk detection, evidence-backed findings, severity indicators, and negotiation priorities before escalation.",
+      },
+      {
+        question: "Why is first-pass contract risk intelligence important?",
+        answer:
+          "The first pass often decides whether a contract is routine, negotiable, commercially sensitive, or worth escalating. If risk-bearing clauses are missed early, teams can waste time, lose negotiation leverage, or send every contract into a slower and more expensive review process. VoxaRisk helps users identify contract red flags early, structure review priorities, and decide what deserves deeper attention.",
+      },
+      {
+        question: "How is VoxaRisk different from an LCM platform?",
+        answer:
+          "An LCM platform is normally built to manage contract operations across the lifecycle: storing agreements, tracking approvals, managing obligations, and supporting internal process. VoxaRisk is not trying to be a lifecycle management system. It is focused on early commercial contract risk: detecting risky clauses, showing the evidence, ranking severity, and helping executives and teams understand what to review first.",
+      },
+      {
+        question: "How is VoxaRisk different from AI contract review firms?",
+        answer:
+          "AI contract review firms and heavier review services can be useful for deeper analysis, specialist workflows, or human-supported review. The trade-off is that they may involve more cost, more setup, and longer turnaround depending on the provider and engagement. VoxaRisk is designed for fast first-pass contract review automation: a disciplined risk intelligence report that helps users triage exposure quickly, at a fraction of the cost of many heavier review routes.",
+      },
+      {
+        question: "Does VoxaRisk replace LCM platforms, AI contract review firms, or lawyers?",
+        answer:
+          "No. VoxaRisk does not replace legal advice, solicitor review, LCM platforms, or specialist AI contract review providers. It gives users a first-pass contract risk intelligence layer before those routes are needed. The value is speed, structure, evidence, and escalation discipline: users can see what looks risky, where the clause evidence sits, what may need negotiation, and when professional review should be considered.",
+      },
+    ],
+  },
+  {
     eyebrow: "Boundaries and responsibility",
     title: "Decision support without pretending to replace legal judgment.",
     items: [
@@ -289,6 +320,9 @@ export default function QuestionsPage() {
               <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8a6a34]">
                 Decision boundary
               </div>
+              <p className="mt-4 text-sm leading-7 text-neutral-700">
+                VoxaRisk supports contract risk intelligence and review discipline. It does not provide legal advice, legal opinions, solicitor services, or contract approval.
+              </p>
               <p className="mt-4 text-sm leading-7 text-neutral-700">
                 VoxaRisk provides structured contract risk intelligence and decision-support observations. It does not verify, approve, certify, guarantee, or replace legal judgment. Users remain responsible for commercial decisions, escalation, negotiation, and professional review where appropriate.
               </p>
