@@ -77,6 +77,13 @@ for rule in RISK_RULE_OBJECTS:
 
 _MAX_POSSIBLE_SCORE: int = sum(max(0, int(r.weight)) for r in RISK_RULE_OBJECTS)
 
+_MATERIAL_DISPUTE_FORUM_RULES = {
+    "governing_law_foreign_or_unfamiliar",
+    "jurisdiction_exclusive_foreign_forum",
+    "arbitration_forum_or_seat",
+    "venue_burden_foreign_court",
+}
+
 
 def _normalized_score(raw_score: int) -> int:
     if _MAX_POSSIBLE_SCORE <= 0:
@@ -87,6 +94,50 @@ def _normalized_score(raw_score: int) -> int:
     if pct > 100:
         return 100
     return pct
+
+
+def _calibrate_minimum_exposure(
+    adjusted_score: int,
+    matched_rule_ids: set[str],
+) -> Tuple[int, List[Dict[str, Any]]]:
+    calibrated_score = adjusted_score
+    adjustments: List[Dict[str, Any]] = []
+
+    matched_material_dispute = sorted(_MATERIAL_DISPUTE_FORUM_RULES.intersection(matched_rule_ids))
+    if matched_material_dispute and calibrated_score < 6:
+        effect = 6 - calibrated_score
+        calibrated_score = 6
+        adjustments.append(
+            {
+                "type": "minimum_exposure_floor",
+                "rule_id": "material_dispute_forum_floor",
+                "effect": effect,
+                "reason": "A governing-law, jurisdiction, arbitration, or venue burden signal should remain review-elevating even when it appears as a single concentrated clause cluster.",
+                "triggered_by": matched_material_dispute,
+            }
+        )
+
+    return calibrated_score, adjustments
+
+
+def _calibrated_normalized_score(
+    adjusted_score: int,
+    findings: List[Dict[str, Any]],
+) -> int:
+    base_score = _normalized_score(adjusted_score)
+    if not findings:
+        return base_score
+
+    matched_rule_ids = {str(f.get("rule_id", "")) for f in findings}
+    highest_finding_severity = max(int(f.get("severity", 0)) for f in findings)
+
+    if matched_rule_ids.intersection(_MATERIAL_DISPUTE_FORUM_RULES):
+        return max(base_score, 28)
+
+    if highest_finding_severity >= 5:
+        return max(base_score, 22)
+
+    return base_score
 
 
 def _find_first_match(
@@ -117,6 +168,22 @@ def _spans_overlap(
     b_end: int,
 ) -> bool:
     return max(a_start, b_start) < min(a_end, b_end)
+
+
+def _spans_related(
+    a_start: int,
+    a_end: int,
+    b_start: int,
+    b_end: int,
+    max_gap: int = 220,
+) -> bool:
+    if _spans_overlap(a_start, a_end, b_start, b_end):
+        return True
+    if a_end <= b_start:
+        return (b_start - a_end) <= max_gap
+    if b_end <= a_start:
+        return (a_start - b_end) <= max_gap
+    return False
 
 
 def _finding_rank_key(f: Dict[str, Any]) -> Tuple[int, int, int, int]:
@@ -166,6 +233,22 @@ def _dedupe_findings(
                         "title": candidate.get("title"),
                         "suppressed_by_rule_id": existing.get("rule_id"),
                         "reason": "overlapping_evidence_same_category",
+                    }
+                )
+                break
+
+            if (
+                c_cat == "jurisdiction"
+                and e_cat == "jurisdiction"
+                and _spans_related(c_start, c_end, e_start, e_end)
+            ):
+                duplicate_of_existing = True
+                suppressed.append(
+                    {
+                        "rule_id": candidate.get("rule_id"),
+                        "title": candidate.get("title"),
+                        "suppressed_by_rule_id": existing.get("rule_id"),
+                        "reason": "related_jurisdiction_clause_cluster",
                     }
                 )
                 break
@@ -372,6 +455,13 @@ def score_contract(
     if "unilateral_price_increase" in matched_rule_ids:
         adjusted_risk_score = max(adjusted_risk_score, 5)
 
+    adjusted_risk_score, minimum_exposure_adjustments = _calibrate_minimum_exposure(
+        adjusted_risk_score,
+        matched_rule_ids,
+    )
+    if minimum_exposure_adjustments:
+        score_adjustments.extend(minimum_exposure_adjustments)
+
     contradiction_count = sum(
         1 for adj in score_adjustments if adj.get("type") == "contradiction"
     )
@@ -406,7 +496,7 @@ def score_contract(
             "score_adjustments": score_adjustments,
             "matched_rule_count": len(deduped_findings),
             "suppressed_rule_count": suppressed_count,
-            "normalized_score": _normalized_score(adjusted_risk_score),
+            "normalized_score": _calibrated_normalized_score(adjusted_risk_score, deduped_findings),
             "raw_risk_score": raw_risk_score,
             "contradiction_count": contradiction_count,
             "scan_char_limit": MAX_SCAN_CHARS,

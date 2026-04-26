@@ -168,3 +168,63 @@ def test_mixed_safe_and_risky_expansion_clauses_preserve_false_positive_controls
     assert "unilateral_amendment_policy_reference" not in ids
     assert "publicity_name_use_rights" not in ids
     assert "intrusive_audit_rights" not in ids
+
+
+def test_governing_law_foreign_or_unfamiliar_positive():
+    assert_rule(
+        "This agreement is governed by the laws of the State of New York.",
+        "governing_law_foreign_or_unfamiliar",
+    )
+
+
+def test_exclusive_jurisdiction_foreign_forum_positive():
+    assert_rule(
+        "The parties submit to the exclusive jurisdiction of the courts of California.",
+        "jurisdiction_exclusive_foreign_forum",
+    )
+
+
+def test_non_exclusive_jurisdiction_positive():
+    assert_rule(
+        "The courts of Singapore shall have non-exclusive jurisdiction over any dispute arising under this agreement.",
+        "jurisdiction_non_exclusive_forum",
+    )
+
+
+def test_arbitration_forum_or_seat_positive():
+    assert_rule(
+        "Any dispute shall be finally resolved by arbitration seated in Geneva under the ICC Rules.",
+        "arbitration_forum_or_seat",
+    )
+
+
+def test_generic_applicable_law_compliance_wording_does_not_trigger_governing_law_rules():
+    text = "Each party shall comply with all applicable laws and regulations in performing this agreement."
+    for rule_id in {
+        "governing_law_foreign_or_unfamiliar",
+        "jurisdiction_exclusive_foreign_forum",
+        "jurisdiction_non_exclusive_forum",
+        "arbitration_forum_or_seat",
+        "venue_burden_foreign_court",
+    }:
+        assert_no_rule(text, rule_id)
+
+
+def test_mixed_governing_law_and_forum_paragraph_is_not_noisily_duplicated():
+    result = score_contract(
+        (
+            "This agreement is governed by the laws of California. "
+            "The parties submit to the exclusive jurisdiction of the courts of California. "
+            "Any dispute shall be finally resolved by arbitration seated in San Francisco, California."
+        ),
+        include_findings=True,
+        include_meta=True,
+    )
+
+    jurisdiction_findings = [
+        finding for finding in result["findings"] if finding["category"] == "jurisdiction"
+    ]
+
+    assert result["risk_score"] > 0
+    assert len(jurisdiction_findings) == 1
+    assert len(result["meta"].get("overlap_suppressions", [])) >= 1

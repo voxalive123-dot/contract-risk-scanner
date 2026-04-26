@@ -295,6 +295,9 @@ function executiveSummary(
   }
 
   if (severity === "MEDIUM") {
+    if (primaryCategory === "jurisdiction") {
+      return "The scan identified a dispute forum / governing-law signal that may affect enforcement cost, venue burden, and escalation planning.";
+    }
     if (hasControlRisk && hasEconomicRisk) {
       return "This contract contains meaningful structural exposure because economic pressure and control rights appear to reinforce each other in the counterparty's favor.";
     }
@@ -309,6 +312,14 @@ function executiveSummary(
 
   if (hasControlRisk && hasEconomicRisk) {
     return "Current rule detection shows no major structural alert, but the contract still deserves a final check for combined control and commercial dependency.";
+  }
+
+  if (riskCount > 0 && primaryCategory === "jurisdiction") {
+    return "The scan identified a dispute forum / governing-law signal that may affect enforcement cost, venue burden, and escalation planning.";
+  }
+
+  if (riskCount > 0) {
+    return "The scan identified limited but reviewable contract risk signals. Treat the result as structured review support, not as contract approval.";
   }
 
   return "Current rule detection shows limited structural risk, but final acceptance should still depend on business dependency, leverage, and off-text commercial reality.";
@@ -354,6 +365,15 @@ function decisionPosture(
   }
 
   if (severity === "MEDIUM") {
+    if (primaryCategory === "jurisdiction") {
+      return {
+        label: "Proceed with Negotiation",
+        detail:
+          "The scan identified a dispute forum / governing-law signal that may affect enforcement cost, venue burden, and escalation planning.",
+        nextStep:
+          "Confirm whether the selected governing law, jurisdiction, or venue is commercially workable before approval.",
+      };
+    }
     return {
       label: "Proceed with Negotiation",
       detail:
@@ -370,6 +390,26 @@ function decisionPosture(
         "No material automated risk signal was elevated in the reviewed text. This should be treated as a low-signal automated result, not as contract approval.",
       nextStep:
         "Continue normal commercial review and confirm no external business dependency changes the risk position.",
+    };
+  }
+
+  if (topRiskCount > 0 && primaryCategory === "jurisdiction") {
+    return {
+      label: "Proceed with Standard Review",
+      detail:
+        "The scan identified a dispute forum / governing-law signal that may affect enforcement cost, venue burden, and escalation planning.",
+      nextStep:
+        "Confirm whether the selected governing law, jurisdiction, or venue is commercially workable before approval.",
+    };
+  }
+
+  if (topRiskCount > 0) {
+    return {
+      label: "Proceed with Standard Review",
+      detail:
+        "The scan identified limited but reviewable contract risk signals. This should be treated as structured review support, not as contract approval.",
+      nextStep:
+        "Check the priority findings before final acceptance and escalate if the practical business consequence is material.",
     };
   }
 

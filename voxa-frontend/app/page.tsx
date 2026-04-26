@@ -28,7 +28,7 @@ const bestFitGroups = [
 const workflowSteps = [
   {
     title: "Detect",
-    body: "Scan contract text for clause structures that can shift cost, control, leverage, or downside exposure.",
+    body: "Scan contract text for clause structures that can shift cost, control, leverage, downside exposure, or dispute forum and governing-law risk.",
   },
   {
     title: "Prioritise",

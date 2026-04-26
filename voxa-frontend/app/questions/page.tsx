@@ -37,7 +37,7 @@ const questionGroups: QuestionGroup[] = [
       {
         question: "What risks can VoxaRisk detect?",
         answer:
-          "VoxaRisk is built to detect common commercial exposure patterns such as broad indemnity, unilateral termination rights, price increase rights, jurisdiction concerns, liability issues, service discretion, and other contract control signals. Coverage expands over time, but no automated tool can catch everything.",
+          "VoxaRisk is built to detect common commercial exposure patterns such as broad indemnity, unilateral termination rights, price increase rights, liability issues, service discretion, and governing law, jurisdiction, arbitration, venue, and dispute forum signals. Coverage expands over time, but no automated tool can catch everything.",
       },
       {
         question: "Who is VoxaRisk best suited for?",

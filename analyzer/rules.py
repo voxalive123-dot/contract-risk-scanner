@@ -3,7 +3,7 @@ from __future__ import annotations
 from analyzer.risk_schema import RiskRule
 
 
-RULESET_VERSION = "1.3.0"
+RULESET_VERSION = "1.4.0"
 
 
 RISK_RULE_OBJECTS = [
@@ -126,25 +126,113 @@ RISK_RULE_OBJECTS = [
 
     ),
     RiskRule(
-    id="foreign_governing_law",
-    category="jurisdiction",
-    title="Foreign governing law",
-    severity=4,
-    weight=4,
-    rationale="Foreign governing law may increase legal complexity, cost, and enforcement risk.",
-    patterns=[
-        r"\bgoverned\s+by\s+the\s+laws\s+of\s+(?!england|wales|uk)[a-z\s]+\b",
-        r"\blaws\s+of\s+(?!england|wales|united\s+kingdom)[a-z\s]+\b",
-    ],
-    negative_patterns=[
-        r"\blaws\s+of\s+england\b",
-        r"\blaws\s+of\s+wales\b",
-        r"\bunited\s+kingdom\b",
-    ],
-    min_matches=1,
-    max_span_chars=120,
-    tags=["jurisdiction", "legal_risk"],
-),
+        id="governing_law_foreign_or_unfamiliar",
+        category="jurisdiction",
+        title="Foreign or unfamiliar governing law",
+        severity=4,
+        weight=4,
+        rationale="The contract selects a governing law that may affect dispute cost, enforcement route, operational confidence, and escalation planning where the forum is foreign or unfamiliar.",
+        patterns=[
+            r"\b(?:this\s+(?:agreement|contract)|agreement|contract)\b.{0,80}\bgoverned\s+by\s+the\s+laws\s+of\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+            r"\bgoverning\s+law\s+shall\s+be\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+            r"\bgoverned\s+by\s+the\s+laws\s+of\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+        ],
+        negative_patterns=[
+            r"\bapplicable\s+laws?\b",
+            r"\bcomply\s+with\s+all\s+applicable\s+laws?\b",
+            r"\blaws?\s+of\s+england\s+and\s+wales\b",
+            r"\blaws?\s+of\s+england\b",
+            r"\blaws?\s+of\s+wales\b",
+            r"\blaws?\s+of\s+scotland\b",
+            r"\blaws?\s+of\s+the\s+united\s+kingdom\b",
+            r"\blaws?\s+of\s+the\s+uk\b",
+        ],
+        min_matches=1,
+        max_span_chars=160,
+        tags=["jurisdiction", "dispute_forum", "cross_border_risk"],
+    ),
+    RiskRule(
+        id="jurisdiction_exclusive_foreign_forum",
+        category="jurisdiction",
+        title="Exclusive foreign jurisdiction",
+        severity=5,
+        weight=5,
+        rationale="An exclusive foreign jurisdiction or forum clause may materially affect dispute venue, procedural cost, enforcement route, and escalation confidence.",
+        patterns=[
+            r"\bsubmit\s+to\s+the\s+exclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+            r"\bexclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+            r"\bexclusive\s+forum\s+for\s+any\s+dispute\b.{0,80}\b(?:shall\s+be|is)\b.{0,80}(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+        ],
+        negative_patterns=[
+            r"\bnon-?exclusive\s+jurisdiction\b",
+            r"\bexclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+england\s+and\s+wales\b",
+            r"\bexclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+england\b",
+        ],
+        min_matches=1,
+        max_span_chars=180,
+        tags=["jurisdiction", "dispute_forum", "high_impact"],
+    ),
+    RiskRule(
+        id="jurisdiction_non_exclusive_forum",
+        category="jurisdiction",
+        title="Non-exclusive jurisdiction",
+        severity=3,
+        weight=2,
+        rationale="A non-exclusive jurisdiction clause still affects dispute planning and forum expectations, but may be less restrictive than an exclusive foreign forum clause.",
+        patterns=[
+            r"\bnon-?exclusive\s+jurisdiction\b",
+            r"\bcourts?\s+of\s+[a-z][a-z\s,-]{2,80}\s+shall\s+have\s+non-?exclusive\s+jurisdiction\b",
+            r"\bsubmit\s+to\s+the\s+non-?exclusive\s+jurisdiction\s+of\b",
+        ],
+        negative_patterns=[
+            r"\bapplicable\s+laws?\b",
+            r"\bcomply\s+with\s+all\s+applicable\s+laws?\b",
+        ],
+        min_matches=1,
+        max_span_chars=160,
+        tags=["jurisdiction", "dispute_forum", "context_signal"],
+    ),
+    RiskRule(
+        id="arbitration_forum_or_seat",
+        category="jurisdiction",
+        title="Arbitration forum or seat",
+        severity=4,
+        weight=3,
+        rationale="An arbitration clause or arbitration seat may change dispute process, venue burden, procedural cost, and escalation planning even where the commercial terms otherwise look routine.",
+        patterns=[
+            r"\bfinally\s+resolved\s+by\s+arbitration\b",
+            r"\bany\s+dispute\b.{0,120}\barbitration\b",
+            r"\bseat\s+of\s+arbitration\b",
+            r"\barbitration\b.{0,100}\bseat(?:ed)?\s+in\b",
+            r"\barbitration\b.{0,100}\bvenue\b",
+        ],
+        negative_patterns=[
+            r"\barbitration\s+act\b",
+        ],
+        min_matches=1,
+        max_span_chars=180,
+        tags=["jurisdiction", "arbitration", "dispute_forum"],
+    ),
+    RiskRule(
+        id="venue_burden_foreign_court",
+        category="jurisdiction",
+        title="Foreign court venue burden",
+        severity=4,
+        weight=4,
+        rationale="A foreign court venue requirement may increase operational burden, dispute cost, and enforcement friction before a claim is even argued on the merits.",
+        patterns=[
+            r"\bvenue\s+for\s+any\s+dispute\b.{0,80}\b(?:shall\s+be|is)\b.{0,80}(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+            r"\b(?:any\s+action|any\s+proceeding|all\s+proceedings)\b.{0,120}\b(?:shall\s+be\s+brought|must\s+be\s+brought)\b.{0,120}\bin\s+the\s+courts?\s+of\s+(?!england\s+and\s+wales|england|wales|scotland|northern\s+ireland|united\s+kingdom|uk)\b[a-z][a-z\s,-]{2,80}",
+        ],
+        negative_patterns=[
+            r"\bnon-?exclusive\s+jurisdiction\b",
+            r"\bin\s+the\s+courts?\s+of\s+england\s+and\s+wales\b",
+            r"\bin\s+the\s+courts?\s+of\s+england\b",
+        ],
+        min_matches=1,
+        max_span_chars=180,
+        tags=["jurisdiction", "venue", "cross_border_risk"],
+    ),
     RiskRule(
     id="termination_without_notice",
     category="termination",
@@ -729,6 +817,11 @@ RULE_PRIORITIES = {
     "data_retention_deletion_asymmetry": 82,
     "termination_assistance_exit_dependency": 58,
     "survival_clause_risk_concentration": 52,
+    "governing_law_foreign_or_unfamiliar": 64,
+    "jurisdiction_exclusive_foreign_forum": 68,
+    "jurisdiction_non_exclusive_forum": 38,
+    "arbitration_forum_or_seat": 62,
+    "venue_burden_foreign_court": 66,
 }
 
 
@@ -757,6 +850,11 @@ LABEL_ALIASES = {
     "data_retention_deletion_asymmetry": "data retention deletion asymmetry",
     "termination_assistance_exit_dependency": "termination assistance exit dependency",
     "survival_clause_risk_concentration": "survival clause risk concentration",
+    "governing_law_foreign_or_unfamiliar": "foreign or unfamiliar governing law",
+    "jurisdiction_exclusive_foreign_forum": "exclusive foreign jurisdiction",
+    "jurisdiction_non_exclusive_forum": "non exclusive jurisdiction",
+    "arbitration_forum_or_seat": "arbitration forum or seat",
+    "venue_burden_foreign_court": "foreign court venue burden",
 }
 
 

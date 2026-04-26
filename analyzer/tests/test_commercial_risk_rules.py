@@ -258,15 +258,21 @@ def test_extended_payment_terms_rule():
     assert safe_result["risk_score"] == 0
     assert "extended payment terms" not in safe_result["flags"]
 
-def test_foreign_governing_law_rule():
+def test_governing_law_jurisdiction_rules():
     risky_text = "This agreement shall be governed by the laws of California."
     risky_result = score_contract(risky_text, include_findings=True, include_meta=True)
 
     assert risky_result["risk_score"] > 0
-    assert "foreign governing law" in risky_result["flags"]
+    assert "foreign or unfamiliar governing law" in risky_result["flags"]
+
+    jurisdiction_text = "The parties submit to the exclusive jurisdiction of the courts of Delaware."
+    jurisdiction_result = score_contract(jurisdiction_text, include_findings=True, include_meta=True)
+
+    assert jurisdiction_result["risk_score"] > 0
+    assert "exclusive foreign jurisdiction" in jurisdiction_result["flags"]
 
     safe_text = "This agreement shall be governed by the laws of England and Wales."
     safe_result = score_contract(safe_text, include_findings=True, include_meta=True)
 
     assert safe_result["risk_score"] == 0
-    assert "foreign governing law" not in safe_result["flags"]
+    assert "foreign or unfamiliar governing law" not in safe_result["flags"]

@@ -399,6 +399,66 @@ export const supplierAgreementArticle: InsightArticle = {
   ],
 };
 
+export const governingLawJurisdictionArticle: InsightArticle = {
+  slug: "governing-law-jurisdiction-contract-risk",
+  category: "Dispute forum risk",
+  collection: "fundamentals",
+  title: "Governing Law and Jurisdiction: The Clause That Decides Where Disputes Happen",
+  summary:
+    "Governing law, jurisdiction, arbitration, and venue clauses can affect dispute cost, enforceability routes, escalation confidence, and negotiation priorities. VoxaRisk helps surface these signals during first-pass contract review.",
+  sections: [
+    {
+      heading: "What governing law means",
+      paragraphs: [
+        "A governing law clause says which legal system will be used to interpret the contract if a dispute arises. In commercial terms, that matters because the chosen law can shape how obligations, exclusions, remedies, and limitation wording are understood before any court or arbitration forum is even chosen.",
+        "For executives and commercial teams, a governing law clause is not just legal boilerplate. It is part of the practical risk model of the deal because it can influence predictability, contract escalation planning, and confidence in the review path.",
+      ],
+    },
+    {
+      heading: "What jurisdiction and forum clauses do",
+      paragraphs: [
+        "A jurisdiction clause or forum selection clause decides where disputes may be heard. Some contracts use exclusive jurisdiction, meaning the parties agree disputes must be heard in one court system. Others use non-exclusive jurisdiction, leaving more room for parallel or alternative proceedings. Contracts may also specify venue, forum, or an arbitration clause with a named seat of arbitration.",
+        "Each of those choices can affect the contract dispute forum in different ways. An exclusive jurisdiction clause can concentrate disputes in one place, while a non-exclusive jurisdiction clause may still matter because it signals where one party expects to litigate. A seat of arbitration can have similar commercial impact by shaping procedural route, cost, and convenience.",
+      ],
+    },
+    {
+      heading: "Why these clauses matter commercially",
+      paragraphs: [
+        "Governing law, jurisdiction, arbitration, and venue clauses affect more than theoretical legal rights. They can change dispute cost, unfamiliar legal process, operational burden, enforcement route, negotiation confidence, and escalation decisions long before a claim is filed.",
+        "A foreign or unfamiliar clause may mean more travel, more specialist advice, slower internal approval, or more uncertainty for the team carrying the contract. That is why dispute forum wording belongs in first-pass contract review and not only in last-stage legal review preparation.",
+      ],
+    },
+    {
+      heading: "Common risk signals",
+      paragraphs: [
+        "Common signals include a foreign or unfamiliar governing law clause, exclusive jurisdiction in a foreign court, an arbitration seat far from operations, unclear or conflicting dispute wording, an expensive or impractical venue, and a mismatch between the chosen governing law and the operating location of the business relationship.",
+        "Those signals do not automatically mean the contract is unacceptable. They do mean the clause may carry commercial contract risk that deserves closer attention before the agreement is treated as routine.",
+      ],
+    },
+    {
+      heading: "How first-pass review helps",
+      paragraphs: [
+        "First-pass contract review helps by detecting dispute forum and governing-law signals early, surfacing the clause evidence, and showing whether the issue looks routine, negotiable, or worth escalation. That gives commercial teams a more disciplined basis for contract escalation instead of discovering the problem when the deal is already near signature.",
+        "Early review also helps protect negotiation priorities. If the business knows the contract points to an unfamiliar forum, expensive venue, or burdensome arbitration route, it can decide whether to accept, negotiate, or escalate before heavier review routes consume more time and cost.",
+      ],
+    },
+    {
+      heading: "What VoxaRisk may flag",
+      paragraphs: [
+        "VoxaRisk can detect forum, governing law, exclusive and non-exclusive jurisdiction, arbitration, venue burden, and unfamiliar governing-law exposure.",
+        "That supports contract risk intelligence, clause risk detection, evidence-backed contract review, and negotiation priorities by helping users see where the dispute forum wording sits and why it may matter commercially.",
+      ],
+    },
+    {
+      heading: "What VoxaRisk does not decide",
+      paragraphs: [
+        "VoxaRisk does not determine legal enforceability. VoxaRisk does not provide legal advice. Users should seek appropriate professional advice where governing law, disputes, high-value exposure, or cross-border obligations are material.",
+        "The platform is designed to support first-pass contract review and executive decision support, not to replace lawyers or to declare that a dispute clause is safe, enforceable, or commercially acceptable in every context.",
+      ],
+    },
+  ],
+};
+
 export const prepareContractArticle: InsightArticle = {
   slug: "prepare-contract-internal-review",
   category: "Review preparation",
@@ -454,11 +514,11 @@ export const insightArticles: InsightArticle[] = [
   contractRiskScoringArticle,
   evidenceGovernedAiArticle,
   supplierAgreementArticle,
+  governingLawJurisdictionArticle,
   prepareContractArticle,
 ];
 
 export const futureInsightTopics = [
-  "Jurisdiction and governing law",
   "Auto-renewal and renewal control",
   "Service credit wording",
   "Approval discipline in fast-moving deals",

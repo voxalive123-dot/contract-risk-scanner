@@ -36,3 +36,31 @@ def test_analyze_detailed_endpoint_contract():
         or (str(f.get("title", "")).lower() == "termination without notice")
         for f in data["findings"]
     )
+
+
+def test_analyze_detailed_endpoint_includes_jurisdiction_family_findings():
+    payload = {
+        "text": "This agreement is governed by the laws of California and the parties submit to the exclusive jurisdiction of the courts of California."
+    }
+    r = client.post("/analyze_detailed", json=payload)
+
+    assert r.status_code == 200
+    data = r.json()
+
+    assert set(data.keys()) == {"risk_score", "severity", "flags", "findings", "meta"}
+    assert data["meta"]["ruleset_version"] == "1.4.0"
+    assert data["severity"] == "MEDIUM"
+    assert data["risk_score"] >= 6
+    assert data["meta"]["normalized_score"] >= 28
+    assert any(f.get("category") == "jurisdiction" for f in data["findings"])
+    assert any(
+        f.get("rule_id")
+        in {
+            "governing_law_foreign_or_unfamiliar",
+            "jurisdiction_exclusive_foreign_forum",
+            "jurisdiction_non_exclusive_forum",
+            "arbitration_forum_or_seat",
+            "venue_burden_foreign_court",
+        }
+        for f in data["findings"]
+    )
