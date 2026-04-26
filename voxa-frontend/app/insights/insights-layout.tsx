@@ -72,7 +72,7 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
           <div className="mt-10 rounded-[1.35rem] border border-[#d8c49e] bg-[#fbf3e5] p-6">
             <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Structured first-pass review</div>
             <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-700">
-              Use VoxaRisk to structure your first-pass review before escalation.
+              Use VoxaRisk to run a disciplined first-pass review before heavier escalation.
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
@@ -89,7 +89,7 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
               </Link>
             </div>
             <p className="mt-5 text-sm leading-7 text-neutral-700">
-              VoxaRisk supports review discipline. It does not replace professional legal advice.
+              VoxaRisk supports contract risk intelligence and review discipline. It does not provide legal advice, legal opinions, solicitor services, or contract approval.
             </p>
           </div>
         </article>

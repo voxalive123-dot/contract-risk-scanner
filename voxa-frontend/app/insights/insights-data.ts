@@ -1,6 +1,7 @@
 export type InsightArticle = {
   slug: string;
   category: string;
+  collection: "featured" | "fundamentals" | "ai" | "preparation";
   title: string;
   summary: string;
   sections: Array<{
@@ -12,6 +13,7 @@ export type InsightArticle = {
 export const firstInsightArticle: InsightArticle = {
   slug: "contract-risk-intelligence-not-legal-advice",
   category: "Product boundary",
+  collection: "featured",
   title: "Contract Risk Intelligence Is Not Legal Advice",
   summary:
     "VoxaRisk identifies risk-bearing contract patterns and helps users prioritise review, but it does not provide legal advice, legal opinions, or solicitor services.",
@@ -64,6 +66,7 @@ export const firstInsightArticle: InsightArticle = {
 export const secondInsightArticle: InsightArticle = {
   slug: "first-pass-contract-risk-intelligence",
   category: "Market positioning",
+  collection: "featured",
   title: "First-Pass Contract Risk Intelligence: The Gap Between LCM and AI Review",
   summary:
     "Legal Contract Management (LCM) platforms help manage contract processes. AI contract review firms can support deeper review. VoxaRisk fills the early-stage gap: fast, rules-based contract risk intelligence that helps users identify exposure, evidence, and negotiation priorities before heavier review routes.",
@@ -120,12 +123,343 @@ export const secondInsightArticle: InsightArticle = {
   ],
 };
 
-export const insightArticles: InsightArticle[] = [firstInsightArticle, secondInsightArticle];
+export const liabilityCapsArticle: InsightArticle = {
+  slug: "liability-caps-contract-exposure",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Liability Caps: The Contract Clause That Defines Your Exposure",
+  summary:
+    "A liability cap can define whether a contract creates contained downside or uncapped commercial exposure. First-pass review should identify the cap, its carve-outs, and any path to unlimited liability early.",
+  sections: [
+    {
+      heading: "What a liability cap means",
+      paragraphs: [
+        "A liability cap, sometimes drafted under a limitation of liability clause, is the part of the contract that sets the maximum amount one party may owe if things go wrong. In practical terms, it is the clause that often determines whether exposure is commercially tolerable or potentially open-ended.",
+        "For executives, that matters because a liability cap can reshape the economics of the whole deal. A contract may look routine until the cap reveals that a relatively small fee arrangement carries a much larger exposure profile.",
+      ],
+    },
+    {
+      heading: "Why the cap matters commercially",
+      paragraphs: [
+        "Commercial contract risk often turns on whether downside is capped, uncapped, or carved out into separate unlimited buckets. A contract with a sensible cap tied to fees, value, or another rational commercial anchor usually signals more disciplined risk allocation than a contract that leaves liability broad and undefined.",
+        "The cap also affects insurance assumptions, reserve thinking, negotiation leverage, and executive decision support. If the cap is weak, missing, or overridden by multiple carve-outs, a business may inherit contract exposure that is out of proportion to the revenue or strategic value of the deal.",
+      ],
+    },
+    {
+      heading: "Where risk often hides",
+      paragraphs: [
+        "Risk-bearing clauses do not always announce themselves with the phrase unlimited liability. Risk can hide in carve-outs for confidentiality, data protection, IP infringement, fraud, wilful misconduct, or indemnities that sit outside the main limitation of liability clause. It can also hide in drafting that uses different caps for different claim categories.",
+        "Another common issue is inconsistency between the cap and surrounding wording. A contract may state one liability cap in a headline clause but then include broad reimbursement duties, defence-cost language, or cross-references that widen exposure elsewhere.",
+      ],
+    },
+    {
+      heading: "What VoxaRisk may flag",
+      paragraphs: [
+        "A first-pass contract review engine can help by surfacing clause risk detection around limitation of liability wording, carve-outs, uncapped categories, and other contract red flags that deserve closer inspection. That supports evidence-backed contract review rather than relying on a vague impression that the clause looked normal.",
+        "VoxaRisk is built to support contract risk intelligence and contract risk scoring by showing where those signals appear, how severe they may be, and which findings should move higher in the negotiation priorities stack. That helps teams prepare for legal review preparation instead of discovering exposure too late.",
+      ],
+    },
+    {
+      heading: "When to escalate",
+      paragraphs: [
+        "Escalation usually becomes more important where the liability cap appears absent, commercially unrealistic, inconsistent with the value of the deal, or undermined by broad carve-outs that could swallow the main protection.",
+        "Where unlimited liability risk, strategic dependency, data exposure, or dispute-sensitive obligations are involved, users should seek appropriate professional advice. A first-pass contract review can narrow attention, but it should not be treated as contract approval.",
+      ],
+    },
+  ],
+};
+
+export const consequentialLossArticle: InsightArticle = {
+  slug: "consequential-loss-contract-risk",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Consequential Loss Clauses: Small Wording, Large Commercial Risk",
+  summary:
+    "Consequential loss wording can look routine but materially affect recovery, negotiation leverage, and downside allocation. First-pass review should identify what is excluded, what is preserved, and where the drafting becomes unclear.",
+  sections: [
+    {
+      heading: "What consequential loss means",
+      paragraphs: [
+        "Consequential loss and indirect loss clauses are designed to limit categories of damages that one party can recover from the other. In practice, they can affect claims for lost profits, business interruption, wasted expenditure, reputational spillover, and other secondary consequences that may matter far more than the direct cost of a specific failure.",
+        "The difficulty is that the meaning of consequential loss is not always intuitive to commercial users. The phrase may look familiar, but its practical impact depends on drafting detail, governing law, and how the rest of the limitation framework interacts with the clause.",
+      ],
+    },
+    {
+      heading: "Why the wording matters",
+      paragraphs: [
+        "A few words can change the commercial balance significantly. Some contracts exclude consequential loss cleanly but preserve recovery for direct losses, service credits, or fee refunds. Others blur the line by sweeping in lost profits, indirect loss, loss of business, anticipated savings, or revenue categories without clearly separating what remains recoverable.",
+        "For commercial contract risk, the key question is not whether the clause exists, but what it actually excludes and whether the exclusion leaves one side holding more operational or financial risk than expected.",
+      ],
+    },
+    {
+      heading: "Common commercial risk signals",
+      paragraphs: [
+        "Contract red flags often appear where consequential loss drafting is unusually broad, inconsistent with the fee structure, or paired with a weak liability cap. Another signal is where critical outcomes such as business interruption, customer claims, project delay, or dependency losses are excluded even though the service relationship is commercially material.",
+        "Unclear exclusion clause drafting also creates risk. Where the clause uses overlapping concepts such as consequential loss, indirect loss, special loss, or lost profits without structure, the contract may become harder to interpret when the dispute stakes are highest.",
+      ],
+    },
+    {
+      heading: "How first-pass review helps",
+      paragraphs: [
+        "First-pass contract review automation can help by identifying consequential loss language early, surfacing the clause evidence, and supporting negotiation priorities before internal momentum moves the agreement forward unchanged. That is particularly useful where non-lawyer reviewers need a disciplined starting point for escalation.",
+        "VoxaRisk supports evidence-backed contract review by helping users see where exclusion language sits, what the clause appears to do, and how it contributes to overall contract risk scoring. That does not replace legal interpretation, but it does improve review discipline and executive decision support.",
+      ],
+    },
+    {
+      heading: "When to escalate",
+      paragraphs: [
+        "Escalation becomes more important where consequential loss exclusions affect revenue-critical dependencies, service continuity, material supplier performance, or high-value customer commitments. The same is true where the drafting is ambiguous enough to invite dispute over what remains recoverable.",
+        "Where the consequence of failure could materially exceed direct fees or where the risk profile influences pricing, legal review preparation should happen early rather than after signature pressure builds.",
+      ],
+    },
+  ],
+};
+
+export const indemnityClausesArticle: InsightArticle = {
+  slug: "indemnity-clauses-commercial-risk",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Indemnity Clauses: What Commercial Teams Should Not Miss",
+  summary:
+    "Indemnity clauses can shift liability quickly, especially where they cover third-party claims, defence costs, data issues, or uncapped exposure. Early review should identify broad indemnity wording before it becomes embedded in the deal.",
+  sections: [
+    {
+      heading: "What an indemnity clause does",
+      paragraphs: [
+        "An indemnity clause usually requires one party to cover specified losses, claims, or costs suffered by the other. In many contracts, it is the mechanism used to allocate risk for third-party claims, IP infringement, confidentiality breaches, data incidents, or other sensitive commercial events.",
+        "That makes indemnities important because they can operate differently from ordinary damages claims. Depending on the drafting, they may shift cost more directly, attach to broader categories of loss, or sit outside the normal limitation of liability framework.",
+      ],
+    },
+    {
+      heading: "Why indemnities can shift risk quickly",
+      paragraphs: [
+        "Commercial teams often focus first on fees, service levels, and termination rights, but a broad indemnity can alter the risk position much faster than those topics. A clause that picks up defence costs, third-party claims, regulatory response, or broad reimbursement language can multiply exposure even when the core commercial value of the deal is modest.",
+        "The risk becomes more serious where the indemnity is uncapped or where it is paired with weak causation wording, broad negligence references, or claim categories that are not tightly defined.",
+      ],
+    },
+    {
+      heading: "Signals commercial teams should notice",
+      paragraphs: [
+        "Commercial contract risk signals include uncapped indemnities, one-sided indemnities, obligations tied to broad phrases such as arising out of or in connection with, and indemnity language that extends beyond direct loss into defence costs, settlements, fines, or third-party liabilities without careful boundaries.",
+        "Data/security claims, privacy incidents, negligence allegations, and IP claims are common areas where an indemnity clause may look standard but create a much wider exposure profile than the reviewer expects on first read.",
+      ],
+    },
+    {
+      heading: "What VoxaRisk may highlight",
+      paragraphs: [
+        "A rules-based first-pass contract review can help identify indemnity clause wording that appears unusually broad, risk-bearing, or inconsistent with the rest of the agreement. That gives teams clause risk detection and evidence-backed contract review before the clause disappears into a longer negotiation stack.",
+        "VoxaRisk is designed to support contract risk intelligence, contract risk scoring, and negotiation priorities by surfacing clause evidence and severity indicators rather than relying on general impressions. That helps commercial teams prepare a more disciplined legal review preparation path.",
+      ],
+    },
+    {
+      heading: "When to escalate",
+      paragraphs: [
+        "Escalation becomes more important where broad indemnity language is uncapped, tied to high-value third-party exposure, or drafted broadly enough to create uncertainty around defence costs, data/security claims, regulatory issues, or negligence-linked liabilities.",
+        "Where the indemnity materially reshapes downside or appears to sit outside a reasonable limitation of liability framework, professional review should be considered before the contract moves forward.",
+      ],
+    },
+  ],
+};
+
+export const contractRiskScoringArticle: InsightArticle = {
+  slug: "contract-risk-scoring-explained",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Contract Risk Scoring: What a Score Can Tell You — and What It Cannot",
+  summary:
+    "A score can help triage contract exposure, but it is not a legal opinion or contract approval. The value lies in disciplined prioritisation, evidence-backed findings, and responsible use of the signal.",
+  sections: [
+    {
+      heading: "What contract risk scoring is",
+      paragraphs: [
+        "Contract risk scoring is a structured way of turning detected signals into a practical view of relative exposure. Instead of leaving reviewers with a loose list of issues, a score helps organise risk-bearing clauses into a single decision-support frame that can guide first-pass contract review.",
+        "That is useful because many agreements contain mixed signals: some clauses are routine, some create commercial friction, and others may carry more material downside. A score gives users a prioritised starting point rather than a blank page.",
+      ],
+    },
+    {
+      heading: "What a score helps users do",
+      paragraphs: [
+        "A disciplined score helps users decide where to look first, which findings may deserve escalation, and which issues can be handled in negotiation rather than treated as immediate blockers. In that sense, contract risk scoring supports executive decision support and contract review automation rather than replacing judgment.",
+        "It also helps internal review conversations travel faster. Commercial teams, operators, and leadership stakeholders can align around the same first-pass signal instead of reading the whole contract independently and inconsistently.",
+      ],
+    },
+    {
+      heading: "What a score does not prove",
+      paragraphs: [
+        "A score does not prove that a contract is safe, enforceable, balanced, or commercially acceptable. It does not replace legal advice, and it does not capture every contextual factor that may affect real-world exposure, including negotiation history, side arrangements, regulatory context, dependency risk, or business leverage.",
+        "That is why a low score should not be treated as contract approval, and a higher score should be treated as a review signal rather than a final verdict. The meaning of the result still depends on the clause evidence and the surrounding commercial facts.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk keeps scoring disciplined",
+      paragraphs: [
+        "VoxaRisk uses rules-based contract analysis, evidence-backed contract review, and deterministic logic to support contract risk intelligence. The goal is not to generate an impressive number, but to produce a disciplined signal grounded in clause risk detection, severity indicators, and matched evidence.",
+        "That structure matters because it keeps the score attached to the contract text rather than drifting into unsupported summary language. Users can inspect the findings, understand which clauses affect the result, and decide whether the signal justifies further contract escalation.",
+      ],
+    },
+    {
+      heading: "Using scores responsibly",
+      paragraphs: [
+        "The best way to use contract risk scoring is as a first-pass guide. Read the score, inspect the findings, understand the clause evidence, and then ask what the contract means commercially: is it routine, negotiable, sensitive, or a candidate for professional review?",
+        "Used that way, a score improves review discipline and saves time. Used as a substitute for judgment, it can create false confidence. VoxaRisk is designed to support the first approach, not the second.",
+      ],
+    },
+  ],
+};
+
+export const evidenceGovernedAiArticle: InsightArticle = {
+  slug: "evidence-governed-ai-contract-review",
+  category: "AI and review discipline",
+  collection: "ai",
+  title: "AI Contract Review Should Explain Evidence, Not Replace It",
+  summary:
+    "Generative AI can make contract review sound easy, but overconfident summaries create risk when evidence is hidden. VoxaRisk keeps rules-based intelligence in control and uses AI only as a governed explanation layer.",
+  sections: [
+    {
+      heading: "The problem with AI-first confidence",
+      paragraphs: [
+        "AI contract review can sound persuasive even when the reasoning underneath is thin. That creates a familiar risk in commercial review: a confident answer arrives before the user has seen the clause evidence, the limitation wording, or the exact drafting that should drive the decision.",
+        "For executives, that is a governance problem as much as a technology problem. Overconfident summaries can compress nuance, hide uncertainty, and make weak review outputs feel stronger than they are.",
+      ],
+    },
+    {
+      heading: "Why evidence must stay visible",
+      paragraphs: [
+        "Evidence-backed contract review matters because contract exposure is usually decided by the wording itself. If a system cannot clearly show which clause created the signal, what the text said, and why the issue matters, the user is being asked to trust style over substance.",
+        "That is especially risky when commercial contract risk turns on a few words: a carve-out, a limitation phrase, a reimbursement obligation, or a one-sided discretion clause. The evidence has to stay visible if review discipline is going to mean anything.",
+      ],
+    },
+    {
+      heading: "Rules-based intelligence before AI explanation",
+      paragraphs: [
+        "VoxaRisk uses rules-based contract analysis, clause risk detection, and deterministic logic to produce core findings, severity indicators, and contract risk scoring. That gives the platform a stable evidence-governed base before any AI-assisted contract review layer appears.",
+        "In VoxaRisk, AI explains the result; it does not control the result. That is an intentional trust boundary: AI helps users read the output, but it does not override the score, severity, or evidence already produced by the engine.",
+      ],
+    },
+    {
+      heading: "Where AI can help responsibly",
+      paragraphs: [
+        "AI can still be useful when it is constrained properly. It can improve readability, summarise negotiation priorities, restate findings in clearer commercial language, and help non-specialists understand why a clause may deserve escalation.",
+        "Used this way, AI contract review becomes explanation support rather than a substitute for evidence. That is a more credible model for contract review automation than relying on free-form generative commentary alone.",
+      ],
+    },
+    {
+      heading: "Why this matters for executives",
+      paragraphs: [
+        "Executives need signals they can trust, especially when time is tight and the business wants a fast answer. Evidence-governed AI supports executive decision support because it keeps the text, the findings, and the explanation aligned.",
+        "That reduces the risk of making commercial decisions based on an attractive summary that cannot be defended when the clause is examined more closely. It also improves legal review preparation when escalation becomes necessary.",
+      ],
+    },
+  ],
+};
+
+export const supplierAgreementArticle: InsightArticle = {
+  slug: "supplier-agreement-red-flags",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Supplier Agreement Red Flags: What to Check Before You Sign",
+  summary:
+    "Supplier agreements can hide commercial exposure in limitation wording, price movement, suspension rights, data terms, and termination provisions. A first-pass review helps teams identify contract red flags before signature pressure narrows their options.",
+  sections: [
+    {
+      heading: "Why supplier agreements deserve early review",
+      paragraphs: [
+        "A supplier agreement often looks operational, but it can carry material commercial contract risk. Critical services, data access, payment dependency, service interruption, pricing movement, and termination leverage can all be embedded in standard drafting that teams accept too quickly.",
+        "That is why first-pass contract review matters before signature pressure builds. Early clause risk detection protects negotiation leverage and helps the business decide whether the agreement is routine or deserves deeper contract escalation.",
+      ],
+    },
+    {
+      heading: "Common red flags",
+      paragraphs: [
+        "Common supplier agreement red flags include weak liability caps, unilateral price increases, suspension rights that trigger too easily, one-sided termination rights, auto-renewal without enough control, broad indemnities, expansive data-use permissions, difficult payment terms, thin service levels, and governing law that increases dispute friction.",
+        "Individually, some of these clauses may be manageable. Together, they can create a contract profile that is much more one-sided than the commercial team intended to accept.",
+      ],
+    },
+    {
+      heading: "Commercial consequences",
+      paragraphs: [
+        "The consequence of weak supplier drafting is often practical rather than abstract. A business can lose pricing certainty, accept poor service recourse, carry more operational downtime risk, or find that recovery rights are too limited when the supplier relationship breaks down.",
+        "Supplier agreement exposure can also spread. A poorly reviewed clause may affect customer commitments, internal delivery obligations, or downstream compliance and data responsibilities in ways that surface only after the contract is already signed.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk supports first-pass triage",
+      paragraphs: [
+        "VoxaRisk supports contract risk intelligence by helping users run a fast first-pass review, identify evidence-backed findings, and surface negotiation priorities before deeper review starts. That is particularly useful when the immediate need is to understand whether a supplier agreement contains contract red flags rather than to produce a full legal memorandum.",
+        "Rules-based contract analysis and contract risk scoring can help teams identify risk-bearing clauses early, prepare internal review notes, and decide which issues belong in negotiation, escalation, or professional advice.",
+      ],
+    },
+    {
+      heading: "When to escalate",
+      paragraphs: [
+        "Escalation becomes more important where the supplier is operationally critical, where the agreement touches material data, where liability is weak or uncapped in the wrong direction, or where suspension, termination, and pricing rights create one-sided leverage.",
+        "Where the contract influences high-value service delivery or dispute exposure, legal review preparation should happen before the supplier agreement is finalised.",
+      ],
+    },
+  ],
+};
+
+export const prepareContractArticle: InsightArticle = {
+  slug: "prepare-contract-internal-review",
+  category: "Review preparation",
+  collection: "preparation",
+  title: "Preparing a Contract for Internal Review: A Practical First-Pass Checklist",
+  summary:
+    "Review quality improves when the contract package is complete, readable, and framed with the right commercial context. A disciplined first-pass review starts with preparation, not just with opening the document.",
+  sections: [
+    {
+      heading: "Why preparation changes review quality",
+      paragraphs: [
+        "Contract review quality is heavily shaped by what the reviewer receives. Incomplete documents, poor extraction, missing schedules, missing amendments, or unclear commercial context can weaken both manual review and contract review automation before any substantive judgment begins.",
+        "Good preparation improves evidence-backed contract review, contract risk scoring, and escalation discipline because the reviewer is working from a cleaner, fuller picture of the agreement and its commercial context.",
+      ],
+    },
+    {
+      heading: "What to gather before review",
+      paragraphs: [
+        "Before internal review starts, gather the clean contract text, all schedules, appendices, order forms, key amendments, and any side documents that materially change obligations. Where possible, include the commercially agreed scope, pricing structure, service expectations, and any known negotiation sensitivities.",
+        "This helps reduce false confidence from reviewing only part of the deal. It also makes legal review preparation more efficient if escalation becomes necessary later.",
+      ],
+    },
+    {
+      heading: "What to check first",
+      paragraphs: [
+        "A practical first-pass contract review should usually begin with the risk-bearing clauses most likely to reshape commercial exposure: liability caps, indemnity clauses, consequential loss wording, termination rights, payment mechanics, pricing changes, suspension rights, data use, service levels, and governing law.",
+        "That does not mean every contract needs the same depth. The objective is to identify contract red flags quickly, then decide whether the agreement looks routine, negotiable, sensitive, or ready for escalation.",
+      ],
+    },
+    {
+      heading: "How a first-pass scan helps",
+      paragraphs: [
+        "A first-pass scan helps by turning a long document into a structured set of findings, severity cues, negotiation priorities, and evidence-backed contract review signals. That improves executive decision support because the review starts from identified exposure rather than from a blank page.",
+        "VoxaRisk supports this step through rules-based contract analysis, clause risk detection, and contract risk intelligence that can travel into internal discussions before deeper legal review begins.",
+      ],
+    },
+    {
+      heading: "What to send for escalation",
+      paragraphs: [
+        "When escalation is needed, send more than the document alone. Provide the contract, the schedules, the key commercial context, the first-pass findings, the highest-risk clauses, and the specific questions the internal or external reviewer needs to answer.",
+        "That makes contract escalation more efficient and protects time. Instead of asking a lawyer or senior reviewer to start from zero, the business sends a clearer package with risk priorities already identified.",
+      ],
+    },
+  ],
+};
+
+export const insightArticles: InsightArticle[] = [
+  firstInsightArticle,
+  secondInsightArticle,
+  liabilityCapsArticle,
+  consequentialLossArticle,
+  indemnityClausesArticle,
+  contractRiskScoringArticle,
+  evidenceGovernedAiArticle,
+  supplierAgreementArticle,
+  prepareContractArticle,
+];
 
 export const futureInsightTopics = [
-  "Liability caps and unlimited exposure",
-  "Consequential loss clauses",
-  "Indemnity clauses",
-  "Termination rights",
-  "Executive approval discipline",
+  "Jurisdiction and governing law",
+  "Auto-renewal and renewal control",
+  "Service credit wording",
+  "Approval discipline in fast-moving deals",
 ];
