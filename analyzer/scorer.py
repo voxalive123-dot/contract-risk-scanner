@@ -161,6 +161,114 @@ def _has_negative_override(
     return None
 
 
+def _clean_extracted_location(value: str) -> str:
+    cleaned = _normalize_ws(value)
+    cleaned = re.sub(
+        r"\s+(?:under|in accordance with|pursuant to|for any dispute|for all disputes)\b.*$",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    cleaned = cleaned.strip(" ,.;:")
+    cleaned = re.sub(r"^(?:the\s+)?", "", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _extract_jurisdiction_location(rule_id: str, matched_text: str) -> Optional[str]:
+    patterns: List[Tuple[str, Optional[str]]] = []
+
+    if rule_id == "governing_law_foreign_or_unfamiliar":
+        patterns = [
+            (r"governed\s+by\s+the\s+laws\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+            (r"governing\s+law\s+shall\s+be\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+        ]
+    elif rule_id == "jurisdiction_exclusive_foreign_forum":
+        patterns = [
+            (
+                r"exclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})",
+                "courts",
+            ),
+            (
+                r"submit\s+to\s+the\s+exclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})",
+                "courts",
+            ),
+            (
+                r"exclusive\s+forum\s+for\s+any\s+dispute\b.{0,80}\b(?:shall\s+be|is)\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})",
+                None,
+            ),
+        ]
+    elif rule_id == "jurisdiction_non_exclusive_forum":
+        patterns = [
+            (
+                r"courts?\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})\s+shall\s+have\s+non-?exclusive\s+jurisdiction",
+                "courts",
+            ),
+            (
+                r"submit\s+to\s+the\s+non-?exclusive\s+jurisdiction\s+of\s+the\s+courts?\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})",
+                "courts",
+            ),
+        ]
+    elif rule_id == "arbitration_forum_or_seat":
+        patterns = [
+            (r"seat\s+of\s+arbitration(?:\s+shall\s+be|\s+is)?\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+            (r"arbitration\b.{0,100}\bseat(?:ed)?\s+in\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+            (r"arbitration\b.{0,100}\bvenue\s+(?:shall\s+be|is)?\s*(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+        ]
+    elif rule_id == "venue_burden_foreign_court":
+        patterns = [
+            (r"venue\s+for\s+any\s+dispute\b.{0,80}\b(?:shall\s+be|is)\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})", None),
+            (
+                r"(?:shall\s+be\s+brought|must\s+be\s+brought)\b.{0,120}\bin\s+the\s+courts?\s+of\s+(?P<loc>[A-Za-z][A-Za-z\s,&-]{1,80})",
+                "courts",
+            ),
+        ]
+
+    for pattern, suffix in patterns:
+        match = re.search(pattern, matched_text, flags=re.IGNORECASE | re.DOTALL)
+        if not match:
+            continue
+        location = _clean_extracted_location(match.group("loc"))
+        if not location:
+            continue
+        if suffix == "courts" and "court" not in location.lower():
+            return f"{location} courts"
+        return location
+
+    return None
+
+
+def _dominant_document_geography(text: str) -> Optional[str]:
+    lowered = text.lower()
+    uk_signals = [
+        r"\bengland and wales\b",
+        r"\bengland\b",
+        r"\bwales\b",
+        r"\bunited kingdom\b",
+        r"\buk\b",
+        r"\blondon\b",
+    ]
+    uk_hits = sum(len(re.findall(pattern, lowered)) for pattern in uk_signals)
+    if uk_hits >= 2 or re.search(r"\bengland and wales\b", lowered):
+        return "uk"
+    return None
+
+
+def _mismatch_context_note(text: str, extracted_location: Optional[str]) -> Optional[str]:
+    if not extracted_location:
+        return None
+
+    dominant_geo = _dominant_document_geography(text)
+    if dominant_geo != "uk":
+        return None
+
+    location_lower = extracted_location.lower()
+    uk_location_markers = ("england", "wales", "london", "uk", "united kingdom", "britain", "british")
+    if any(marker in location_lower for marker in uk_location_markers):
+        return None
+
+    return "Selected forum appears different from the document's dominant geography."
+
+
 def _spans_overlap(
     a_start: int,
     a_end: int,
@@ -421,6 +529,17 @@ def score_contract(
 
         pattern_str, match_obj = first_match
         start, end = match_obj.span()
+        matched_text = _normalize_ws(scan_text[start:end])
+        extraction_text = _excerpt(scan_text, start, end, window=140)
+        matched_location = _extract_jurisdiction_location(rule["rule_id"], extraction_text)
+        context_note = (
+            _mismatch_context_note(scan_text, matched_location)
+            if rule["category"] == "jurisdiction"
+            else None
+        )
+        rationale = rule["rationale"]
+        if context_note:
+            rationale = f"{rationale} {context_note}"
 
         raw_findings.append(
             {
@@ -430,11 +549,13 @@ def score_contract(
                 "severity": rule["severity"],
                 "weight": rule["weight"],
                 "priority": rule["priority"],
-                "rationale": rule["rationale"],
+                "rationale": rationale,
                 "matched_pattern": pattern_str,
                 "match_span": [start, end],
-                "matched_text": _normalize_ws(scan_text[start:end]),
-                "excerpt": _excerpt(scan_text, start, end),
+                "matched_text": matched_text,
+                "matched_location": matched_location,
+                "context_note": context_note,
+                "excerpt": extraction_text,
                 "tags": rule["tags"],
             }
         )
@@ -510,6 +631,8 @@ def score_contract(
                 "category": f.get("category"),
                 "severity": f.get("severity"),
                 "weight": f.get("weight"),
+                "matched_location": f.get("matched_location"),
+                "context_note": f.get("context_note"),
             }
             for f in prioritized_findings[:3]
         ]

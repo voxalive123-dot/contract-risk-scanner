@@ -19,6 +19,8 @@ type Finding = {
   severity?: number;
   rationale?: string;
   matched_text?: string;
+  matched_location?: string | null;
+  context_note?: string | null;
 };
 
 type TopRisk = {
@@ -27,6 +29,8 @@ type TopRisk = {
   category?: string;
   severity?: number;
   weight?: number;
+  matched_location?: string | null;
+  context_note?: string | null;
 };
 
 type AnalyzeResult = {
@@ -435,7 +439,9 @@ function formatReportTimestamp(timestamp?: string | null) {
   }).format(new Date(timestamp));
 }
 
-function reviewReliability(confidence?: number | null) {
+type ReliabilityLabel = "Strong" | "Moderate" | "Limited";
+
+function reviewReliability(confidence?: number | null): { label: ReliabilityLabel; helper: string } {
   if (typeof confidence !== "number" || Number.isNaN(confidence) || confidence <= 0) {
     return {
       label: "Limited",
@@ -461,6 +467,79 @@ function reviewReliability(confidence?: number | null) {
     label: "Limited",
     helper: "Some text may not have been captured clearly. Check clause evidence before relying on the result.",
   };
+}
+
+function decisionPrimaryRiskTypeLabel(category?: string | null) {
+  switch (category) {
+    case "jurisdiction":
+      return "Dispute forum / jurisdiction";
+    case "liability":
+      return "Liability exposure";
+    case "data":
+      return "Data governance";
+    case "indemnity":
+      return "Risk transfer / indemnity";
+    case "termination":
+      return "Exit rights / termination";
+    case "payment":
+    case "service":
+      return "Operational continuity / cash flow";
+    default:
+      return category ? category.replace(/_/g, " ") : "Contract risk signal";
+  }
+}
+
+function decisionImpactAreaLabel(category?: string | null) {
+  switch (category) {
+    case "jurisdiction":
+      return "Enforcement / Cost / Venue";
+    case "liability":
+      return "Financial exposure / Cap limits";
+    case "data":
+      return "Data governance / Usage rights";
+    case "indemnity":
+      return "Risk transfer / Defence exposure";
+    case "termination":
+      return "Exit rights / Continuity";
+    case "payment":
+    case "service":
+      return "Operational continuity / Cash flow";
+    default:
+      return "Commercial contract exposure";
+  }
+}
+
+function decisionConfidenceDriverLabel(
+  leadRuleId: string,
+  reliabilityLabel: ReliabilityLabel,
+  matchedLocation?: string | null,
+) {
+  const locationSuffix = matchedLocation ? `: ${matchedLocation}` : "";
+
+  switch (leadRuleId) {
+    case "governing_law_foreign_or_unfamiliar":
+      return `Explicit governing law clause detected${locationSuffix}`;
+    case "jurisdiction_exclusive_foreign_forum":
+      return `Exclusive jurisdiction clause explicitly defined${locationSuffix}`;
+    case "jurisdiction_non_exclusive_forum":
+      return `Non-exclusive jurisdiction language detected${locationSuffix}`;
+    case "arbitration_forum_or_seat":
+      return matchedLocation
+        ? `Arbitration seat specified: ${matchedLocation}`
+        : "Arbitration forum or seat language detected";
+    case "venue_burden_foreign_court":
+      return matchedLocation
+        ? `Dispute venue language explicitly detected: ${matchedLocation}`
+        : "Dispute venue language explicitly detected";
+    default:
+      if (reliabilityLabel === "Strong") {
+        return "Direct clause match with explicit contractual language";
+      }
+      if (reliabilityLabel === "Moderate") {
+        return "Pattern-based detection with moderate certainty";
+      }
+      return "Review against clause evidence before relying on the signal";
+  }
 }
 
 function lowSignalSummary() {
@@ -773,6 +852,11 @@ export default function DashboardPage() {
     () => topRisks[0]?.category ?? findings[0]?.category ?? "",
     [topRisks, findings],
   );
+  const leadFinding = useMemo(() => findings[0] ?? null, [findings]);
+  const leadRuleId = useMemo(
+    () => topRisks[0]?.rule_id ?? findings[0]?.rule_id ?? "",
+    [topRisks, findings],
+  );
   const posture = useMemo(() => {
     if (!result) return null;
     return decisionPosture(
@@ -798,22 +882,13 @@ export default function DashboardPage() {
         ? result.confidence_hint
         : null;
   const reliabilityAssessment = reviewReliability(effectiveConfidence);
-  const decisionPrimaryRiskType =
-    primaryCategory === "jurisdiction"
-      ? "Dispute forum / jurisdiction"
-      : primaryCategory
-        ? primaryCategory.replace(/_/g, " ")
-        : "Contract risk signal";
-  const decisionImpactArea =
-    primaryCategory === "jurisdiction"
-      ? "Enforcement · Cost · Venue"
-      : "Clause · Exposure · Review";
-  const decisionConfidenceDriver =
-    reliabilityAssessment.label === "Strong"
-      ? "Direct clause match with explicit contractual language"
-      : reliabilityAssessment.label === "Moderate"
-        ? "Clause match supported by usable extraction quality"
-        : "Review against clause evidence before relying on the signal";
+  const decisionPrimaryRiskType = decisionPrimaryRiskTypeLabel(primaryCategory);
+  const decisionImpactArea = decisionImpactAreaLabel(primaryCategory);
+  const decisionConfidenceDriver = decisionConfidenceDriverLabel(
+    leadRuleId,
+    reliabilityAssessment.label,
+    leadFinding?.matched_location,
+  );
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;

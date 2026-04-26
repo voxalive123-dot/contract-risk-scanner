@@ -639,6 +639,8 @@ def _build_detailed_payload(text: str) -> dict[str, Any]:
                 "category": f.get("category"),
                 "severity": f.get("severity"),
                 "matched_text": f.get("matched_text"),
+                "matched_location": f.get("matched_location"),
+                "context_note": f.get("context_note"),
                 "rationale": f.get("rationale"),
             }
         )

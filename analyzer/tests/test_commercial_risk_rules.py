@@ -263,16 +263,18 @@ def test_governing_law_jurisdiction_rules():
     risky_result = score_contract(risky_text, include_findings=True, include_meta=True)
 
     assert risky_result["risk_score"] > 0
-    assert "foreign or unfamiliar governing law" in risky_result["flags"]
+    assert "selected governing law" in risky_result["flags"]
+    assert all("foreign" not in flag for flag in risky_result["flags"])
 
     jurisdiction_text = "The parties submit to the exclusive jurisdiction of the courts of Delaware."
     jurisdiction_result = score_contract(jurisdiction_text, include_findings=True, include_meta=True)
 
     assert jurisdiction_result["risk_score"] > 0
-    assert "exclusive foreign jurisdiction" in jurisdiction_result["flags"]
+    assert "selected exclusive jurisdiction" in jurisdiction_result["flags"]
+    assert all("foreign" not in flag for flag in jurisdiction_result["flags"])
 
-    safe_text = "This agreement shall be governed by the laws of England and Wales."
+    safe_text = "Each party shall comply with all applicable laws."
     safe_result = score_contract(safe_text, include_findings=True, include_meta=True)
 
     assert safe_result["risk_score"] == 0
-    assert "foreign or unfamiliar governing law" not in safe_result["flags"]
+    assert "selected governing law" not in safe_result["flags"]

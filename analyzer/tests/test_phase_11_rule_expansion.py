@@ -228,3 +228,4 @@ def test_mixed_governing_law_and_forum_paragraph_is_not_noisily_duplicated():
     assert result["risk_score"] > 0
     assert len(jurisdiction_findings) == 1
     assert len(result["meta"].get("overlap_suppressions", [])) >= 1
+    assert all("foreign" not in flag for flag in result["flags"])

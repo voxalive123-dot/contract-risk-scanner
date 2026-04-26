@@ -64,3 +64,8 @@ def test_analyze_detailed_endpoint_includes_jurisdiction_family_findings():
         }
         for f in data["findings"]
     )
+    assert all("foreign" not in flag for flag in data["flags"])
+    assert any(
+        f.get("matched_location") in {"California", "California courts"}
+        for f in data["findings"]
+    )
