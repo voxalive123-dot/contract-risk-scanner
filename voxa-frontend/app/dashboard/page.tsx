@@ -798,6 +798,22 @@ export default function DashboardPage() {
         ? result.confidence_hint
         : null;
   const reliabilityAssessment = reviewReliability(effectiveConfidence);
+  const decisionPrimaryRiskType =
+    primaryCategory === "jurisdiction"
+      ? "Dispute forum / jurisdiction"
+      : primaryCategory
+        ? primaryCategory.replace(/_/g, " ")
+        : "Contract risk signal";
+  const decisionImpactArea =
+    primaryCategory === "jurisdiction"
+      ? "Enforcement · Cost · Venue"
+      : "Clause · Exposure · Review";
+  const decisionConfidenceDriver =
+    reliabilityAssessment.label === "Strong"
+      ? "Direct clause match with explicit contractual language"
+      : reliabilityAssessment.label === "Moderate"
+        ? "Clause match supported by usable extraction quality"
+        : "Review against clause evidence before relying on the signal";
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
   const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
@@ -1169,6 +1185,41 @@ export default function DashboardPage() {
                         </div>
                         <div className="mt-2 text-base font-semibold text-neutral-950">
                           {reportGeneratedLabel}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                          Primary Risk Type
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-neutral-950">
+                          {decisionPrimaryRiskType}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                          Impact Area
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-neutral-950">
+                          {decisionImpactArea}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                          Confidence Driver
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-neutral-950">
+                          {decisionConfidenceDriver}
+                        </div>
+                      </div>
+                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                          Signal Type
+                        </div>
+                        <div className="mt-2 text-sm font-semibold text-neutral-950">
+                          Structural clause-level exposure
                         </div>
                       </div>
                     </div>
