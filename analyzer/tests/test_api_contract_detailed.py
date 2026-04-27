@@ -48,7 +48,7 @@ def test_analyze_detailed_endpoint_includes_jurisdiction_family_findings():
     data = r.json()
 
     assert set(data.keys()) == {"risk_score", "severity", "flags", "findings", "meta"}
-    assert data["meta"]["ruleset_version"] == "1.6.0"
+    assert data["meta"]["ruleset_version"] == "1.7.0"
     assert data["severity"] == "MEDIUM"
     assert data["risk_score"] >= 6
     assert data["meta"]["normalized_score"] >= 28
@@ -68,4 +68,26 @@ def test_analyze_detailed_endpoint_includes_jurisdiction_family_findings():
     assert any(
         f.get("matched_location") in {"California", "California courts"}
         for f in data["findings"]
+    )
+
+
+def test_analyze_detailed_endpoint_includes_cross_clause_findings():
+    payload = {
+        "text": (
+            "This agreement shall renew automatically for successive periods of 12 months unless either party gives "
+            "at least 30 days written notice of non-renewal. Upon renewal, the fees may increase at Supplier's discretion."
+        )
+    }
+    r = client.post("/analyze_detailed", json=payload)
+
+    assert r.status_code == 200
+    data = r.json()
+
+    assert any(
+        f.get("rule_id") == "cross_renewal_price_lock_in"
+        for f in data["findings"]
+    )
+    assert any(
+        adjustment.get("rule_id") == "cross_renewal_price_lock_in"
+        for adjustment in data["meta"]["score_adjustments"]
     )

@@ -260,7 +260,6 @@ def test_preserved_remedies_clause_does_not_false_trigger_exclusive_remedy():
 
     assert "exclusive remedy limitation" not in result["flags"]
 
-
 def test_mutual_liability_cap_with_standard_carveouts_does_not_trigger_super_cap_exposure():
     text = (
         "Liability of each party is limited to the fees paid in the previous twelve (12) months, "
@@ -280,6 +279,117 @@ def test_customer_only_uncapped_carveout_still_triggers_super_cap_exposure():
     result = score_contract(text, include_findings=True, include_meta=True)
 
     assert "liability_super_cap_carveout" in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_renewal_lock_in_plus_price_increase_triggers():
+    text = (
+        "This agreement renews automatically for successive periods of 12 months unless either party gives at least "
+        "30 days written notice of non-renewal. Upon renewal, the fees may increase at Supplier's discretion."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+    adjustments = result["meta"]["score_adjustments"]
+
+    assert "cross_renewal_price_lock_in" in rule_ids
+    assert any(adj.get("rule_id") == "cross_renewal_price_lock_in" for adj in adjustments)
+    assert result["severity"] == "MEDIUM"
+
+
+def test_cross_renewal_lock_in_not_triggered_by_simple_renewal_alone():
+    text = "This agreement renews automatically for successive terms unless either party gives notice of non-renewal."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_renewal_price_lock_in" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_renewal_lock_in_not_triggered_by_ordinary_price_clause_alone():
+    text = "Fees are payable within 30 days and may be revised by mutual agreement at renewal."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_renewal_price_lock_in" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_unilateral_variation_limited_exit_triggers():
+    text = (
+        "Provider may change pricing and service scope upon notice to Customer. This agreement renews automatically "
+        "unless Customer gives notice of non-renewal 30 days before expiry."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "cross_unilateral_variation_limited_exit" in rule_ids
+    assert any(
+        adj.get("rule_id") == "cross_unilateral_variation_limited_exit"
+        for adj in result["meta"]["score_adjustments"]
+    )
+
+
+def test_cross_unilateral_variation_limited_exit_not_triggered_by_balanced_language():
+    text = (
+        "This agreement may be amended only by mutual written agreement. Either party may terminate for convenience "
+        "on 30 days written notice."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_unilateral_variation_limited_exit" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_indemnity_cap_gap_triggers():
+    text = (
+        "Customer shall defend, indemnify, and hold Supplier harmless against all third-party claims. "
+        "Liability is limited except that the cap is unclear and does not clearly apply to indemnity."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "cross_indemnity_cap_gap" in rule_ids
+    assert any(
+        adj.get("rule_id") == "cross_indemnity_cap_gap"
+        for adj in result["meta"]["score_adjustments"]
+    )
+
+
+def test_cross_indemnity_cap_gap_not_triggered_by_narrow_indemnity_alone():
+    text = "Each party shall indemnify the other to the extent caused by its own negligence."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_indemnity_cap_gap" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_indemnity_cap_gap_not_triggered_by_ordinary_limitation_alone():
+    text = "Liability shall be limited to fees paid in the preceding 12 months."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_indemnity_cap_gap" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_forum_burden_mismatch_triggers_on_mismatched_locations():
+    text = (
+        "This agreement is governed by the laws of England and Wales. Any dispute shall be finally resolved by "
+        "arbitration seated in Singapore."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "cross_forum_burden_mismatch" in rule_ids
+    assert any(
+        adj.get("rule_id") == "cross_forum_burden_mismatch"
+        for adj in result["meta"]["score_adjustments"]
+    )
+
+
+def test_cross_forum_burden_mismatch_not_triggered_for_same_market_forum_package():
+    text = (
+        "This agreement is governed by the laws of California and the parties submit to the exclusive jurisdiction "
+        "of the courts of California."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_forum_burden_mismatch" not in {f["rule_id"] for f in result["findings"]}
 
 
 def test_exclusive_jurisdiction_extracts_selected_courts():

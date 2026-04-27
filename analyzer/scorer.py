@@ -84,6 +84,48 @@ _MATERIAL_DISPUTE_FORUM_RULES = {
     "venue_burden_foreign_court",
 }
 
+_RENEWAL_RULE_IDS = {
+    "auto_renewal_silent",
+    "renewal_notice_window_pressure",
+    "renewal_long_commitment",
+}
+
+_RENEWAL_PRICE_RULE_IDS = {
+    "renewal_price_increase_on_renewal",
+    "unilateral_price_increase",
+}
+
+_VARIATION_RULE_IDS = {
+    "unilateral_amendment_policy_reference",
+    "unilateral_price_increase",
+}
+
+_LIMITED_EXIT_RULE_IDS = {
+    "termination_assistance_exit_dependency",
+    "auto_renewal_silent",
+    "renewal_notice_window_pressure",
+    "renewal_long_commitment",
+}
+
+_INDEMNITY_RULE_IDS = {
+    "indemnity_broad",
+    "indemnity_one_way",
+}
+
+_WEAK_LIABILITY_PROTECTION_RULE_IDS = {
+    "liability_cap_missing_or_unclear",
+    "liability_super_cap_carveout",
+    "liability_consequential_exclusion",
+}
+
+_JURISDICTION_RULE_IDS = {
+    "governing_law_foreign_or_unfamiliar",
+    "jurisdiction_exclusive_foreign_forum",
+    "jurisdiction_non_exclusive_forum",
+    "arbitration_forum_or_seat",
+    "venue_burden_foreign_court",
+}
+
 
 def _normalized_score(raw_score: int) -> int:
     if _MAX_POSSIBLE_SCORE <= 0:
@@ -104,9 +146,11 @@ def _calibrate_minimum_exposure(
     adjustments: List[Dict[str, Any]] = []
 
     matched_material_dispute = sorted(_MATERIAL_DISPUTE_FORUM_RULES.intersection(matched_rule_ids))
-    if matched_material_dispute and calibrated_score < 6:
-        effect = 6 - calibrated_score
-        calibrated_score = 6
+    if matched_material_dispute:
+        effect = 0
+        if calibrated_score < 6:
+            effect = 6 - calibrated_score
+            calibrated_score = 6
         adjustments.append(
             {
                 "type": "minimum_exposure_floor",
@@ -164,7 +208,7 @@ def _has_negative_override(
 def _clean_extracted_location(value: str) -> str:
     cleaned = _normalize_ws(value)
     cleaned = re.sub(
-        r"\s+(?:under|in accordance with|pursuant to|for any dispute|for all disputes)\b.*$",
+        r"\s+(?:under|in accordance with|pursuant to|for any dispute|for all disputes|and the parties|and any dispute|and all disputes)\b.*$",
         "",
         cleaned,
         flags=re.IGNORECASE,
@@ -292,6 +336,207 @@ def _spans_related(
     if b_end <= a_start:
         return (a_start - b_end) <= max_gap
     return False
+
+
+def _combine_match_span(findings: List[Dict[str, Any]]) -> List[int]:
+    spans = [f.get("match_span", [0, 0]) for f in findings if f.get("match_span")]
+    starts = [int(span[0]) for span in spans if len(span) > 0]
+    ends = [int(span[1]) for span in spans if len(span) > 1]
+    if not starts or not ends:
+        return [0, 0]
+    return [min(starts), max(ends)]
+
+
+def _combine_excerpt(findings: List[Dict[str, Any]], limit: int = 2) -> str:
+    excerpts: List[str] = []
+    for finding in findings:
+        excerpt = _normalize_ws(str(finding.get("excerpt", "")))
+        if excerpt and excerpt not in excerpts:
+            excerpts.append(excerpt)
+        if len(excerpts) >= limit:
+            break
+    return " | ".join(excerpts)
+
+
+def _location_key(value: Optional[str]) -> Optional[str]:
+    if not value:
+        return None
+    cleaned = value.lower()
+    cleaned = re.sub(r"\bcourts?\b", "", cleaned)
+    cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,.;:")
+    if "," in cleaned:
+        tail = cleaned.split(",")[-1].strip()
+        if tail:
+            cleaned = tail
+    return cleaned or None
+
+
+def _derived_finding(
+    *,
+    rule_id: str,
+    category: str,
+    title: str,
+    severity: int,
+    weight: int,
+    rationale: str,
+    triggered_by: List[str],
+    contributors: List[Dict[str, Any]],
+) -> Dict[str, Any]:
+    span = _combine_match_span(contributors)
+    return {
+        "rule_id": rule_id,
+        "category": category,
+        "title": title,
+        "severity": severity,
+        "weight": weight,
+        "priority": 120,
+        "rationale": rationale,
+        "matched_pattern": "derived_cross_clause",
+        "match_span": span,
+        "matched_text": _combine_excerpt(contributors, limit=1),
+        "matched_location": None,
+        "context_note": None,
+        "excerpt": _combine_excerpt(contributors),
+        "tags": ["cross_clause", "derived_signal"],
+        "triggered_by": triggered_by,
+    }
+
+
+def _build_cross_clause_findings(
+    findings: List[Dict[str, Any]],
+    matched_rule_ids: set[str],
+    raw_matched_rule_ids: set[str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    by_rule_id: Dict[str, List[Dict[str, Any]]] = {}
+    for finding in findings:
+        by_rule_id.setdefault(str(finding.get("rule_id", "")), []).append(finding)
+
+    cross_findings: List[Dict[str, Any]] = []
+    cross_adjustments: List[Dict[str, Any]] = []
+
+    matched_renewal = sorted(matched_rule_ids.intersection(_RENEWAL_RULE_IDS))
+    matched_renewal_price = sorted(matched_rule_ids.intersection(_RENEWAL_PRICE_RULE_IDS))
+    if matched_renewal and matched_renewal_price:
+        triggered_by = matched_renewal + matched_renewal_price
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_lock_in = any(rid in {"renewal_notice_window_pressure", "renewal_long_commitment"} for rid in matched_renewal)
+        effect = 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_renewal_price_lock_in",
+                category="renewal",
+                title="Renewal lock-in with price escalation",
+                severity=4 if stronger_lock_in else 3,
+                weight=effect,
+                rationale="Renewal controls and pricing escalation language appear together, which may lock the business into a continued term while cost exposure increases.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_renewal_price_lock_in",
+                "effect": effect,
+                "reason": "Renewal lock-in combined with pricing escalation may weaken renewal leverage and expand forward cost exposure.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_variation = sorted(matched_rule_ids.intersection(_VARIATION_RULE_IDS))
+    matched_exit = sorted(matched_rule_ids.intersection(_LIMITED_EXIT_RULE_IDS))
+    has_structural_variation = "unilateral_amendment_policy_reference" in matched_variation
+    if matched_variation and matched_exit and (has_structural_variation or len(matched_exit) >= 2):
+        triggered_by = matched_variation + matched_exit
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_unilateral_variation_limited_exit",
+                category="amendment",
+                title="Unilateral variation with limited exit flexibility",
+                severity=4,
+                weight=2,
+                rationale="The counterparty appears able to change operational or commercial terms while exit rights remain constrained, which can reduce practical leverage if the clause package moves against the customer.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_unilateral_variation_limited_exit",
+                "effect": 2,
+                "reason": "Variation rights paired with limited exit flexibility may create stronger commercial leverage than either clause family alone.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_indemnity = sorted(matched_rule_ids.intersection(_INDEMNITY_RULE_IDS))
+    matched_weak_liability = sorted(matched_rule_ids.intersection(_WEAK_LIABILITY_PROTECTION_RULE_IDS))
+    if matched_indemnity and matched_weak_liability:
+        triggered_by = matched_indemnity + matched_weak_liability
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_indemnity_cap_gap",
+                category="liability",
+                title="Indemnity exposure with weak liability protection",
+                severity=4,
+                weight=2,
+                rationale="Broad indemnity language appears alongside weak, unclear, or heavily carved-out liability protection, which may increase review priority before accepting the overall allocation of financial risk.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_indemnity_cap_gap",
+                "effect": 2,
+                "reason": "Broad indemnity obligations combined with weak liability protection can amplify downside exposure in a way that deserves consolidated review.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    jurisdiction_findings = [
+        finding for finding in findings if str(finding.get("rule_id", "")) in _JURISDICTION_RULE_IDS
+    ]
+    jurisdiction_locations = {
+        _location_key(str(finding.get("matched_location") or ""))
+        for finding in jurisdiction_findings
+        if _location_key(str(finding.get("matched_location") or ""))
+    }
+    has_context_mismatch = any(finding.get("context_note") for finding in jurisdiction_findings)
+    has_venue_burden = "venue_burden_foreign_court" in raw_matched_rule_ids
+    if has_context_mismatch or has_venue_burden or len(jurisdiction_locations) >= 2:
+        triggered_by = sorted(
+            {str(finding.get("rule_id", "")) for finding in jurisdiction_findings if str(finding.get("rule_id", ""))}
+        )
+        contributors = jurisdiction_findings[:3]
+        if triggered_by:
+            cross_findings.append(
+                _derived_finding(
+                    rule_id="cross_forum_burden_mismatch",
+                    category="jurisdiction",
+                    title="Dispute forum mismatch or venue burden",
+                    severity=4,
+                    weight=2,
+                    rationale="The dispute forum package may create cross-border, mismatched, or operationally burdensome escalation routes, which can affect venue cost, enforcement planning, and negotiation confidence.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                )
+            )
+            cross_adjustments.append(
+                {
+                    "type": "compound_risk",
+                    "rule_id": "cross_forum_burden_mismatch",
+                    "effect": 2,
+                    "reason": "A mismatch or burden across governing law, jurisdiction, arbitration, or venue can make dispute handling materially harder than a single clause would suggest on its own.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+    return cross_findings, cross_adjustments
 
 
 def _finding_rank_key(f: Dict[str, Any]) -> Tuple[int, int, int, int]:
@@ -561,14 +806,27 @@ def score_contract(
         )
 
     deduped_findings, overlap_suppressions = _dedupe_findings(raw_findings)
-
+    raw_matched_rule_ids: set[str] = {str(f["rule_id"]) for f in raw_findings}
     matched_rule_ids: set[str] = {str(f["rule_id"]) for f in deduped_findings}
-    flags: List[str] = [_display_flag(f) for f in deduped_findings]
     raw_risk_score = sum(int(f["weight"]) for f in deduped_findings)
 
     adjusted_risk_score, score_adjustments = _apply_mitigation_and_conflict_adjustments(
         matched_rule_ids, raw_risk_score
     )
+
+    cross_findings, cross_adjustments = _build_cross_clause_findings(
+        raw_findings,
+        matched_rule_ids,
+        raw_matched_rule_ids,
+    )
+    if cross_adjustments:
+        adjusted_risk_score += sum(int(adj.get("effect", 0)) for adj in cross_adjustments)
+        score_adjustments.extend(cross_adjustments)
+    if cross_findings:
+        deduped_findings.extend(cross_findings)
+        matched_rule_ids = {str(f["rule_id"]) for f in deduped_findings}
+
+    flags: List[str] = [_display_flag(f) for f in deduped_findings]
 
     if "termination_for_convenience_counterparty" in matched_rule_ids:
         adjusted_risk_score = max(adjusted_risk_score, 5)

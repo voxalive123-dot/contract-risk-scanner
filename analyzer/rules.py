@@ -3,7 +3,7 @@ from __future__ import annotations
 from analyzer.risk_schema import RiskRule
 
 
-RULESET_VERSION = "1.6.0"
+RULESET_VERSION = "1.7.0"
 
 
 RISK_RULE_OBJECTS = [
@@ -44,10 +44,15 @@ RISK_RULE_OBJECTS = [
             r"\bliabilit(?:y|ies)\b.{0,80}\b(unlimited|uncapped|no\s+limit)\b",
             r"\bunlimited\s+liabilit(?:y|ies)\b",
             r"\bno\s+cap\s+on\s+liabilit(?:y|ies)\b",
+            r"\bcap\b.{0,80}\b(?:is\s+)?unclear\b",
+            r"\bliabilit(?:y|ies)\b.{0,140}\bdoes\s+not\s+clearly\s+apply\b",
+            r"\bunclear\b.{0,120}\bwhether\s+the\s+cap\s+applies\b",
+            r"\bcap\b.{0,120}\bdoes\s+not\s+clearly\s+apply\s+to\s+indemnit(?:y|ies)\b",
         ],
         negative_patterns=[
-            r"\bliabilit(?:y|ies)\b.{0,80}\bcap(?:ped)?\b",
-            r"\bliabilit(?:y|ies)\b.{0,80}\blimit(?:ed|ation)?\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bcap(?:ped)?\s+at\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\blimited\s+to\b",
+            r"\bliabilit(?:y|ies)\b.{0,80}\bshall\s+be\s+limited\s+to\b",
         ],
         min_matches=1,
         max_span_chars=120,
@@ -351,6 +356,7 @@ RISK_RULE_OBJECTS = [
             r"\brenewal\s+must\s+be\s+agreed\s+by\s+both\s+parties\b",
             r"\bany\s+renewal\s+must\s+be\s+agreed\s+in\s+writing\s+by\s+both\s+parties\b",
             r"\bmay\s+be\s+renewed\s+only\s+by\s+mutual\s+written\s+agreement\b",
+            r"\brenewal\s+must\s+be\s+agreed\s+in\s+writing\b.{0,60}\b(?:both\s+parties|the\s+parties)\b",
             r"\brenewal\s+only\s+by\s+mutual\s+written\s+agreement\b",
         ],
         min_matches=1,
@@ -596,13 +602,7 @@ RISK_RULE_OBJECTS = [
             r"\bexcludes?\s+consequential\s+damages\b",
             r"\bindirect\s+or\s+consequential\s+damages\b",
         ],
-        negative_patterns=[
-            r"\bliabilit(?:y|ies)\s+of\s+each\s+party\s+is\s+limited\s+to\b.{0,220}\bexcept\s+for\b.{0,220}\b(?:fraud|wilful\s+misconduct|willful\s+misconduct|confidentiality(?:\s+breach)?|liabilit(?:y|ies)\s+which\s+cannot\s+lawfully\s+be\s+limited|non-?excludable\s+liabilit(?:y|ies)|statutory\s+liabilit(?:y|ies))\b",
-            r"\beach\s+party'?s\s+liabilit(?:y|ies)\s+(?:shall\s+be\s+)?limited\s+to\b.{0,220}\bexcept\s+for\b.{0,220}\b(?:fraud|wilful\s+misconduct|willful\s+misconduct|confidentiality(?:\s+breach)?|liabilit(?:y|ies)\s+which\s+cannot\s+lawfully\s+be\s+limited|non-?excludable\s+liabilit(?:y|ies)|statutory\s+liabilit(?:y|ies))\b",
-            r"\bliability\s+of\s+each\s+party\b.{0,220}\bexcept\s+for\b.{0,220}\b(?:fraud|wilful\s+misconduct|willful\s+misconduct|confidentiality(?:\s+breach)?|liabilit(?:y|ies)\s+which\s+cannot\s+lawfully\s+be\s+limited|non-?excludable\s+liabilit(?:y|ies)|statutory\s+liabilit(?:y|ies))\b",
-            r"\bliabilit(?:y|ies)\s+of\s+each\s+party\b.{0,260}\bfees\s+paid\b.{0,260}\bexcept\s+for\b.{0,260}\b(?:fraud|wilful\s+misconduct|willful\s+misconduct|confidentiality(?:\s+breach)?|liabilit(?:y|ies)\s+which\s+cannot\s+lawfully\s+be\s+limited|non-?excludable\s+liabilit(?:y|ies)|statutory\s+liabilit(?:y|ies))\b",
-            r"\bliability\s+of\s+each\s+party\s+is\s+limited\s+to\b[\s\S]{0,320}\bexcept\s+for\s+fraud,\s+wilful\s+misconduct,\s+confidentiality\s+breach,\s+or\s+liabilit(?:y|ies)\s+which\s+cannot\s+lawfully\s+be\s+limited\b",
-        ],
+        negative_patterns=[],
         min_matches=1,
         max_span_chars=140,
         tags=["mitigation", "liability_structure"],
