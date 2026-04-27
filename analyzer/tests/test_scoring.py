@@ -141,6 +141,21 @@ def test_benign_monthly_renewal_clause_does_not_false_trigger_high_severity():
     assert "auto renewal" not in result["flags"]
 
 
+def test_explicit_no_auto_renewal_clause_does_not_trigger_auto_renewal_risk():
+    text = "The Agreement does not automatically renew. Any renewal must be agreed in writing by both parties."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "auto_renewal_silent" not in {f["rule_id"] for f in result["findings"]}
+    assert "silent or automatic renewal" not in result["flags"]
+
+
+def test_mutual_written_renewal_only_clause_does_not_trigger_auto_renewal_risk():
+    text = "The contract is not subject to automatic renewal and renewal only by mutual written agreement."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "auto_renewal_silent" not in {f["rule_id"] for f in result["findings"]}
+
+
 def test_unilateral_variation_of_pricing_and_service_scope_is_review_elevating():
     text = (
         "Provider may change pricing, service scope, and service levels upon notice to Customer "
@@ -244,6 +259,27 @@ def test_preserved_remedies_clause_does_not_false_trigger_exclusive_remedy():
     result = score_contract(text, include_findings=True, include_meta=True)
 
     assert "exclusive remedy limitation" not in result["flags"]
+
+
+def test_mutual_liability_cap_with_standard_carveouts_does_not_trigger_super_cap_exposure():
+    text = (
+        "Liability of each party is limited to the fees paid in the previous twelve (12) months, "
+        "except for fraud, wilful misconduct, confidentiality breach, or liabilities which cannot lawfully be limited."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "liability_super_cap_carveout" not in {f["rule_id"] for f in result["findings"]}
+    assert "liability cap carve-out or super-cap exposure" not in result["flags"]
+
+
+def test_customer_only_uncapped_carveout_still_triggers_super_cap_exposure():
+    text = (
+        "Liability is capped at the fees paid in the previous 12 months, except that the cap shall not apply "
+        "to Customer payment obligations, Customer indemnity obligations, or Customer breach claims."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "liability_super_cap_carveout" in {f["rule_id"] for f in result["findings"]}
 
 
 def test_exclusive_jurisdiction_extracts_selected_courts():
