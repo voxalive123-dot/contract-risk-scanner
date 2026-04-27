@@ -61,6 +61,86 @@ def test_selected_governing_law_alone_is_not_low_signal():
     assert result["findings"][0]["matched_location"] == "California"
 
 
+def test_simple_auto_renewal_clause_stays_low_signal():
+    text = "This agreement shall renew automatically for successive terms unless either party gives notice of non-renewal."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert result["severity"] == "LOW"
+    assert "silent or automatic renewal" in result["flags"]
+    assert result["risk_score"] == 3
+
+
+def test_auto_renewal_with_30_day_notice_window_is_review_elevating():
+    text = (
+        "This agreement shall renew automatically for successive terms unless either party gives "
+        "at least 30 days written notice of non-renewal before the end of the then-current term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 5
+
+
+def test_auto_renewal_with_long_renewal_period_is_review_elevating():
+    text = (
+        "This agreement shall renew automatically for successive periods of 12 months unless "
+        "either party gives notice of non-renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_long_commitment" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 5
+
+
+def test_auto_renewal_plus_price_increase_raises_payment_exposure():
+    text = (
+        "This agreement shall renew automatically for successive terms unless cancelled. "
+        "Upon renewal, the fees may increase."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_price_increase_on_renewal" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 6
+
+
+def test_auto_renewal_with_asymmetric_exit_rights_is_review_elevating():
+    text = (
+        "This agreement shall renew automatically for successive terms unless Customer gives at "
+        "least 90 days written notice of non-renewal. Supplier may terminate for convenience at any time."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "termination_for_convenience_counterparty" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 7
+
+
+def test_benign_monthly_renewal_clause_does_not_false_trigger_high_severity():
+    text = (
+        "This agreement may be renewed by mutual written agreement only. Either party may terminate "
+        "on 60 days written notice before the next monthly period."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert result["severity"] != "HIGH"
+    assert "auto renewal" not in result["flags"]
+
+
 def test_exclusive_jurisdiction_extracts_selected_courts():
     text = "The parties submit to the exclusive jurisdiction of the courts of California."
     result = score_contract(text, include_findings=True, include_meta=True)

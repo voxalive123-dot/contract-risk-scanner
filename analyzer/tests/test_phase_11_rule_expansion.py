@@ -170,6 +170,51 @@ def test_mixed_safe_and_risky_expansion_clauses_preserve_false_positive_controls
     assert "intrusive_audit_rights" not in ids
 
 
+def test_renewal_notice_window_pressure_positive_negative_and_edge():
+    assert_rule(
+        "This agreement renews automatically unless either party gives at least 30 days written notice of non-renewal before the end of the term.",
+        "renewal_notice_window_pressure",
+    )
+    assert_no_rule(
+        "This agreement renews automatically unless either party gives at least 90 days written notice of non-renewal before the end of the term.",
+        "renewal_notice_window_pressure",
+    )
+    assert_rule(
+        "Notice of non-renewal must be given not less than 45 days before expiration of the then-current term.",
+        "renewal_notice_window_pressure",
+    )
+
+
+def test_renewal_long_commitment_positive_negative_and_edge():
+    assert_rule(
+        "This agreement shall renew for successive periods of 12 months unless either party gives notice of non-renewal.",
+        "renewal_long_commitment",
+    )
+    assert_no_rule(
+        "This agreement continues on a month-to-month basis unless either party gives notice.",
+        "renewal_long_commitment",
+    )
+    assert_rule(
+        "Each renewal term will be an additional one year term unless cancelled before expiry.",
+        "renewal_long_commitment",
+    )
+
+
+def test_renewal_price_increase_positive_negative_and_edge():
+    assert_rule(
+        "Upon renewal, the fees may increase at Supplier's discretion.",
+        "renewal_price_increase_on_renewal",
+    )
+    assert_no_rule(
+        "Upon renewal, fees may increase in line with CPI by mutual agreement.",
+        "renewal_price_increase_on_renewal",
+    )
+    assert_rule(
+        "The annual renewal price adjustment may increase the charges for the renewal term.",
+        "renewal_price_increase_on_renewal",
+    )
+
+
 def test_governing_law_foreign_or_unfamiliar_positive():
     assert_rule(
         "This agreement is governed by the laws of the State of New York.",
