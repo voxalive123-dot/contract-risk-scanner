@@ -459,6 +459,73 @@ export const governingLawJurisdictionArticle: InsightArticle = {
   ],
 };
 
+export const governingLawJurisdictionRiskArticle: InsightArticle = {
+  slug: "governing-law-jurisdiction-risk",
+  category: "Dispute forum risk",
+  collection: "fundamentals",
+  title: "How to Identify Governing Law and Jurisdiction Risk in Contracts (Before It Costs You)",
+  summary:
+    "Governing law, jurisdiction, arbitration seat, and venue clauses can move dispute cost, leverage, and escalation burden long before a contract is ever tested. VoxaRisk helps teams detect those signals early, with evidence-backed and confidence-aware first-pass review.",
+  sections: [
+    {
+      heading: "Governing law is not the same as jurisdiction",
+      paragraphs: [
+        "A governing law clause says which legal system will be used to interpret the contract. A jurisdiction clause says where disputes may be brought or heard. Those two concepts are related, but they are not the same, and commercial teams often lose negotiating leverage when they treat them as if they travel together automatically.",
+        "That distinction matters because a contract can be governed by one law but heard in a different court system. In practice, that can change review complexity, dispute cost, internal confidence, and the speed at which a business chooses to escalate the issue before signature.",
+      ],
+    },
+    {
+      heading: "Jurisdiction is not the same as the arbitration seat",
+      paragraphs: [
+        "A jurisdiction clause usually points to a court forum. An arbitration clause points disputes into arbitration, and the seat of arbitration determines the legal home of that process. The seat is not just an address on the page. It can affect procedural rules, supporting court involvement, challenge routes, and the practical burden of running the dispute.",
+        "For a commercial reviewer, that means a contract can look familiar on the surface while still pointing the dispute process into a different place than expected. If the arbitration seat is remote, unfamiliar, or commercially awkward, that deserves first-pass attention even before legal interpretation begins.",
+      ],
+    },
+    {
+      heading: "Venue and location can create practical leverage pressure",
+      paragraphs: [
+        "Venue wording can create pressure long before any formal claim exists. A remote forum, out-of-market court location, or operationally burdensome dispute venue can raise travel cost, slow internal decision-making, complicate enforcement planning, and change the economic leverage of the contract.",
+        "That is why venue should not be treated as minor boilerplate. Even where the underlying rights look balanced, the selected forum can still influence who is better placed to push, delay, settle, or escalate when the relationship becomes contentious.",
+      ],
+    },
+    {
+      heading: "Non-exclusive jurisdiction can still create uncertainty",
+      paragraphs: [
+        "Some teams assume non-exclusive jurisdiction is harmless because it sounds less restrictive than an exclusive court clause. In reality, non-exclusive drafting can still create uncertainty about where proceedings may start, how parallel steps may unfold, and which side gains a tactical advantage from forum flexibility.",
+        "That does not mean every non-exclusive clause is a problem. It does mean that first-pass contract review should not ignore it. If a clause leaves the dispute route open-ended, the business should decide whether that flexibility is acceptable or whether it creates avoidable ambiguity.",
+      ],
+    },
+    {
+      heading: "Mismatch between governing law and forum deserves review",
+      paragraphs: [
+        "A mismatch between the chosen governing law and the selected forum does not automatically make a contract defective, but it can create review and negotiation concern. Different combinations can increase coordination burden, complicate expectations about dispute handling, or signal that the contract has been imported from another market without enough local discipline.",
+        "For executives, the issue is usually practical rather than theoretical: can the business explain why this forum was chosen, whether it fits the deal, and what it would mean if a dispute actually had to be run there. If that answer is weak, the clause is already worth a second look.",
+      ],
+    },
+    {
+      heading: "Why first-pass detection matters before signature",
+      paragraphs: [
+        "Jurisdiction and governing-law exposure often becomes harder to change once the contract is close to signature. If the selected forum is only noticed late, the team may have already lost negotiating momentum or accepted a dispute route that is expensive to challenge.",
+        "That is why first-pass contract review matters. Early clause risk detection helps a business decide whether the contract is routine, whether the forum is negotiable, whether the issue belongs in internal approval, or whether legal escalation should happen before the paper moves any further.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk helps surface dispute forum risk",
+      paragraphs: [
+        "VoxaRisk is designed to support contract risk intelligence by extracting and highlighting selected governing law, jurisdiction, arbitration seat, venue and location indicators, mismatch or burden signals, and evidence-backed confidence-aware findings. That gives teams a commercially useful view of the dispute framework before they commit to heavier review routes.",
+        "Instead of relying on a vague summary, the platform helps users see the matched clause evidence, the type of forum signal detected, and why it may matter for dispute cost, enforcement route, operational confidence, or negotiation priorities. That is especially valuable when the immediate question is not legal theory but whether the selected forum is workable for the deal in front of the business.",
+      ],
+    },
+    {
+      heading: "What this means in practice",
+      paragraphs: [
+        "In practical terms, first-pass review should answer a short list of questions. What law was chosen. What court, forum, or arbitration seat was selected. Does the venue look operationally manageable. Does the drafting create uncertainty. Does the clause deserve negotiation before the business signs away leverage.",
+        "VoxaRisk helps structure that first answer set. It does not provide legal advice or legal opinions, and it does not determine enforceability. Where dispute exposure, cross-border obligations, or high-value rights are material, appropriate professional advice should still be sought.",
+      ],
+    },
+  ],
+};
+
 export const prepareContractArticle: InsightArticle = {
   slug: "prepare-contract-internal-review",
   category: "Review preparation",
@@ -515,6 +582,7 @@ export const insightArticles: InsightArticle[] = [
   evidenceGovernedAiArticle,
   supplierAgreementArticle,
   governingLawJurisdictionArticle,
+  governingLawJurisdictionRiskArticle,
   prepareContractArticle,
 ];
 
