@@ -46,6 +46,14 @@ def test_unilateral_amendment_policy_reference_positive_negative_and_edge():
         "Customer shall comply with security policies as updated by Supplier from time to time.",
         "unilateral_amendment_policy_reference",
     )
+    assert_rule(
+        "Provider may change service levels and pricing upon notice to Customer.",
+        "unilateral_amendment_policy_reference",
+    )
+    assert_no_rule(
+        "Changes to fees or service scope require Customer acceptance before taking effect.",
+        "unilateral_amendment_policy_reference",
+    )
 
 
 def test_fee_acceleration_late_fee_positive_negative_and_edge():
@@ -63,6 +71,51 @@ def test_fee_acceleration_late_fee_positive_negative_and_edge():
     )
 
 
+def test_payment_deadline_pressure_positive_negative_and_edge():
+    assert_rule(
+        "Invoices are due within 10 days of receipt.",
+        "payment_deadline_pressure",
+    )
+    assert_no_rule(
+        "Invoices are payable within 30 days of receipt.",
+        "payment_deadline_pressure",
+    )
+    assert_rule(
+        "Payment must be made immediately upon receipt of invoice.",
+        "payment_deadline_pressure",
+    )
+
+
+def test_payment_collection_cost_shifting_positive_negative_and_edge():
+    assert_rule(
+        "Customer shall pay all costs of collection, including attorneys' fees.",
+        "payment_collection_cost_shifting",
+    )
+    assert_no_rule(
+        "Attorneys' fees may be awarded only to the prevailing party by a court.",
+        "payment_collection_cost_shifting",
+    )
+    assert_rule(
+        "Customer is responsible for collection agency fees on overdue amounts.",
+        "payment_collection_cost_shifting",
+    )
+
+
+def test_service_suspension_for_non_payment_pressure_positive_negative_and_edge():
+    assert_rule(
+        "Provider may suspend access immediately for non-payment without notice or cure period.",
+        "service_suspension_right",
+    )
+    assert_no_rule(
+        "Provider may suspend the services for non-payment after reasonable notice.",
+        "service_suspension_right",
+    )
+    assert_rule(
+        "Supplier may withhold services and data for non-payment without cure.",
+        "service_suspension_right",
+    )
+
+
 def test_service_credits_sole_remedy_positive_negative_and_edge():
     assert_rule(
         "Service credits are Customer's sole and exclusive remedy for service level failures.",
@@ -75,6 +128,21 @@ def test_service_credits_sole_remedy_positive_negative_and_edge():
     assert_rule(
         "The only remedy for downtime will be service credits calculated under the SLA.",
         "service_credits_sole_remedy",
+    )
+
+
+def test_exclusive_remedy_limitation_positive_negative_and_edge():
+    assert_rule(
+        "Replacement of the defective service will be Customer's sole and exclusive remedy.",
+        "exclusive_remedy_limitation",
+    )
+    assert_no_rule(
+        "These remedies do not limit other remedies or non-excludable statutory rights.",
+        "exclusive_remedy_limitation",
+    )
+    assert_rule(
+        "Refund of fees paid in the prior month is the exclusive remedy for service failure.",
+        "exclusive_remedy_limitation",
     )
 
 
@@ -105,6 +173,29 @@ def test_intrusive_audit_positive_negative_and_edge():
     assert_rule(
         "Provider has the right to audit without notice and inspect systems at any time.",
         "intrusive_audit_rights",
+    )
+    assert_rule(
+        "Third-party auditors may inspect Customer premises and logs on 24 hours notice at Customer cost.",
+        "intrusive_audit_rights",
+    )
+    assert_no_rule(
+        "Audit is limited to relevant records, at Provider expense, upon reasonable notice and subject to confidentiality.",
+        "intrusive_audit_rights",
+    )
+
+
+def test_data_security_responsibility_imbalance_positive_negative_and_edge():
+    assert_rule(
+        "Customer is solely responsible for passwords, credentials, unauthorized access, and any resulting security incident.",
+        "data_security_responsibility_imbalance",
+    )
+    assert_no_rule(
+        "Each party shall maintain reasonable security and Provider will implement appropriate technical and organizational measures.",
+        "data_security_responsibility_imbalance",
+    )
+    assert_rule(
+        "Provider shall have no responsibility for unauthorized access to Customer data and Customer shall provide breach notification at its own cost.",
+        "data_security_responsibility_imbalance",
     )
 
 

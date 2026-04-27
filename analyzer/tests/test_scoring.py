@@ -141,6 +141,111 @@ def test_benign_monthly_renewal_clause_does_not_false_trigger_high_severity():
     assert "auto renewal" not in result["flags"]
 
 
+def test_unilateral_variation_of_pricing_and_service_scope_is_review_elevating():
+    text = (
+        "Provider may change pricing, service scope, and service levels upon notice to Customer "
+        "without further consent."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "unilateral_amendment_policy_reference" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 4
+
+
+def test_mutual_written_variation_clause_does_not_over_escalate():
+    text = "This agreement may be amended only by mutual written agreement signed by both parties."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "unilateral amendment" not in result["flags"]
+
+
+def test_broad_audit_rights_trigger_without_overstating_reasonable_controls():
+    risky = (
+        "Third-party auditors may inspect Customer premises, systems, logs, and financial records "
+        "on 24 hours notice at Customer cost."
+    )
+    risky_result = score_contract(risky, include_findings=True, include_meta=True)
+
+    assert "intrusive audit rights" in risky_result["flags"]
+    assert risky_result["risk_score"] >= 3
+
+    safe = (
+        "Audit is limited to relevant records upon reasonable notice during normal business hours, "
+        "not more than once per year, subject to confidentiality, and at Provider expense."
+    )
+    safe_result = score_contract(safe, include_findings=True, include_meta=True)
+
+    assert "intrusive audit rights" not in safe_result["flags"]
+
+
+def test_payment_pressure_cluster_is_review_elevating():
+    text = (
+        "Invoices are due within 10 days. Provider may suspend access immediately for non-payment "
+        "without a cure period. Customer shall pay all costs of collection, including attorneys' fees."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "payment_deadline_pressure" in rule_ids
+    assert "payment_collection_cost_shifting" in rule_ids
+    assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 5
+
+
+def test_ordinary_payment_timing_stays_low_signal():
+    text = "Invoices are payable within 30 days of receipt."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "short payment deadline pressure" not in result["flags"]
+
+
+def test_one_sided_data_security_responsibility_is_review_elevating():
+    text = (
+        "Customer is solely responsible for passwords, credentials, unauthorized access, and any "
+        "resulting security incident. Provider shall have no responsibility for unauthorized access."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "data_security_responsibility_imbalance" in rule_ids
+    assert result["risk_score"] >= 4
+
+
+def test_balanced_security_clause_does_not_over_escalate():
+    text = (
+        "Each party shall maintain reasonable security safeguards and Provider will implement "
+        "appropriate technical and organizational measures."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "one sided data or security responsibility" not in result["flags"]
+
+
+def test_exclusive_remedy_limitation_is_review_elevating():
+    text = (
+        "Replacement of the defective services or refund of fees paid is Customer's sole and "
+        "exclusive remedy for service failure."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "exclusive_remedy_limitation" in rule_ids
+    assert result["risk_score"] >= 3
+
+
+def test_preserved_remedies_clause_does_not_false_trigger_exclusive_remedy():
+    text = "Service credits are in addition to other remedies and do not exclude non-excludable statutory rights."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "exclusive remedy limitation" not in result["flags"]
+
+
 def test_exclusive_jurisdiction_extracts_selected_courts():
     text = "The parties submit to the exclusive jurisdiction of the courts of California."
     result = score_contract(text, include_findings=True, include_meta=True)

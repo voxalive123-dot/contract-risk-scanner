@@ -48,7 +48,7 @@ def test_analyze_detailed_endpoint_includes_jurisdiction_family_findings():
     data = r.json()
 
     assert set(data.keys()) == {"risk_score", "severity", "flags", "findings", "meta"}
-    assert data["meta"]["ruleset_version"] == "1.5.0"
+    assert data["meta"]["ruleset_version"] == "1.6.0"
     assert data["severity"] == "MEDIUM"
     assert data["risk_score"] >= 6
     assert data["meta"]["normalized_score"] >= 28
