@@ -526,6 +526,73 @@ export const governingLawJurisdictionRiskArticle: InsightArticle = {
   ],
 };
 
+export const autoRenewalRiskArticle: InsightArticle = {
+  slug: "auto-renewal-contract-risk",
+  category: "Contract risk fundamentals",
+  collection: "fundamentals",
+  title: "Auto-Renewal Clauses in Contracts: The Hidden Risk That Keeps You Paying",
+  summary:
+    "Auto-renewal clauses can quietly extend spend, reduce cancellation flexibility, and compress negotiating leverage if notice windows and renewal economics are not reviewed early. VoxaRisk helps surface those signals before they become an avoidable cost problem.",
+  sections: [
+    {
+      heading: "What auto-renewal clauses are",
+      paragraphs: [
+        "An auto-renewal clause says the contract will renew automatically unless one party gives notice within a stated period. In commercial terms, that means the agreement does not simply end when the initial term finishes. If the notice step is missed, the contract may roll forward for another fixed period or continue until a later termination window opens.",
+        "That can be acceptable in the right deal, but only if the business understands the renewal mechanics before signature. A clause that quietly renews for another year can create a very different exposure profile from a clause that ends cleanly unless both sides actively agree to continue.",
+      ],
+    },
+    {
+      heading: "Why auto-renewal risk is often missed before signing",
+      paragraphs: [
+        "Auto-renewal language is easy to miss because it often appears in standard term clauses near the back of the agreement, surrounded by notice, amendment, and boilerplate provisions that reviewers may skim once the headline commercial points feel settled.",
+        "That is exactly why first-pass contract review matters. A business may spend most of its negotiating energy on price, service scope, or liability, while a short renewal sentence quietly preserves continuing cost exposure that will only become visible when the first deadline is already too close.",
+      ],
+    },
+    {
+      heading: "How short notice windows create practical cancellation risk",
+      paragraphs: [
+        "A short notice window can make a theoretically cancellable contract hard to exit in practice. If the clause requires notice sixty or ninety days before renewal, the business may have to decide long before it has full performance data, budget certainty, or internal approval to change supplier.",
+        "That creates practical cancellation risk because the contract may renew by inertia rather than by an active commercial decision. Once the deadline passes, the customer may be locked into another term even if service quality, pricing, or dependency has already become uncomfortable.",
+      ],
+    },
+    {
+      heading: "How renewal terms and pricing changes extend cost exposure",
+      paragraphs: [
+        "Renewal clauses do more than continue the relationship. They can extend spend, preserve minimum commitments, and trigger fresh pricing mechanics at exactly the point when the customer thought the original bargain was ending. If the renewal term is long, the business may carry another full cycle of cost before it can revisit the deal.",
+        "Budget risk becomes sharper when renewal pricing can move upward. A contract that auto-renews into higher fees, indexed pricing, or supplier-controlled adjustments can convert a routine continuation clause into a meaningful commercial contract risk issue, especially where switching cost is already high.",
+      ],
+    },
+    {
+      heading: "Asymmetric termination rights weaken the customer position",
+      paragraphs: [
+        "Auto-renewal risk is more serious when termination rights are asymmetrical. If the supplier has more flexibility to suspend, reprice, or exit while the customer remains bound by a strict notice regime, the renewal structure can weaken the customer’s leverage before any renegotiation even begins.",
+        "That imbalance does not always appear as one dramatic clause. It often appears as a pattern: automatic renewal, tight notice windows, weak customer termination rights, and broad supplier discretion over price or service changes. Together, those signals deserve early attention because they shape the commercial power dynamic of the contract.",
+      ],
+    },
+    {
+      heading: "Why dates and deadlines should be tracked before signature and before renewal",
+      paragraphs: [
+        "The best time to think about renewal deadlines is before the contract is signed, not when the reminder arrives too late. A disciplined review should identify the renewal trigger, the notice deadline, the method of giving notice, any formal service requirements, and whether approval teams will realistically have enough time to act.",
+        "The same discipline matters again before the renewal date itself. If the business wants optionality, it needs a clear record of when the contract rolls, what notice is required, and whether any pricing or term changes attach automatically to the next cycle.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk helps surface renewal trap risk",
+      paragraphs: [
+        "VoxaRisk helps by surfacing renewal language, termination windows, notice-period pressure, pricing escalation indicators, imbalance signals, and evidence-backed first-pass findings. That gives commercial teams a faster way to see whether the contract contains renewal mechanics that deserve negotiation or escalation.",
+        "The goal is not to replace legal review. It is to improve decision discipline before the contract is treated as routine. By highlighting the clause evidence and the commercial exposure pattern early, VoxaRisk helps teams decide what to check, what to renegotiate, and what to track operationally after signature.",
+      ],
+    },
+    {
+      heading: "What to check before signing and before renewal",
+      paragraphs: [
+        "Before signing, check whether the contract renews automatically, how long the renewal term runs, how much notice is required, whether pricing can move on renewal, and whether the customer has workable exit rights. Before renewal, check the actual deadline, the required notice method, any linked price adjustments, and whether the business still wants the contract to continue on the existing terms.",
+        "VoxaRisk supports contract risk intelligence and negotiation awareness, but it does not provide legal advice or legal opinions. It does not determine enforceability, and it does not replace lawyers. Where renewal exposure, pricing disputes, or material contractual dependency are significant, appropriate professional advice should still be sought.",
+      ],
+    },
+  ],
+};
+
 export const prepareContractArticle: InsightArticle = {
   slug: "prepare-contract-internal-review",
   category: "Review preparation",
@@ -583,11 +650,11 @@ export const insightArticles: InsightArticle[] = [
   supplierAgreementArticle,
   governingLawJurisdictionArticle,
   governingLawJurisdictionRiskArticle,
+  autoRenewalRiskArticle,
   prepareContractArticle,
 ];
 
 export const futureInsightTopics = [
-  "Auto-renewal and renewal control",
   "Service credit wording",
   "Approval discipline in fast-moving deals",
 ];
