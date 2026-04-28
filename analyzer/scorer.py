@@ -106,6 +106,12 @@ _LIMITED_EXIT_RULE_IDS = {
     "renewal_long_commitment",
 }
 
+_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS = {
+    "payment_deadline_pressure",
+    "service_suspension_right",
+    "fee_acceleration_late_fee_exposure",
+}
+
 _INDEMNITY_RULE_IDS = {
     "indemnity_broad",
     "indemnity_one_way",
@@ -439,6 +445,31 @@ def _build_cross_clause_findings(
                 "effect": effect,
                 "reason": "Renewal lock-in combined with pricing escalation may weaken renewal leverage and expand forward cost exposure.",
                 "triggered_by": triggered_by,
+            }
+        )
+
+    matched_payment_leverage = sorted(matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS))
+    if len(matched_payment_leverage) >= 2:
+        contributors = [by_rule_id[rid][0] for rid in matched_payment_leverage if rid in by_rule_id]
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_payment_leverage_stack",
+                category="payment",
+                title="Stacked cashflow pressure and enforcement leverage",
+                severity=4,
+                weight=2,
+                rationale="Multiple payment-pressure clauses appear together, creating stacked cashflow pressure and enforcement leverage beyond a single invoice-timing term.",
+                triggered_by=matched_payment_leverage,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_payment_leverage_stack",
+                "effect": 2,
+                "reason": "Short payment timing, suspension leverage, and fee-acceleration or penalty terms may combine to create stronger cashflow pressure than any single clause alone.",
+                "triggered_by": matched_payment_leverage,
             }
         )
 

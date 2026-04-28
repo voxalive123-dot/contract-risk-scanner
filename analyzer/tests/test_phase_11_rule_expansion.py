@@ -69,6 +69,14 @@ def test_fee_acceleration_late_fee_positive_negative_and_edge():
         "Overdue amounts accrue interest at 1.5% per month until paid.",
         "fee_acceleration_late_fee_exposure",
     )
+    assert_rule(
+        "Late payments bear interest at 24% per annum compounded monthly.",
+        "fee_acceleration_late_fee_exposure",
+    )
+    assert_rule(
+        "Upon default, the entire balance becomes immediately due and payable.",
+        "fee_acceleration_late_fee_exposure",
+    )
 
 
 def test_payment_deadline_pressure_positive_negative_and_edge():
@@ -113,6 +121,21 @@ def test_service_suspension_for_non_payment_pressure_positive_negative_and_edge(
     assert_rule(
         "Supplier may withhold services and data for non-payment without cure.",
         "service_suspension_right",
+    )
+
+
+def test_non_refundable_fees_positive_negative_and_edge():
+    assert_rule(
+        "All prepaid fees are non-refundable, even if the agreement is terminated early.",
+        "non_refundable_fees",
+    )
+    assert_no_rule(
+        "Fees are refundable on a pro-rata basis for unused services.",
+        "non_refundable_fees",
+    )
+    assert_rule(
+        "No refunds will be issued after cancellation.",
+        "non_refundable_fees",
     )
 
 

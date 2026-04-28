@@ -211,6 +211,62 @@ def test_payment_pressure_cluster_is_review_elevating():
     assert result["risk_score"] >= 5
 
 
+def test_payment_leverage_stack_not_triggered_by_single_suspension_clause():
+    text = "Provider may suspend access immediately for non-payment until payment is received."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "service_suspension_right" in rule_ids
+    assert "cross_payment_leverage_stack" not in rule_ids
+
+
+
+def test_payment_leverage_stack_triggers_for_short_window_suspension_and_interest():
+    text = (
+        "Payment is due within 7 days of invoice. Provider may suspend access immediately for non-payment until payment is received. "
+        "Overdue amounts accrue interest at 1.5% per month until paid."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+    adjustments = result["meta"]["score_adjustments"]
+
+    assert "payment_deadline_pressure" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "fee_acceleration_late_fee_exposure" in rule_ids
+    assert "cross_payment_leverage_stack" in rule_ids
+    assert any(adj.get("rule_id") == "cross_payment_leverage_stack" for adj in adjustments)
+    assert result["severity"] in {"MEDIUM", "HIGH"}
+    assert result["risk_score"] >= 8
+
+
+
+def test_payment_leverage_stack_triggers_for_acceleration_plus_suspension():
+    text = (
+        "Upon default, all outstanding amounts become immediately due and payable. Supplier may suspend the services "
+        "for non-payment without notice or cure period."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "fee_acceleration_late_fee_exposure" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "cross_payment_leverage_stack" in rule_ids
+
+
+
+def test_non_refundable_fees_detected_without_triggering_payment_stack_alone():
+    text = "All prepaid fees are non-refundable and no refunds will be issued after termination."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "non_refundable_fees" in rule_ids
+    assert "cross_payment_leverage_stack" not in rule_ids
+
+
 def test_ordinary_payment_timing_stays_low_signal():
     text = "Invoices are payable within 30 days of receipt."
     result = score_contract(text, include_findings=True, include_meta=True)
