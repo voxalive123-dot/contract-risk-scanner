@@ -267,6 +267,82 @@ def test_non_refundable_fees_detected_without_triggering_payment_stack_alone():
     assert "cross_payment_leverage_stack" not in rule_ids
 
 
+
+def test_cross_payment_exit_pressure_not_triggered_for_payment_only_case():
+    text = (
+        "Payment is due within 7 days of invoice. Provider may suspend access immediately for non-payment "
+        "until payment is received."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "payment_deadline_pressure" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "cross_payment_leverage_stack" in rule_ids
+    assert "cross_payment_exit_pressure" not in rule_ids
+
+
+
+def test_cross_payment_exit_pressure_not_triggered_for_exit_only_case():
+    text = (
+        "This agreement renews automatically for successive 12 month terms unless either party gives "
+        "30 days written notice of non-renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert "cross_payment_exit_pressure" not in rule_ids
+
+
+
+def test_cross_payment_exit_pressure_triggers_for_payment_plus_renewal_pressure():
+    text = (
+        "Payment is due within 7 days of invoice. Provider may suspend access immediately for non-payment until payment is received. "
+        "This agreement renews automatically unless Customer gives 30 days written notice of non-renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+    adjustments = result["meta"]["score_adjustments"]
+
+    assert "payment_deadline_pressure" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "cross_payment_leverage_stack" in rule_ids
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert "cross_payment_exit_pressure" in rule_ids
+    assert any(adj.get("rule_id") == "cross_payment_exit_pressure" for adj in adjustments)
+
+
+
+def test_cross_payment_exit_pressure_triggers_for_payment_plus_termination_constraint():
+    text = (
+        "Provider may suspend access immediately for non-payment until payment is received. "
+        "Transition assistance will be provided at Provider's then-current rates."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "service_suspension_right" in rule_ids
+    assert "termination_assistance_exit_dependency" in rule_ids
+    assert "cross_payment_exit_pressure" in rule_ids
+
+
+
+def test_cross_payment_exit_pressure_guardrail_does_not_trigger_without_underlying_rules():
+    text = (
+        "Invoices are payable in the ordinary course. Either party may terminate this agreement on reasonable notice."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_payment_exit_pressure" not in {f["rule_id"] for f in result["findings"]}
+
+
 def test_ordinary_payment_timing_stays_low_signal():
     text = "Invoices are payable within 30 days of receipt."
     result = score_contract(text, include_findings=True, include_meta=True)

@@ -110,6 +110,15 @@ _PAYMENT_LEVERAGE_SIGNAL_RULE_IDS = {
     "payment_deadline_pressure",
     "service_suspension_right",
     "fee_acceleration_late_fee_exposure",
+    "cross_payment_leverage_stack",
+}
+
+_EXIT_PRESSURE_SIGNAL_RULE_IDS = {
+    "auto_renewal_silent",
+    "renewal_notice_window_pressure",
+    "renewal_long_commitment",
+    "termination_without_notice",
+    "termination_assistance_exit_dependency",
 }
 
 _INDEMNITY_RULE_IDS = {
@@ -470,6 +479,35 @@ def _build_cross_clause_findings(
                 "effect": 2,
                 "reason": "Short payment timing, suspension leverage, and fee-acceleration or penalty terms may combine to create stronger cashflow pressure than any single clause alone.",
                 "triggered_by": matched_payment_leverage,
+            }
+        )
+
+    matched_payment_exit = sorted(matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS))
+    matched_exit_pressure = sorted(matched_rule_ids.intersection(_EXIT_PRESSURE_SIGNAL_RULE_IDS))
+    if matched_payment_exit and matched_exit_pressure:
+        triggered_by = matched_payment_exit + matched_exit_pressure
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_exit_pressure = "cross_payment_leverage_stack" in matched_payment_exit
+        effect = 2 if stronger_exit_pressure else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_payment_exit_pressure",
+                category="payment",
+                title="Payment pressure with constrained exit flexibility",
+                severity=4 if stronger_exit_pressure else 3,
+                weight=effect,
+                rationale="Payment pressure is amplified because the customer also faces weak, delayed, or commercially constrained exit routes.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_payment_exit_pressure",
+                "effect": effect,
+                "reason": "Payment leverage combined with renewal, termination, or exit pressure can make the customer more exposed to continued spend or operational disruption.",
+                "triggered_by": triggered_by,
             }
         )
 
