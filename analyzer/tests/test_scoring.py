@@ -291,9 +291,14 @@ def test_cross_renewal_lock_in_plus_price_increase_triggers():
     rule_ids = {f["rule_id"] for f in result["findings"]}
     adjustments = result["meta"]["score_adjustments"]
 
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert "renewal_long_commitment" in rule_ids
+    assert "renewal_price_increase_on_renewal" in rule_ids
     assert "cross_renewal_price_lock_in" in rule_ids
     assert any(adj.get("rule_id") == "cross_renewal_price_lock_in" for adj in adjustments)
     assert result["severity"] == "MEDIUM"
+    assert result["risk_score"] >= 10
 
 
 def test_cross_renewal_lock_in_not_triggered_by_simple_renewal_alone():
@@ -310,6 +315,21 @@ def test_cross_renewal_lock_in_not_triggered_by_ordinary_price_clause_alone():
     assert "cross_renewal_price_lock_in" not in {f["rule_id"] for f in result["findings"]}
 
 
+def test_cross_renewal_lock_in_not_triggered_by_generic_price_increase_plus_renewal_pressure():
+    text = (
+        "This agreement renews automatically unless Customer gives 30 days written notice of non-renewal. "
+        "Supplier may increase pricing on written notice at any time during the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert "unilateral_price_increase" in rule_ids
+    assert "cross_renewal_price_lock_in" not in rule_ids
+
+
 def test_cross_unilateral_variation_limited_exit_triggers():
     text = (
         "Provider may change pricing and service scope upon notice to Customer. This agreement renews automatically "
@@ -319,7 +339,11 @@ def test_cross_unilateral_variation_limited_exit_triggers():
 
     rule_ids = {f["rule_id"] for f in result["findings"]}
 
+    assert "unilateral_price_increase" in rule_ids
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
     assert "cross_unilateral_variation_limited_exit" in rule_ids
+    assert "cross_renewal_price_lock_in" not in rule_ids
     assert any(
         adj.get("rule_id") == "cross_unilateral_variation_limited_exit"
         for adj in result["meta"]["score_adjustments"]

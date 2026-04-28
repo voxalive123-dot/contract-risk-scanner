@@ -92,7 +92,6 @@ _RENEWAL_RULE_IDS = {
 
 _RENEWAL_PRICE_RULE_IDS = {
     "renewal_price_increase_on_renewal",
-    "unilateral_price_increase",
 }
 
 _VARIATION_RULE_IDS = {
