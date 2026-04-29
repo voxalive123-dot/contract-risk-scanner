@@ -1,0 +1,13 @@
+ENTERPRISE PLATFORM AGREEMENT
+
+Customer subscribes to Provider's hosted software platform, dashboard, API, and managed services for an initial term of twelve (12) months.
+
+The Agreement renews automatically for successive twelve (12) month periods unless Customer gives at least ninety (90) days' written notice before the renewal date. Customer may not terminate for convenience during the term.
+
+Supplier may amend the fees for any renewal term by written notice and may update service policies from time to time without further consent. Payment is due within seven (7) days of invoice. Overdue amounts accrue interest at 1.5% per month and Supplier may suspend the hosted services for unpaid invoices after 7 days.
+
+If Customer terminates early, all remaining fees for the then-current term become immediately payable. Transition assistance will be provided at Provider's then-current rates and data migration is subject to additional fees in Supplier's sole discretion.
+
+Provider may use Customer Data for any purpose, may sublicense such rights without restriction, may use Usage Data and aggregated analytics for internal business purposes, and may retain Customer Data after termination for business purposes. Provider has no obligation to return or delete Customer Data after termination.
+
+Supplier may subcontract without prior written consent and may assign this Agreement in connection with a change of control without additional approval.

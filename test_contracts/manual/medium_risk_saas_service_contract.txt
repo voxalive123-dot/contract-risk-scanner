@@ -1,0 +1,13 @@
+SUBSCRIPTION SERVICES AGREEMENT
+
+Provider grants Customer access to the hosted software platform, dashboard, API, and user accounts during the term.
+
+The Agreement renews automatically for successive twelve (12) month periods unless either party gives at least thirty (30) days' written notice of non-renewal before the end of the then-current term.
+
+Upon renewal, Provider may increase the fees for the renewal term by written notice. Invoices are due within ten (10) days of receipt, and Provider may suspend access to the services for non-payment until payment is received.
+
+Service credits are Customer's sole and exclusive remedy for service level failures. Provider will provide transition assistance at Provider's then-current rates.
+
+Provider may retain Customer Data after termination for internal business purposes and may use Usage Data and aggregated analytics to improve the services.
+
+Provider's aggregate liability is limited to fees paid in the prior twelve (12) months.
