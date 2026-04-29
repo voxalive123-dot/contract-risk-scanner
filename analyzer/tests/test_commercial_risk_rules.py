@@ -151,8 +151,14 @@ def test_commercial_control_cluster_compound_adjustment():
         and adj.get("effect") == 2
         for adj in adjustments
     )
+    assert any(
+        adj.get("type") == "compound_risk"
+        and adj.get("rule_id") == "cross_variation_payment_leverage"
+        for adj in adjustments
+    )
+    assert "cross_variation_payment_leverage" in rule_ids
 
-    assert result["risk_score"] == 14
+    assert result["risk_score"] == 15
 
 def test_liability_indemnity_cluster_compound_adjustment():
     text = (

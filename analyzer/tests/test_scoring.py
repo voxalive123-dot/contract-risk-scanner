@@ -492,6 +492,78 @@ def test_cross_unilateral_variation_limited_exit_not_triggered_by_balanced_langu
     assert "cross_unilateral_variation_limited_exit" not in {f["rule_id"] for f in result["findings"]}
 
 
+def test_cross_variation_payment_leverage_triggers_with_price_change_and_payment_pressure():
+    text = (
+        "Supplier may increase fees on written notice at any time during the term. "
+        "Payment is due within 7 days of invoice and Supplier may suspend services immediately for non-payment."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "unilateral_price_increase" in rule_ids
+    assert "payment_deadline_pressure" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "cross_variation_payment_leverage" in rule_ids
+    assert "cross_payment_leverage_stack" in rule_ids
+
+
+def test_cross_variation_payment_leverage_not_triggered_by_variation_alone():
+    text = "Supplier may increase fees on written notice at any time during the term."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_variation_payment_leverage" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_suspension_payment_control_triggers_with_suspension_and_payment_penalty_support():
+    text = (
+        "Provider may suspend services immediately for non-payment until payment is received. "
+        "Overdue amounts accrue interest at 1.5% per month and payment is due within 7 days of invoice."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "service_suspension_right" in rule_ids
+    assert "payment_deadline_pressure" in rule_ids
+    assert "fee_acceleration_late_fee_exposure" in rule_ids
+    assert "cross_suspension_payment_control" in rule_ids
+
+
+def test_cross_suspension_payment_control_not_triggered_by_suspension_alone():
+    text = "Provider may suspend services immediately for non-payment until payment is received."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_suspension_payment_control" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_control_without_reciprocal_exit_triggers_for_control_stack_and_renewal_lock_in():
+    text = (
+        "Supplier may increase fees on notice and may subcontract the services without prior written consent. "
+        "This agreement renews automatically for successive 12 month terms unless Customer gives 30 days written notice of non-renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+    meta = result["meta"]
+
+    assert "unilateral_price_increase" in rule_ids
+    assert "subcontracting_without_consent" in rule_ids
+    assert "auto_renewal_silent" in rule_ids
+    assert "renewal_notice_window_pressure" in rule_ids
+    assert "cross_control_without_reciprocal_exit" in rule_ids
+    assert "cross_unilateral_variation_limited_exit" in rule_ids
+    assert "matched_rule_count" in meta
+    assert "score_adjustments" in meta
+
+
+def test_cross_control_without_reciprocal_exit_not_triggered_without_exit_pressure():
+    text = "Supplier may increase fees on notice and may subcontract the services without prior written consent."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_control_without_reciprocal_exit" not in {f["rule_id"] for f in result["findings"]}
+
+
 def test_cross_indemnity_cap_gap_triggers():
     text = (
         "Customer shall defend, indemnify, and hold Supplier harmless against all third-party claims. "

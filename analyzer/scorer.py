@@ -113,12 +113,32 @@ _PAYMENT_LEVERAGE_SIGNAL_RULE_IDS = {
     "cross_payment_leverage_stack",
 }
 
+_PAYMENT_SUPPORT_RULE_IDS = {
+    "payment_deadline_pressure",
+    "fee_acceleration_late_fee_exposure",
+    "payment_collection_cost_shifting",
+    "cross_payment_leverage_stack",
+}
+
 _EXIT_PRESSURE_SIGNAL_RULE_IDS = {
     "auto_renewal_silent",
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
     "termination_without_notice",
     "termination_assistance_exit_dependency",
+}
+
+_CONTROL_RIGHT_RULE_IDS = {
+    "unilateral_amendment_policy_reference",
+    "unilateral_price_increase",
+    "service_suspension_right",
+    "termination_for_convenience_counterparty",
+    "broad_customer_data_use",
+    "assignment_without_consent",
+    "change_of_control_assignment",
+    "broad_sublicensing_right",
+    "subcontracting_without_consent",
+    "data_retention_deletion_asymmetry",
 }
 
 _INDEMNITY_RULE_IDS = {
@@ -507,6 +527,96 @@ def _build_cross_clause_findings(
                 "rule_id": "cross_payment_exit_pressure",
                 "effect": effect,
                 "reason": "Payment leverage combined with renewal, termination, or exit pressure can make the customer more exposed to continued spend or operational disruption.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_variation = sorted(matched_rule_ids.intersection(_VARIATION_RULE_IDS))
+    matched_variation_payment = sorted(matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS))
+    if matched_variation and matched_variation_payment:
+        triggered_by = matched_variation + matched_variation_payment
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_variation_payment = (
+            "unilateral_amendment_policy_reference" in matched_variation
+            or "cross_payment_leverage_stack" in matched_variation_payment
+        )
+        effect = 2 if stronger_variation_payment else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_variation_payment_leverage",
+                category="payment",
+                title="Variation rights with payment leverage",
+                severity=4 if stronger_variation_payment else 3,
+                weight=effect,
+                rationale="The counterparty appears able to change commercial terms while payment pressure and service-continuity leverage remain in place, which can weaken practical resistance to the change package.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_variation_payment_leverage",
+                "effect": effect,
+                "reason": "Variation rights paired with payment pressure can reduce practical leverage if resisting the revised terms risks default, suspension, or accelerated payment exposure.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_suspension_support = sorted(matched_rule_ids.intersection(_PAYMENT_SUPPORT_RULE_IDS))
+    if "service_suspension_right" in matched_rule_ids and matched_suspension_support:
+        triggered_by = ["service_suspension_right"] + [rid for rid in matched_suspension_support if rid != "service_suspension_right"]
+        contributors = [by_rule_id[rid][0] for rid in dict.fromkeys(triggered_by) if rid in by_rule_id]
+        nonstack_suspension_support = [rid for rid in matched_suspension_support if rid != "cross_payment_leverage_stack"]
+        stronger_suspension_control = len(nonstack_suspension_support) >= 2
+        effect = 0 if "cross_payment_leverage_stack" in matched_suspension_support else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_suspension_payment_control",
+                category="payment",
+                title="Suspension leverage tied to payment control",
+                severity=4 if stronger_suspension_control or "cross_payment_leverage_stack" in matched_suspension_support else 3,
+                weight=max(effect, 1),
+                rationale="Operational continuity may be used as leverage where suspension rights sit alongside short deadlines, penalty exposure, or other payment-control clauses.",
+                triggered_by=list(dict.fromkeys(triggered_by)),
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_suspension_payment_control",
+                "effect": effect,
+                "reason": "Suspension rights combined with surrounding payment-control language can make service continuity a pressure point in billing or default scenarios.",
+                "triggered_by": list(dict.fromkeys(triggered_by)),
+            }
+        )
+
+    matched_control_rights = sorted(matched_rule_ids.intersection(_CONTROL_RIGHT_RULE_IDS))
+    non_variation_controls = [rid for rid in matched_control_rights if rid not in _VARIATION_RULE_IDS]
+    if matched_exit_pressure and len(matched_control_rights) >= 2 and non_variation_controls:
+        triggered_by = matched_control_rights + matched_exit_pressure
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_control_asymmetry = len(matched_control_rights) >= 3 or "service_suspension_right" in matched_control_rights
+        effect = 2 if stronger_control_asymmetry else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_control_without_reciprocal_exit",
+                category="termination",
+                title="Counterparty control with weak reciprocal exit",
+                severity=4 if stronger_control_asymmetry else 3,
+                weight=effect,
+                rationale="Multiple counterparty control rights appear alongside constrained exit routes, which can increase operational dependency before the customer can disengage on balanced terms.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_control_without_reciprocal_exit",
+                "effect": effect,
+                "reason": "Control-heavy clauses combined with weak reciprocal exit can create asymmetric dependency that is more commercially significant than the individual rights viewed in isolation.",
                 "triggered_by": triggered_by,
             }
         )
