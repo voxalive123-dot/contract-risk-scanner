@@ -564,6 +564,157 @@ def test_cross_control_without_reciprocal_exit_not_triggered_without_exit_pressu
     assert "cross_control_without_reciprocal_exit" not in {f["rule_id"] for f in result["findings"]}
 
 
+def test_auto_renewal_notice_trap_detected_for_90_day_pre_renewal_notice():
+    text = (
+        "This agreement renews automatically for successive 12-month periods unless the customer gives written notice "
+        "at least 90 days before the renewal date."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "auto_renewal_notice_trap" in {f["rule_id"] for f in result["findings"]}
+
+
+def test_early_termination_fee_detected_for_remaining_fees_due_on_exit():
+    text = "If Customer terminates early, all remaining fees for the then-current term become immediately payable."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "early_termination_fee" in {f["rule_id"] for f in result["findings"]}
+
+
+def test_no_termination_for_convenience_customer_detected():
+    text = "Customer may not terminate this agreement for convenience and may terminate only for cause."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "no_termination_for_convenience_customer" in {f["rule_id"] for f in result["findings"]}
+
+
+def test_minimum_commitment_lock_in_detected():
+    text = "Customer agrees to a minimum term of 24 months and minimum committed fees during that period."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "minimum_commitment_lock_in" in {f["rule_id"] for f in result["findings"]}
+
+
+def test_cross_auto_renewal_notice_exit_trap_triggers_for_notice_burden_and_no_customer_exit():
+    text = (
+        "The agreement renews automatically unless Customer gives 90 days written notice before the renewal date. "
+        "Customer may not terminate for convenience before the end of the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "auto_renewal_notice_trap" in rule_ids
+    assert "no_termination_for_convenience_customer" in rule_ids
+    assert "cross_auto_renewal_notice_exit_trap" in rule_ids
+
+
+def test_cross_renewal_price_exit_trap_triggers_for_renewal_price_and_constrained_exit():
+    text = (
+        "The agreement renews automatically unless Customer gives 90 days written notice before the renewal date. "
+        "Upon renewal, the fees may increase at Supplier's discretion. Customer may not terminate for convenience during the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "renewal_price_increase_on_renewal" in rule_ids
+    assert "cross_renewal_price_exit_trap" in rule_ids
+    assert "cross_renewal_price_lock_in" in rule_ids
+
+
+def test_cross_termination_fee_lock_in_triggers_for_exit_cost_and_weak_exit():
+    text = (
+        "If Customer terminates early, all remaining fees for the then-current term become immediately payable. "
+        "Customer may not terminate for convenience except at the end of the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "early_termination_fee" in rule_ids
+    assert "no_termination_for_convenience_customer" in rule_ids
+    assert "cross_termination_fee_lock_in" in rule_ids
+
+
+def test_cross_supplier_control_customer_lock_in_triggers_for_control_rights_and_lock_in():
+    text = (
+        "Supplier may change pricing on notice, may suspend services for non-payment, and may subcontract without prior written consent. "
+        "Customer may not terminate for convenience during the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "unilateral_price_increase" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "subcontracting_without_consent" in rule_ids
+    assert "no_termination_for_convenience_customer" in rule_ids
+    assert "cross_supplier_control_customer_lock_in" in rule_ids
+
+
+def test_cross_exit_trap_stack_triggers_for_structural_lock_in_package():
+    text = (
+        "The agreement renews automatically for successive 12-month periods unless the customer gives written notice at least 90 days before the renewal date. "
+        "Supplier may amend the fees for any renewal term by written notice. Customer may not terminate for convenience during the term. "
+        "If customer terminates early, all remaining fees for the then-current term become immediately payable. "
+        "Supplier may suspend services for unpaid invoices after 7 days."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+    meta = result["meta"]
+
+    assert "auto_renewal_notice_trap" in rule_ids
+    assert "renewal_price_increase_on_renewal" in rule_ids
+    assert "no_termination_for_convenience_customer" in rule_ids
+    assert "early_termination_fee" in rule_ids
+    assert "service_suspension_right" in rule_ids
+    assert "cross_exit_trap_stack" in rule_ids
+    assert "cross_auto_renewal_notice_exit_trap" in rule_ids
+    assert "cross_termination_fee_lock_in" in rule_ids
+    assert "risk_score" in result
+    assert "severity" in result
+    assert "findings" in result
+    assert "confidence" in meta
+    assert "score_adjustments" in meta
+    assert "matched_rule_count" in meta
+    assert "suppressed_rule_count" in meta
+    assert "normalized_score" in meta
+    assert "top_risks" in meta
+
+
+def test_lower_risk_mutual_renewal_and_clear_exit_does_not_trigger_strong_exit_trap_synthesis():
+    text = (
+        "The agreement renews only by mutual written agreement. Either party may terminate for convenience on 30 days notice. "
+        "Fees for renewal terms must be agreed in writing before renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "cross_auto_renewal_notice_exit_trap" not in rule_ids
+    assert "cross_renewal_price_exit_trap" not in rule_ids
+    assert "cross_exit_trap_stack" not in rule_ids
+
+
+def test_isolated_price_increase_does_not_trigger_renewal_exit_trap():
+    text = "Supplier may increase fees on notice during the term."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert "cross_renewal_price_exit_trap" not in {f["rule_id"] for f in result["findings"]}
+
+
+def test_isolated_termination_fee_does_not_trigger_full_exit_trap_stack():
+    text = "A cancellation fee equal to three months of fees applies upon early termination."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "early_termination_fee" in rule_ids
+    assert "cross_exit_trap_stack" not in rule_ids
+
+
 def test_cross_indemnity_cap_gap_triggers():
     text = (
         "Customer shall defend, indemnify, and hold Supplier harmless against all third-party claims. "

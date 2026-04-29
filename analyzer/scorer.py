@@ -88,6 +88,7 @@ _RENEWAL_RULE_IDS = {
     "auto_renewal_silent",
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
+    "auto_renewal_notice_trap",
 }
 
 _RENEWAL_PRICE_RULE_IDS = {
@@ -104,6 +105,10 @@ _LIMITED_EXIT_RULE_IDS = {
     "auto_renewal_silent",
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
+    "auto_renewal_notice_trap",
+    "no_termination_for_convenience_customer",
+    "early_termination_fee",
+    "minimum_commitment_lock_in",
 }
 
 _PAYMENT_LEVERAGE_SIGNAL_RULE_IDS = {
@@ -124,8 +129,12 @@ _EXIT_PRESSURE_SIGNAL_RULE_IDS = {
     "auto_renewal_silent",
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
+    "auto_renewal_notice_trap",
     "termination_without_notice",
     "termination_assistance_exit_dependency",
+    "no_termination_for_convenience_customer",
+    "early_termination_fee",
+    "minimum_commitment_lock_in",
 }
 
 _CONTROL_RIGHT_RULE_IDS = {
@@ -139,6 +148,32 @@ _CONTROL_RIGHT_RULE_IDS = {
     "broad_sublicensing_right",
     "subcontracting_without_consent",
     "data_retention_deletion_asymmetry",
+}
+
+_RENEWAL_EXIT_TRAP_RULE_IDS = {
+    "auto_renewal_silent",
+    "renewal_notice_window_pressure",
+    "renewal_long_commitment",
+    "auto_renewal_notice_trap",
+}
+
+_RENEWAL_ECONOMIC_CHANGE_RULE_IDS = {
+    "renewal_price_increase_on_renewal",
+    "unilateral_price_increase",
+    "unilateral_amendment_policy_reference",
+}
+
+_HARD_EXIT_LOCKIN_RULE_IDS = {
+    "no_termination_for_convenience_customer",
+    "early_termination_fee",
+    "minimum_commitment_lock_in",
+    "termination_assistance_exit_dependency",
+}
+
+_EXIT_COST_RULE_IDS = {
+    "early_termination_fee",
+    "minimum_commitment_lock_in",
+    "fee_acceleration_late_fee_exposure",
 }
 
 _INDEMNITY_RULE_IDS = {
@@ -617,6 +652,163 @@ def _build_cross_clause_findings(
                 "rule_id": "cross_control_without_reciprocal_exit",
                 "effect": effect,
                 "reason": "Control-heavy clauses combined with weak reciprocal exit can create asymmetric dependency that is more commercially significant than the individual rights viewed in isolation.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_auto_renewal_trap = sorted(matched_rule_ids.intersection(_RENEWAL_EXIT_TRAP_RULE_IDS))
+    matched_hard_exit_lockin = sorted(matched_rule_ids.intersection(_HARD_EXIT_LOCKIN_RULE_IDS))
+    if matched_auto_renewal_trap and matched_hard_exit_lockin and ("auto_renewal_silent" in matched_auto_renewal_trap or "auto_renewal_notice_trap" in matched_auto_renewal_trap):
+        triggered_by = matched_auto_renewal_trap + matched_hard_exit_lockin
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_notice_trap = any(rid in {"auto_renewal_notice_trap", "renewal_long_commitment"} for rid in matched_auto_renewal_trap)
+        effect = 2 if stronger_notice_trap or len(matched_hard_exit_lockin) >= 2 else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_auto_renewal_notice_exit_trap",
+                category="renewal",
+                title="Auto-renewal notice trap with constrained exit",
+                severity=4 if effect == 2 else 3,
+                weight=effect,
+                rationale="Auto-renewal mechanics appear alongside constrained exit rights or exit-cost terms, which may keep the customer bound if notice timing is missed.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_auto_renewal_notice_exit_trap",
+                "effect": effect,
+                "reason": "Auto-renewal notice mechanics combined with constrained exit rights can turn a missed renewal date into a fresh lock-in event.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_renewal_economic_change = sorted(matched_rule_ids.intersection(_RENEWAL_ECONOMIC_CHANGE_RULE_IDS))
+    if matched_auto_renewal_trap and matched_hard_exit_lockin and matched_renewal_economic_change:
+        triggered_by = matched_auto_renewal_trap + matched_renewal_economic_change + matched_hard_exit_lockin
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_renewal_price_exit = (
+            "renewal_price_increase_on_renewal" in matched_renewal_economic_change
+            or len(matched_hard_exit_lockin) >= 2
+        )
+        effect = 2 if stronger_renewal_price_exit else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_renewal_price_exit_trap",
+                category="renewal",
+                title="Renewal price change with constrained exit",
+                severity=4 if effect == 2 else 3,
+                weight=effect,
+                rationale="Renewal-related economic change appears alongside constrained exit mechanics, which may roll the customer into changed pricing before there is practical room to disengage.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_renewal_price_exit_trap",
+                "effect": effect,
+                "reason": "Renewal pricing change combined with weak exit rights can increase the chance of rolling into a more expensive contract before the customer can respond effectively.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_exit_cost = sorted(matched_rule_ids.intersection(_EXIT_COST_RULE_IDS))
+    matched_weak_customer_exit = sorted(matched_rule_ids.intersection(_HARD_EXIT_LOCKIN_RULE_IDS.union({"auto_renewal_notice_trap", "renewal_long_commitment"})))
+    if matched_exit_cost and matched_weak_customer_exit:
+        triggered_by = matched_exit_cost + matched_weak_customer_exit
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_fee_lockin = any(rid in {"early_termination_fee", "minimum_commitment_lock_in"} for rid in matched_exit_cost)
+        effect = 2 if stronger_fee_lockin and len(matched_weak_customer_exit) >= 1 else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_termination_fee_lock_in",
+                category="termination",
+                title="Exit cost with weak termination flexibility",
+                severity=4 if effect == 2 else 3,
+                weight=effect,
+                rationale="The contract appears to allow exit only at meaningful cost or with constrained flexibility, which can make leaving commercially prohibitive even where termination is technically available.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_termination_fee_lock_in",
+                "effect": effect,
+                "reason": "Exit-cost clauses paired with weak customer exit rights can make the practical cost of disengagement materially higher than a simple termination label suggests.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_supplier_control = sorted(matched_rule_ids.intersection(_CONTROL_RIGHT_RULE_IDS.union(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS)))
+    if len(matched_supplier_control) >= 2 and matched_hard_exit_lockin:
+        triggered_by = matched_supplier_control + matched_hard_exit_lockin
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger_supplier_control = len(matched_supplier_control) >= 3 or "cross_payment_leverage_stack" in matched_supplier_control
+        effect = 2 if stronger_supplier_control else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_supplier_control_customer_lock_in",
+                category="termination",
+                title="Supplier control with customer lock-in",
+                severity=4 if effect == 2 else 3,
+                weight=effect,
+                rationale="Broad supplier control rights appear alongside customer lock-in features, increasing the risk that operational or commercial changes can be imposed while exit remains constrained.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_supplier_control_customer_lock_in",
+                "effect": effect,
+                "reason": "Supplier control rights combined with customer lock-in can create asymmetric dependency beyond the effect of the underlying clauses viewed separately.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    exit_trap_dimensions = 0
+    if matched_auto_renewal_trap:
+        exit_trap_dimensions += 1
+    if any(rid in {"renewal_notice_window_pressure", "auto_renewal_notice_trap", "renewal_long_commitment"} for rid in matched_auto_renewal_trap):
+        exit_trap_dimensions += 1
+    if matched_renewal_economic_change:
+        exit_trap_dimensions += 1
+    if matched_exit_cost:
+        exit_trap_dimensions += 1
+    if matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS):
+        exit_trap_dimensions += 1
+    if matched_hard_exit_lockin:
+        exit_trap_dimensions += 1
+    if exit_trap_dimensions >= 3 and matched_hard_exit_lockin and matched_auto_renewal_trap:
+        triggered_pool = set(matched_auto_renewal_trap + matched_renewal_economic_change + matched_exit_cost + matched_hard_exit_lockin + sorted(matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS)))
+        triggered_by = sorted(triggered_pool)
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        effect = 3 if exit_trap_dimensions >= 5 else 2
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_exit_trap_stack",
+                category="termination",
+                title="Structural renewal and exit trap stack",
+                severity=5 if effect == 3 else 4,
+                weight=effect,
+                rationale="Multiple lock-in dimensions appear together across renewal, pricing, payment, and exit clauses, suggesting a structural exit trap rather than a single isolated term.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_exit_trap_stack",
+                "effect": effect,
+                "reason": "Several renewal, exit-cost, payment, and control dimensions combine into a broader lock-in structure that deserves consolidated review before acceptance or renewal.",
                 "triggered_by": triggered_by,
             }
         )

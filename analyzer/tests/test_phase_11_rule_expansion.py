@@ -329,6 +329,66 @@ def test_renewal_price_increase_positive_negative_and_edge():
     )
 
 
+def test_auto_renewal_notice_trap_positive_negative_and_edge():
+    assert_rule(
+        "This agreement renews automatically unless the customer gives 90 days written notice before the renewal date.",
+        "auto_renewal_notice_trap",
+    )
+    assert_no_rule(
+        "The agreement does not automatically renew and any renewal must be agreed in writing by both parties.",
+        "auto_renewal_notice_trap",
+    )
+    assert_rule(
+        "Automatic renewal applies unless 60 days written notice of non-renewal is given before the end of the term.",
+        "auto_renewal_notice_trap",
+    )
+
+
+def test_early_termination_fee_positive_negative_and_edge():
+    assert_rule(
+        "If Customer terminates early, all remaining fees for the then-current term become immediately payable.",
+        "early_termination_fee",
+    )
+    assert_no_rule(
+        "Customer may terminate early without penalty on 30 days notice.",
+        "early_termination_fee",
+    )
+    assert_rule(
+        "A cancellation fee equal to the remaining committed fees will apply upon early termination.",
+        "early_termination_fee",
+    )
+
+
+def test_no_termination_for_convenience_customer_positive_negative_and_edge():
+    assert_rule(
+        "Customer may not terminate this agreement for convenience and may terminate only for cause.",
+        "no_termination_for_convenience_customer",
+    )
+    assert_no_rule(
+        "Either party may terminate this agreement for convenience on 30 days notice.",
+        "no_termination_for_convenience_customer",
+    )
+    assert_rule(
+        "Customer has no right to terminate for convenience before the end of the term.",
+        "no_termination_for_convenience_customer",
+    )
+
+
+def test_minimum_commitment_lock_in_positive_negative_and_edge():
+    assert_rule(
+        "Customer agrees to a minimum term of 24 months and a minimum annual spend commitment.",
+        "minimum_commitment_lock_in",
+    )
+    assert_no_rule(
+        "This is a month-to-month arrangement with no minimum commitment.",
+        "minimum_commitment_lock_in",
+    )
+    assert_rule(
+        "The subscription is non-cancellable during the committed term and minimum committed fees remain payable.",
+        "minimum_commitment_lock_in",
+    )
+
+
 def test_governing_law_foreign_or_unfamiliar_positive():
     assert_rule(
         "This agreement is governed by the laws of the State of New York.",
