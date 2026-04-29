@@ -805,3 +805,213 @@ def test_no_forum_mismatch_note_when_document_geography_is_unclear():
 
     assert result["findings"][0]["matched_location"] == "California courts"
     assert result["findings"][0]["context_note"] is None
+
+
+
+def test_sector_playbook_classifies_saas_contract():
+    text = (
+        "This SaaS subscription provides access to the platform dashboard for named user accounts and API usage. "
+        "Availability and uptime targets apply to the hosted service."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    playbook_ids = {item["id"] for item in result["meta"]["sector_playbooks"]}
+
+    assert "saas_contract" in playbook_ids
+
+
+def test_sector_playbook_classifies_supplier_service_contract():
+    text = (
+        "Supplier will provide the Services under each Statement of Work and Purchase Order, including delivery of the Deliverables and management of subcontractors."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    playbook_ids = {item["id"] for item in result["meta"]["sector_playbooks"]}
+
+    assert "supplier_service_contract" in playbook_ids
+
+
+def test_sector_playbook_classifies_data_heavy_contract():
+    text = (
+        "Provider will process Customer Data and Personal Data, may analyze Usage Data, and will document retention and deletion obligations for Aggregated Data."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    playbook_ids = {item["id"] for item in result["meta"]["sector_playbooks"]}
+
+    assert "data_heavy_contract" in playbook_ids
+
+
+def test_generic_short_clause_does_not_trigger_all_sector_playbooks():
+    text = "Either party may terminate this agreement on written notice."
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    assert result["meta"]["sector_playbooks"] == []
+
+
+def test_sector_saas_subscription_lock_in_triggers_for_saas_lock_in_stack():
+    text = (
+        "This SaaS subscription gives Customer access to the software platform dashboard and named user accounts. "
+        "The agreement renews automatically for successive 12-month periods unless Customer gives at least 90 days written notice before the renewal date. "
+        "Supplier may amend the fees for any renewal term by written notice. Customer may not terminate for convenience during the term. "
+        "Supplier may suspend the hosted service for unpaid invoices after 7 days."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "saas_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "auto_renewal_notice_trap" in rule_ids
+    assert "renewal_price_increase_on_renewal" in rule_ids
+    assert "no_termination_for_convenience_customer" in rule_ids
+    assert "sector_saas_subscription_lock_in" in rule_ids
+
+
+def test_sector_saas_operational_dependency_triggers_for_suspension_and_transition_weakness():
+    text = (
+        "This SaaS platform provides API access and user accounts through the hosted service dashboard. "
+        "Provider may suspend access immediately for non-payment until payment is received. "
+        "Service credits are Customer's sole and exclusive remedy for downtime. "
+        "Transition assistance will be provided at Provider's then-current rates."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "saas_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "service_suspension_right" in rule_ids
+    assert "termination_assistance_exit_dependency" in rule_ids
+    assert "sector_saas_operational_dependency" in rule_ids
+
+
+def test_sector_supplier_control_stack_triggers_for_service_control_and_lock_in():
+    text = (
+        "Supplier will provide the Services under each Statement of Work and Purchase Order and may use subcontractors for Deliverables. "
+        "Supplier may change pricing on notice and may subcontract without prior written consent. "
+        "Customer may not terminate for convenience during the term."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "supplier_service_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "subcontracting_without_consent" in rule_ids
+    assert "unilateral_price_increase" in rule_ids
+    assert "sector_supplier_control_stack" in rule_ids
+
+
+def test_sector_data_secondary_use_risk_triggers_for_data_use_sublicensing_and_retention():
+    text = (
+        "Provider processes Customer Data, Personal Data, and Usage Data and may use aggregated data and analytics for internal business purposes. "
+        "Provider may use Customer Data for any purpose, may sublicense such rights without restriction, and may retain customer data after termination for business purposes."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "data_heavy_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "broad_customer_data_use" in rule_ids
+    assert "broad_sublicensing_right" in rule_ids
+    assert "data_retention_deletion_asymmetry" in rule_ids
+    assert "sector_data_secondary_use_risk" in rule_ids
+
+
+def test_sector_data_exit_residue_risk_triggers_for_retention_and_exit_weakness():
+    text = (
+        "Provider processes Customer Data and Personal Data. Provider may retain customer data after termination and has no obligation to return or delete customer data after termination. "
+        "Transition assistance will be provided at Provider's then-current rates."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "data_heavy_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "data_retention_deletion_asymmetry" in rule_ids
+    assert "termination_assistance_exit_dependency" in rule_ids
+    assert "sector_data_exit_residue_risk" in rule_ids
+
+
+def test_data_words_alone_do_not_trigger_sector_data_synthesis():
+    text = (
+        "Provider will process Customer Data and Personal Data only to perform the services and will return or delete the data on request."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "data_heavy_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "sector_data_secondary_use_risk" not in rule_ids
+    assert "sector_data_exit_residue_risk" not in rule_ids
+
+
+def test_saas_words_alone_do_not_trigger_saas_sector_synthesis():
+    text = (
+        "This SaaS platform subscription renews only by mutual written agreement. Either party may terminate for convenience on 30 days notice. "
+        "Fees for any renewal term must be agreed in writing before renewal."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+    rule_ids = {f["rule_id"] for f in result["findings"]}
+
+    assert "saas_contract" in {item["id"] for item in result["meta"]["sector_playbooks"]}
+    assert "sector_saas_subscription_lock_in" not in rule_ids
+    assert "sector_saas_operational_dependency" not in rule_ids
+
+
+def test_balanced_risk_appetite_remains_default_and_stable():
+    text = (
+        "Supplier may suspend services for unpaid invoices after 7 days. "
+        "Customer may not terminate for convenience during the term."
+    )
+    implicit = score_contract(text, include_findings=True, include_meta=True)
+    explicit = score_contract(text, include_findings=True, include_meta=True, risk_appetite="balanced")
+
+    assert implicit["meta"]["risk_appetite"] == "balanced"
+    assert explicit["meta"]["risk_appetite"] == "balanced"
+    assert implicit["risk_score"] == explicit["risk_score"]
+    assert implicit["flags"] == explicit["flags"]
+
+
+def test_strict_and_conservative_risk_appetite_do_not_hide_findings():
+    text = (
+        "This SaaS subscription gives Customer access to the software platform dashboard and named user accounts. "
+        "The agreement renews automatically for successive 12-month periods unless Customer gives at least 90 days written notice before the renewal date. "
+        "Supplier may amend the fees for any renewal term by written notice. Customer may not terminate for convenience during the term. "
+        "If Customer terminates early, all remaining fees become immediately payable."
+    )
+    balanced = score_contract(text, include_findings=True, include_meta=True)
+    strict = score_contract(text, include_findings=True, include_meta=True, risk_appetite="strict")
+    conservative = score_contract(text, include_findings=True, include_meta=True, risk_appetite="conservative")
+
+    balanced_rules = {f["rule_id"] for f in balanced["findings"]}
+    strict_rules = {f["rule_id"] for f in strict["findings"]}
+    conservative_rules = {f["rule_id"] for f in conservative["findings"]}
+
+    assert balanced_rules == strict_rules == conservative_rules
+    assert strict["risk_score"] >= balanced["risk_score"]
+    assert conservative["risk_score"] >= balanced["risk_score"]
+    assert strict["risk_score"] <= balanced["risk_score"] + 1
+    assert conservative["risk_score"] <= balanced["risk_score"] + 1
+    assert strict["meta"]["risk_appetite_adjustments"]
+    assert conservative["meta"]["risk_appetite_adjustments"]
+
+
+def test_extended_meta_shape_includes_playbooks_audit_and_appetite_fields():
+    text = (
+        "This SaaS subscription gives Customer access to the software platform dashboard and named user accounts. "
+        "The agreement renews automatically for successive 12-month periods unless Customer gives at least 90 days written notice before the renewal date. "
+        "Supplier may amend the fees for any renewal term by written notice. Customer may not terminate for convenience during the term. "
+        "Supplier may suspend the hosted service for unpaid invoices after 7 days."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True, risk_appetite="strict")
+    meta = result["meta"]
+
+    assert "risk_score" in result
+    assert "severity" in result
+    assert "findings" in result
+    assert "confidence" in meta
+    assert "score_adjustments" in meta
+    assert "matched_rule_count" in meta
+    assert "suppressed_rule_count" in meta
+    assert "normalized_score" in meta
+    assert "top_risks" in meta
+    assert "rule_families_detected" in meta
+    assert "sector_playbooks" in meta
+    assert "risk_appetite" in meta
+    assert "risk_appetite_adjustments" in meta
+    assert "derived_finding_count" in meta
+    assert meta["risk_appetite"] == "strict"
+    assert meta["derived_finding_count"] >= 1

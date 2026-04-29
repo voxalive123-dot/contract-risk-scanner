@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from analyzer.rules import (
     RISK_RULE_OBJECTS,
     RULESET_VERSION,
+    LABEL_ALIASES,
     RULE_NEGATIVE_PATTERNS,
     RULE_PRIORITIES,
     RULE_TAGS,
@@ -193,6 +194,101 @@ _JURISDICTION_RULE_IDS = {
     "jurisdiction_non_exclusive_forum",
     "arbitration_forum_or_seat",
     "venue_burden_foreign_court",
+}
+
+
+_SAAS_TEXT_SIGNAL_PATTERNS: List[Tuple[str, str]] = [
+    ("subscription", r"\bsubscription\b"),
+    ("saas", r"\bsaas\b"),
+    ("platform", r"\bplatform\b"),
+    ("hosted service", r"\bhosted\s+service\b"),
+    ("software", r"\bsoftware\b"),
+    ("api", r"\bapi\b"),
+    ("user accounts", r"\buser\s+accounts?\b"),
+    ("accounts", r"\baccounts?\b"),
+    ("dashboard", r"\bdashboard\b"),
+    ("uptime", r"\buptime\b"),
+    ("availability", r"\bavailability\b"),
+    ("service credits", r"\bservice\s+credits?\b"),
+]
+
+_SUPPLIER_TEXT_SIGNAL_PATTERNS: List[Tuple[str, str]] = [
+    ("supplier", r"\bsupplier\b"),
+    ("statement of work", r"\bstatement\s+of\s+work\b|\bsow\b"),
+    ("purchase order", r"\bpurchase\s+order\b|\bpo\b"),
+    ("deliverables", r"\bdeliverables?\b"),
+    ("service levels", r"\bservice\s+levels?\b"),
+    ("milestones", r"\bmilestones?\b"),
+    ("subcontractors", r"\bsubcontractors?\b"),
+    ("scope of work", r"\bscope\s+of\s+work\b"),
+]
+
+_DATA_TEXT_SIGNAL_PATTERNS: List[Tuple[str, str]] = [
+    ("customer data", r"\bcustomer\s+data\b"),
+    ("personal data", r"\bpersonal\s+data\b"),
+    ("usage data", r"\busage\s+data\b"),
+    ("aggregated data", r"\baggregated\s+data\b"),
+    ("analytics", r"\banalytics\b"),
+    ("retention", r"\bretention\b"),
+    ("deletion", r"\bdeletion\b|\bdelete\b"),
+    ("subprocessors", r"\bsubprocessors?\b"),
+    ("data processing", r"\bdata\s+processing\b"),
+    ("data export", r"\bdata\s+export\b"),
+]
+
+_PLAYBOOK_RULE_HINTS: Dict[str, set[str]] = {
+    "saas_contract": {
+        "auto_renewal_silent",
+        "renewal_notice_window_pressure",
+        "renewal_long_commitment",
+        "auto_renewal_notice_trap",
+        "renewal_price_increase_on_renewal",
+        "service_suspension_right",
+        "payment_deadline_pressure",
+        "fee_acceleration_late_fee_exposure",
+        "termination_assistance_exit_dependency",
+        "service_credits_sole_remedy",
+        "broad_warranty_disclaimer",
+        "data_retention_deletion_asymmetry",
+    },
+    "supplier_service_contract": {
+        "unilateral_amendment_policy_reference",
+        "unilateral_price_increase",
+        "subcontracting_without_consent",
+        "assignment_without_consent",
+        "change_of_control_assignment",
+        "termination_assistance_exit_dependency",
+        "service_suspension_right",
+        "termination_for_convenience_counterparty",
+    },
+    "data_heavy_contract": {
+        "broad_customer_data_use",
+        "broad_sublicensing_right",
+        "data_retention_deletion_asymmetry",
+        "data_security_responsibility_imbalance",
+        "termination_assistance_exit_dependency",
+    },
+}
+
+_PLAYBOOK_FOCUS_AREAS: Dict[str, List[str]] = {
+    "saas_contract": ["subscription lock-in", "service continuity", "data transition"],
+    "supplier_service_contract": ["delivery control", "subcontracting and assignment", "exit leverage"],
+    "data_heavy_contract": ["secondary data use", "retention and deletion", "post-termination data handling"],
+}
+
+_SECTOR_DATA_RIGHT_RULE_IDS = {
+    "broad_customer_data_use",
+    "broad_sublicensing_right",
+    "data_retention_deletion_asymmetry",
+}
+
+_SECTOR_DATA_EXIT_RULE_IDS = {
+    "termination_assistance_exit_dependency",
+    "no_termination_for_convenience_customer",
+    "early_termination_fee",
+    "minimum_commitment_lock_in",
+    "auto_renewal_notice_trap",
+    "renewal_long_commitment",
 }
 
 
@@ -450,6 +546,8 @@ def _derived_finding(
     rationale: str,
     triggered_by: List[str],
     contributors: List[Dict[str, Any]],
+    matched_pattern: str = "derived_cross_clause",
+    tags: Optional[List[str]] = None,
 ) -> Dict[str, Any]:
     span = _combine_match_span(contributors)
     return {
@@ -460,15 +558,330 @@ def _derived_finding(
         "weight": weight,
         "priority": 120,
         "rationale": rationale,
-        "matched_pattern": "derived_cross_clause",
+        "matched_pattern": matched_pattern,
         "match_span": span,
         "matched_text": _combine_excerpt(contributors, limit=1),
         "matched_location": None,
         "context_note": None,
         "excerpt": _combine_excerpt(contributors),
-        "tags": ["cross_clause", "derived_signal"],
+        "tags": tags or ["cross_clause", "derived_signal"],
         "triggered_by": triggered_by,
     }
+
+
+
+def _collect_text_signals(text: str, signal_patterns: List[Tuple[str, str]]) -> List[str]:
+    matched: List[str] = []
+    for label, pattern in signal_patterns:
+        if re.search(pattern, text, flags=re.IGNORECASE):
+            matched.append(label)
+    return matched
+
+
+def _collect_rule_signals(rule_ids: set[str], candidates: set[str]) -> List[str]:
+    return [
+        LABEL_ALIASES.get(rule_id, rule_id).replace("-", " ")
+        for rule_id in sorted(rule_ids.intersection(candidates))
+    ]
+
+
+def _infer_sector_playbooks(text: str, matched_rule_ids: set[str]) -> List[Dict[str, Any]]:
+    playbooks: List[Dict[str, Any]] = []
+    lowered = text.lower()
+
+    saas_text = _collect_text_signals(lowered, _SAAS_TEXT_SIGNAL_PATTERNS)
+    saas_rule_signals = _collect_rule_signals(matched_rule_ids, _PLAYBOOK_RULE_HINTS["saas_contract"])
+    if len(saas_text) >= 3 or (len(saas_text) >= 2 and len(saas_rule_signals) >= 2):
+        matched_signals = list(dict.fromkeys(saas_text + saas_rule_signals))[:6]
+        playbooks.append(
+            {
+                "id": "saas_contract",
+                "signal_count": len(matched_signals),
+                "matched_signals": matched_signals,
+                "focus_areas": _PLAYBOOK_FOCUS_AREAS["saas_contract"],
+            }
+        )
+
+    supplier_text = _collect_text_signals(lowered, _SUPPLIER_TEXT_SIGNAL_PATTERNS)
+    supplier_rule_signals = _collect_rule_signals(matched_rule_ids, _PLAYBOOK_RULE_HINTS["supplier_service_contract"])
+    if len(supplier_text) >= 3 or (len(supplier_text) >= 2 and len(supplier_rule_signals) >= 2):
+        matched_signals = list(dict.fromkeys(supplier_text + supplier_rule_signals))[:6]
+        playbooks.append(
+            {
+                "id": "supplier_service_contract",
+                "signal_count": len(matched_signals),
+                "matched_signals": matched_signals,
+                "focus_areas": _PLAYBOOK_FOCUS_AREAS["supplier_service_contract"],
+            }
+        )
+
+    data_text = _collect_text_signals(lowered, _DATA_TEXT_SIGNAL_PATTERNS)
+    data_rule_signals = _collect_rule_signals(matched_rule_ids, _PLAYBOOK_RULE_HINTS["data_heavy_contract"])
+    if len(data_text) >= 2 or (len(data_text) >= 1 and len(data_rule_signals) >= 2):
+        matched_signals = list(dict.fromkeys(data_text + data_rule_signals))[:6]
+        playbooks.append(
+            {
+                "id": "data_heavy_contract",
+                "signal_count": len(matched_signals),
+                "matched_signals": matched_signals,
+                "focus_areas": _PLAYBOOK_FOCUS_AREAS["data_heavy_contract"],
+            }
+        )
+
+    return playbooks
+
+
+def _build_sector_synthesis_findings(
+    text: str,
+    findings: List[Dict[str, Any]],
+    matched_rule_ids: set[str],
+    sector_playbooks: List[Dict[str, Any]],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    if not sector_playbooks:
+        return [], []
+
+    playbook_ids = {str(playbook.get("id", "")) for playbook in sector_playbooks}
+    by_rule_id: Dict[str, List[Dict[str, Any]]] = {}
+    for finding in findings:
+        by_rule_id.setdefault(str(finding.get("rule_id", "")), []).append(finding)
+
+    sector_findings: List[Dict[str, Any]] = []
+    sector_adjustments: List[Dict[str, Any]] = []
+    lowered = text.lower()
+
+    if "saas_contract" in playbook_ids:
+        matched_renewal = sorted(matched_rule_ids.intersection(_RENEWAL_EXIT_TRAP_RULE_IDS))
+        matched_pricing = sorted(matched_rule_ids.intersection(_RENEWAL_ECONOMIC_CHANGE_RULE_IDS))
+        matched_payment = sorted(matched_rule_ids.intersection(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS))
+        matched_exit = sorted(matched_rule_ids.intersection(_HARD_EXIT_LOCKIN_RULE_IDS.union({"termination_without_notice"})))
+        if matched_renewal and matched_exit and (matched_pricing or matched_payment):
+            triggered_by = list(dict.fromkeys(matched_renewal + matched_pricing + matched_payment + matched_exit))
+            contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+            overlapping_major = {"cross_exit_trap_stack", "cross_renewal_price_exit_trap"}.intersection(matched_rule_ids)
+            stronger = bool(matched_pricing and matched_payment) or len(matched_exit) >= 2
+            effect = 1 if overlapping_major else (2 if stronger else 1)
+            sector_findings.append(
+                _derived_finding(
+                    rule_id="sector_saas_subscription_lock_in",
+                    category="renewal",
+                    title="SaaS subscription lock-in",
+                    severity=4 if stronger else 3,
+                    weight=max(effect, 1),
+                    rationale="Subscription-style SaaS signals appear alongside renewal pressure, changing economics, and constrained exit, which can create recurring-cost lock-in and operational dependency.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                    matched_pattern="derived_sector_playbook",
+                    tags=["sector_playbook", "derived_signal", "saas_contract"],
+                )
+            )
+            sector_adjustments.append(
+                {
+                    "type": "sector_synthesis",
+                    "rule_id": "sector_saas_subscription_lock_in",
+                    "effect": effect,
+                    "reason": "In a subscription SaaS context, renewal pressure combined with pricing change or payment leverage can make recurring-cost lock-in more commercially significant.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+        saas_dependency_support = sorted(
+            matched_rule_ids.intersection(
+                {
+                    "cross_payment_leverage_stack",
+                    "cross_suspension_payment_control",
+                    "payment_deadline_pressure",
+                    "fee_acceleration_late_fee_exposure",
+                    "termination_assistance_exit_dependency",
+                    "data_retention_deletion_asymmetry",
+                    "service_credits_sole_remedy",
+                    "broad_warranty_disclaimer",
+                }
+            )
+        )
+        if "service_suspension_right" in matched_rule_ids and saas_dependency_support:
+            triggered_by = list(dict.fromkeys(["service_suspension_right"] + saas_dependency_support))
+            contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+            stronger = len([rid for rid in saas_dependency_support if rid != "cross_suspension_payment_control"]) >= 2
+            effect = 1 if "cross_suspension_payment_control" in matched_rule_ids else (2 if stronger else 1)
+            sector_findings.append(
+                _derived_finding(
+                    rule_id="sector_saas_operational_dependency",
+                    category="payment",
+                    title="SaaS operational dependency exposure",
+                    severity=4 if stronger else 3,
+                    weight=max(effect, 1),
+                    rationale="SaaS service access appears tied to suspension, continuity, or exit-transition pressure, which can turn operational dependency into commercial leverage.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                    matched_pattern="derived_sector_playbook",
+                    tags=["sector_playbook", "derived_signal", "saas_contract"],
+                )
+            )
+            sector_adjustments.append(
+                {
+                    "type": "sector_synthesis",
+                    "rule_id": "sector_saas_operational_dependency",
+                    "effect": effect,
+                    "reason": "In SaaS contracts, suspension rights combined with weak continuity or transition support can make service access itself a leverage point.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+    if "supplier_service_contract" in playbook_ids:
+        matched_supplier_control = sorted(matched_rule_ids.intersection(_CONTROL_RIGHT_RULE_IDS.union(_PAYMENT_LEVERAGE_SIGNAL_RULE_IDS)))
+        matched_supplier_exit = sorted(matched_rule_ids.intersection(_LIMITED_EXIT_RULE_IDS.union({"termination_without_notice"})))
+        non_variation_controls = [rid for rid in matched_supplier_control if rid not in _VARIATION_RULE_IDS]
+        if len(matched_supplier_control) >= 2 and matched_supplier_exit and non_variation_controls:
+            triggered_by = list(dict.fromkeys(matched_supplier_control + matched_supplier_exit))
+            contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+            stronger = len(matched_supplier_control) >= 3 or "service_suspension_right" in matched_supplier_control
+            overlapping_major = {"cross_control_without_reciprocal_exit", "cross_supplier_control_customer_lock_in"}.intersection(matched_rule_ids)
+            effect = 1 if overlapping_major else (2 if stronger else 1)
+            sector_findings.append(
+                _derived_finding(
+                    rule_id="sector_supplier_control_stack",
+                    category="termination",
+                    title="Supplier control stack in service delivery",
+                    severity=4 if stronger else 3,
+                    weight=max(effect, 1),
+                    rationale="Service-delivery signals appear alongside supplier control rights and constrained customer exit, which can let the counterparty shift delivery structure or commercial control while the customer remains exposed.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                    matched_pattern="derived_sector_playbook",
+                    tags=["sector_playbook", "derived_signal", "supplier_service_contract"],
+                )
+            )
+            sector_adjustments.append(
+                {
+                    "type": "sector_synthesis",
+                    "rule_id": "sector_supplier_control_stack",
+                    "effect": effect,
+                    "reason": "In supplier-service contracts, control rights combined with weak customer exit can make delivery or governance changes more commercially dangerous.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+    if "data_heavy_contract" in playbook_ids:
+        matched_data_rights = sorted(matched_rule_ids.intersection(_SECTOR_DATA_RIGHT_RULE_IDS.union({"broad_customer_data_use", "broad_sublicensing_right"})))
+        analytics_support = bool(re.search(r"\b(?:aggregated\s+data|analytics|usage\s+data)\b", lowered))
+        if matched_data_rights and (len(matched_data_rights) >= 2 or analytics_support):
+            triggered_by = list(dict.fromkeys(matched_data_rights))
+            contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+            stronger = len(matched_data_rights) >= 3 or (len(matched_data_rights) >= 2 and analytics_support)
+            effect = 2 if stronger else 1
+            sector_findings.append(
+                _derived_finding(
+                    rule_id="sector_data_secondary_use_risk",
+                    category="data",
+                    title="Sector data secondary-use risk",
+                    severity=4 if stronger else 3,
+                    weight=effect,
+                    rationale="Data-heavy contract signals appear alongside broad use, sublicensing, analytics, or retention rights, which may allow customer data to be used or retained beyond the intended operational purpose.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                    matched_pattern="derived_sector_playbook",
+                    tags=["sector_playbook", "derived_signal", "data_heavy_contract"],
+                )
+            )
+            sector_adjustments.append(
+                {
+                    "type": "sector_synthesis",
+                    "rule_id": "sector_data_secondary_use_risk",
+                    "effect": effect,
+                    "reason": "In data-heavy agreements, broad use and retention rights can carry more significance because the contract appears to govern ongoing data processing and analytics activity.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+        matched_data_exit = sorted(matched_rule_ids.intersection(_SECTOR_DATA_EXIT_RULE_IDS))
+        if "data_retention_deletion_asymmetry" in matched_rule_ids and matched_data_exit and matched_data_rights:
+            triggered_by = list(dict.fromkeys(["data_retention_deletion_asymmetry"] + matched_data_exit + matched_data_rights))
+            contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+            stronger = (
+                "termination_assistance_exit_dependency" in matched_data_exit
+                and any(rid in {"broad_customer_data_use", "broad_sublicensing_right"} for rid in matched_data_rights)
+            )
+            effect = 2 if stronger else 1
+            sector_findings.append(
+                _derived_finding(
+                    rule_id="sector_data_exit_residue_risk",
+                    category="data",
+                    title="Data residue risk after exit",
+                    severity=4 if stronger else 3,
+                    weight=effect,
+                    rationale="Data-heavy contract signals appear alongside retention asymmetry and exit-related weaknesses, which may leave customer data exposed beyond the end of the intended commercial relationship.",
+                    triggered_by=triggered_by,
+                    contributors=contributors,
+                    matched_pattern="derived_sector_playbook",
+                    tags=["sector_playbook", "derived_signal", "data_heavy_contract"],
+                )
+            )
+            sector_adjustments.append(
+                {
+                    "type": "sector_synthesis",
+                    "rule_id": "sector_data_exit_residue_risk",
+                    "effect": effect,
+                    "reason": "In data-heavy agreements, weak deletion or transition support can leave data exposure in place after the contract should have been commercially concluded.",
+                    "triggered_by": triggered_by,
+                }
+            )
+
+    return sector_findings, sector_adjustments
+
+
+def _apply_risk_appetite(
+    adjusted_score: int,
+    findings: List[Dict[str, Any]],
+    risk_appetite: str,
+) -> Tuple[int, str, List[Dict[str, Any]]]:
+    selected = (risk_appetite or "balanced").strip().lower()
+    if selected not in {"balanced", "strict", "conservative"}:
+        selected = "balanced"
+
+    if selected == "balanced":
+        return adjusted_score, selected, []
+
+    derived_rule_ids = {
+        str(f.get("rule_id", ""))
+        for f in findings
+        if str(f.get("matched_pattern", "")).startswith("derived_")
+    }
+    high_severity_count = sum(1 for f in findings if int(f.get("severity", 0)) >= 4)
+    effect = 0
+    reason = ""
+
+    if selected == "strict":
+        if derived_rule_ids and adjusted_score >= 4:
+            effect = 1
+            reason = "Strict appetite keeps combined medium-risk structures review-elevating instead of allowing them to read as routine."
+        elif high_severity_count >= 3 and adjusted_score >= 4:
+            effect = 1
+            reason = "Strict appetite treats multiple material signals as a stronger review case even when each clause is individually bounded."
+
+    if selected == "conservative":
+        if len(derived_rule_ids) >= 2:
+            effect = 1
+            reason = "Conservative appetite adds a bounded caution uplift when several derived risk structures appear together."
+        elif derived_rule_ids and high_severity_count >= 2:
+            effect = 1
+            reason = "Conservative appetite keeps materially combined risks from reading as comfortably routine."
+
+    if effect <= 0:
+        return adjusted_score, selected, []
+
+    return (
+        adjusted_score + effect,
+        selected,
+        [
+            {
+                "type": "risk_appetite",
+                "rule_id": f"risk_appetite_{selected}",
+                "effect": effect,
+                "reason": reason,
+                "triggered_by": sorted(derived_rule_ids)[:6],
+            }
+        ],
+    )
 
 
 def _build_cross_clause_findings(
@@ -1119,6 +1532,7 @@ def score_contract(
     *,
     include_findings: bool = True,
     include_meta: bool = True,
+    risk_appetite: str = "balanced",
 ) -> Dict[str, Any]:
     original_text = text or ""
     scan_text = _scan_view(original_text)
@@ -1196,6 +1610,28 @@ def score_contract(
         deduped_findings.extend(cross_findings)
         matched_rule_ids = {str(f["rule_id"]) for f in deduped_findings}
 
+    sector_playbooks = _infer_sector_playbooks(scan_text, matched_rule_ids)
+    sector_findings, sector_adjustments = _build_sector_synthesis_findings(
+        scan_text,
+        deduped_findings,
+        matched_rule_ids,
+        sector_playbooks,
+    )
+    if sector_adjustments:
+        adjusted_risk_score += sum(int(adj.get("effect", 0)) for adj in sector_adjustments)
+        score_adjustments.extend(sector_adjustments)
+    if sector_findings:
+        deduped_findings.extend(sector_findings)
+        matched_rule_ids = {str(f["rule_id"]) for f in deduped_findings}
+
+    adjusted_risk_score, selected_risk_appetite, appetite_adjustments = _apply_risk_appetite(
+        adjusted_risk_score,
+        deduped_findings,
+        risk_appetite,
+    )
+    if appetite_adjustments:
+        score_adjustments.extend(appetite_adjustments)
+
     flags: List[str] = [_display_flag(f) for f in deduped_findings]
 
     if "termination_for_convenience_counterparty" in matched_rule_ids:
@@ -1251,6 +1687,11 @@ def score_contract(
             "scan_char_limit": MAX_SCAN_CHARS,
             "scanned_chars": min(len(original_text), MAX_SCAN_CHARS),
             "scan_truncated": len(original_text) > MAX_SCAN_CHARS,
+            "rule_families_detected": sorted({str(f.get("category", "")) for f in deduped_findings if str(f.get("category", ""))}),
+            "sector_playbooks": sector_playbooks,
+            "risk_appetite": selected_risk_appetite,
+            "risk_appetite_adjustments": appetite_adjustments,
+            "derived_finding_count": sum(1 for f in deduped_findings if str(f.get("matched_pattern", "")).startswith("derived_")),
         }
         result["meta"]["top_risks"] = [
             {
