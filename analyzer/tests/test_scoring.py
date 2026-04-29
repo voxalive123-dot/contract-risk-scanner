@@ -1015,3 +1015,70 @@ def test_extended_meta_shape_includes_playbooks_audit_and_appetite_fields():
     assert "derived_finding_count" in meta
     assert meta["risk_appetite"] == "strict"
     assert meta["derived_finding_count"] >= 1
+
+
+
+def test_high_risk_data_exit_trap_top_risks_favor_structural_and_material_data_signals():
+    text = (
+        "Customer subscribes to Provider's hosted software platform, dashboard, API, and managed services for an initial term of twelve (12) months. "
+        "The Agreement renews automatically for successive twelve (12) month periods unless Customer gives at least ninety (90) days' written notice before the renewal date. "
+        "Customer may not terminate for convenience during the term. Supplier may amend the fees for any renewal term by written notice and may update service policies from time to time without further consent. "
+        "Payment is due within seven (7) days of invoice. Overdue amounts accrue interest at 1.5% per month and Supplier may suspend the hosted services for unpaid invoices after 7 days. "
+        "If Customer terminates early, all remaining fees for the then-current term become immediately payable. "
+        "Provider may use Customer Data for any purpose, may sublicense such rights without restriction, may use Usage Data and aggregated analytics for internal business purposes, and may retain Customer Data after termination for business purposes. "
+        "Provider has no obligation to return or delete Customer Data after termination."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    top_risk_ids = [item["rule_id"] for item in result["meta"]["top_risks"]]
+
+    assert top_risk_ids[0] == "cross_exit_trap_stack"
+    assert "broad_sublicensing_right" not in top_risk_ids[:3]
+    assert any(
+        rule_id in top_risk_ids[:3]
+        for rule_id in {
+            "sector_data_secondary_use_risk",
+            "sector_data_exit_residue_risk",
+            "data_retention_deletion_asymmetry",
+            "broad_customer_data_use",
+            "cross_payment_leverage_stack",
+            "cross_suspension_payment_control",
+        }
+    )
+
+
+def test_structural_findings_remain_above_thin_sublicensing_signal_in_priorities():
+    text = (
+        "The agreement renews automatically for successive twelve (12) month periods unless Customer gives at least ninety (90) days' written notice before the renewal date. "
+        "Customer may not terminate for convenience during the term. If Customer terminates early, all remaining fees become immediately payable. "
+        "Provider may suspend services for non-payment after 7 days. Provider may use Customer Data for any purpose and may sublicense such rights without restriction. "
+        "Provider may retain Customer Data after termination for business purposes."
+    )
+    result = score_contract(text, include_findings=True, include_meta=True)
+
+    top_risk_ids = [item["rule_id"] for item in result["meta"]["top_risks"]]
+
+    assert any(
+        rule_id in top_risk_ids
+        for rule_id in {
+            "cross_exit_trap_stack",
+            "cross_termination_fee_lock_in",
+            "cross_supplier_control_customer_lock_in",
+            "sector_data_secondary_use_risk",
+            "sector_data_exit_residue_risk",
+        }
+    )
+    if "broad_sublicensing_right" in top_risk_ids:
+        assert any(
+            top_risk_ids.index(rule_id) < top_risk_ids.index("broad_sublicensing_right")
+            for rule_id in {
+                "cross_exit_trap_stack",
+                "cross_termination_fee_lock_in",
+                "cross_supplier_control_customer_lock_in",
+                "sector_data_secondary_use_risk",
+                "sector_data_exit_residue_risk",
+                "data_retention_deletion_asymmetry",
+                "broad_customer_data_use",
+            }
+            if rule_id in top_risk_ids
+        )

@@ -197,6 +197,51 @@ _JURISDICTION_RULE_IDS = {
 }
 
 
+_TOP_RISK_STRUCTURAL_RULE_IDS = {
+    "cross_exit_trap_stack",
+    "cross_auto_renewal_notice_exit_trap",
+    "cross_renewal_price_exit_trap",
+    "cross_termination_fee_lock_in",
+    "cross_supplier_control_customer_lock_in",
+    "cross_control_without_reciprocal_exit",
+    "cross_payment_leverage_stack",
+    "cross_payment_exit_pressure",
+    "cross_suspension_payment_control",
+    "cross_variation_payment_leverage",
+    "cross_unilateral_variation_limited_exit",
+    "cross_renewal_price_lock_in",
+    "sector_saas_subscription_lock_in",
+    "sector_saas_operational_dependency",
+    "sector_supplier_control_stack",
+    "sector_data_secondary_use_risk",
+    "sector_data_exit_residue_risk",
+}
+
+_TOP_RISK_MATERIAL_DATA_RULE_IDS = {
+    "sector_data_secondary_use_risk",
+    "sector_data_exit_residue_risk",
+    "broad_customer_data_use",
+    "data_retention_deletion_asymmetry",
+}
+
+_TOP_RISK_THIN_SIGNAL_RULE_IDS = {
+    "broad_sublicensing_right",
+}
+
+_TOP_RISK_CATEGORY_PRIORITY = {
+    "termination": 5,
+    "payment": 4,
+    "data": 4,
+    "jurisdiction": 4,
+    "liability": 3,
+    "indemnity": 3,
+    "service": 3,
+    "control": 3,
+    "amendment": 3,
+    "licensing": 1,
+}
+
+
 _SAAS_TEXT_SIGNAL_PATTERNS: List[Tuple[str, str]] = [
     ("subscription", r"\bsubscription\b"),
     ("saas", r"\bsaas\b"),
@@ -1336,6 +1381,29 @@ def _finding_rank_key(f: Dict[str, Any]) -> Tuple[int, int, int, int]:
     )
 
 
+def _top_risk_rank_key(f: Dict[str, Any]) -> Tuple[int, int, int, int, int, int, int, str]:
+    rule_id = str(f.get("rule_id", ""))
+    category = str(f.get("category", ""))
+    matched_text = _normalize_ws(str(f.get("matched_text", "")))
+    excerpt = _normalize_ws(str(f.get("excerpt", "")))
+    evidence_len = max(len(matched_text), len(excerpt))
+    structural_bonus = 1 if rule_id in _TOP_RISK_STRUCTURAL_RULE_IDS else 0
+    material_data_bonus = 1 if rule_id in _TOP_RISK_MATERIAL_DATA_RULE_IDS else 0
+    category_bonus = _TOP_RISK_CATEGORY_PRIORITY.get(category, 2)
+    thin_penalty = 1 if rule_id in _TOP_RISK_THIN_SIGNAL_RULE_IDS and len(matched_text) <= 20 else 0
+
+    return (
+        int(f.get("severity", 1)),
+        structural_bonus,
+        material_data_bonus,
+        category_bonus,
+        int(f.get("weight", 0)),
+        evidence_len,
+        -thin_penalty,
+        str(f.get("title", "")),
+    )
+
+
 def _dedupe_findings(
     findings: List[Dict[str, Any]],
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -1662,6 +1730,11 @@ def score_contract(
             str(f.get("title", "")),
         ),
     )
+    top_ranked_findings = sorted(
+        deduped_findings,
+        key=_top_risk_rank_key,
+        reverse=True,
+    )
 
     result: Dict[str, Any] = {
         "risk_score": adjusted_risk_score,
@@ -1703,7 +1776,7 @@ def score_contract(
                 "matched_location": f.get("matched_location"),
                 "context_note": f.get("context_note"),
             }
-            for f in prioritized_findings[:3]
+            for f in top_ranked_findings[:3]
         ]
         if overlap_suppressions:
             result["meta"]["overlap_suppressions"] = overlap_suppressions

@@ -827,6 +827,7 @@ export default function DashboardPage() {
   }
 
   const normalizedScore = result?.meta?.normalized_score ?? result?.risk_score ?? 0;
+  const rawRiskScore = result?.risk_score ?? 0;
   const findings = useMemo(() => result?.findings ?? [], [result?.findings]);
   const topRisks = useMemo(() => result?.meta?.top_risks ?? [], [result?.meta?.top_risks]);
   const confidence = result?.meta?.confidence ?? 0;
@@ -1229,10 +1230,13 @@ export default function DashboardPage() {
                     <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:mt-auto xl:grid-cols-4">
                       <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
                         <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Exposure score
+                          Normalized exposure score
                         </div>
                         <div className="mt-2 text-2xl font-semibold text-neutral-950">
                           {normalizedScore}
+                        </div>
+                        <div className="mt-1 text-[11px] uppercase tracking-wide text-[#8f7245]">
+                          Raw risk score: {rawRiskScore}
                         </div>
                       </div>
                       <div
