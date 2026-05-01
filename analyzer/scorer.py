@@ -3,6 +3,11 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from analyzer.context_profiles import (
+    SYNTHESIS_PATTERN_METADATA,
+    build_context_profile_metadata,
+)
+
 from analyzer.rules import (
     RISK_RULE_OBJECTS,
     RULESET_VERSION,
@@ -229,6 +234,10 @@ _TOP_RISK_STRUCTURAL_RULE_IDS = {
     "cross_change_control_weak_remedies",
     "cross_ip_asset_leakage",
     "cross_force_majeure_continuity_lock_in",
+    "cross_low_cap_broad_indemnity",
+    "cross_termination_no_refund",
+    "cross_data_confidentiality_gap",
+    "cross_upfront_payment_suspension",
 }
 
 _TOP_RISK_MATERIAL_DATA_RULE_IDS = {
@@ -402,6 +411,92 @@ _FORCE_MAJEURE_WEAK_EXIT_RULE_IDS = {
     "auto_renewal_notice_trap",
     "renewal_long_commitment",
 }
+
+
+_CONTROLLED_SYNTHESIS_SCORE_CAP = 4
+
+_LOW_LIABILITY_CAP_RULE_IDS = {
+    "liability_cap_present",
+}
+
+_CONTROLLED_INDEMNITY_RULE_IDS = {
+    "indemnity_broad",
+    "indemnity_one_way",
+    "liability_super_cap_carveout",
+}
+
+_TERMINATION_CONVENIENCE_RULE_IDS = {
+    "termination_for_convenience_counterparty",
+    "unilateral_termination_for_convenience",
+}
+
+_NO_REFUND_RULE_IDS = {
+    "non_refundable_fees",
+}
+
+_CONTROLLED_DATA_RIGHT_RULE_IDS = {
+    "broad_customer_data_use",
+    "broad_sublicensing_right",
+    "data_transfer_anonymisation_processing",
+}
+
+_CONTROLLED_CONFIDENTIALITY_WEAKNESS_RULE_IDS = {
+    "confidentiality_survival_gap_or_imbalance",
+    "survival_clause_risk_concentration",
+}
+
+_UPFRONT_PAYMENT_RULE_IDS = {
+    "non_refundable_fees",
+}
+
+_SUPPLIER_SUSPENSION_RULE_IDS = {
+    "service_suspension_right",
+    "weak_sla_service_remedy_suspension",
+}
+
+_LOW_LIABILITY_CAP_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("low cap tied to fees paid", r"\bliabilit(?:y|ies)\b.{0,160}\b(?:limited\s+to|shall\s+not\s+exceed|capped\s+at)\b.{0,120}\b(?:fees?|amounts?|charges?)\s+paid\b.{0,80}\b(?:12|twelve|6|six|3|three)\s+months?\b"),
+    ("low cap tied to one month fees", r"\bliabilit(?:y|ies)\b.{0,160}\b(?:limited\s+to|shall\s+not\s+exceed|capped\s+at)\b.{0,100}\b(?:one|1)\s+month'?s?\s+fees?\b"),
+    ("low liability cap", r"\blow\s+liabilit(?:y|ies)\s+cap\b|\blow\s+cap\s+on\s+liabilit(?:y|ies)\b"),
+]
+
+_INDEMNITY_ESCALATION_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("uncapped indemnity", r"\bindemni(?:ty|ties|fication|fy|fies)\b.{0,160}\b(?:uncapped|without\s+limit|not\s+subject\s+to\s+(?:the\s+)?(?:liability\s+)?cap)\b"),
+    ("indemnity carve-out", r"\b(?:liability\s+)?cap\b.{0,160}\b(?:shall\s+not\s+apply|does\s+not\s+apply|excludes?|carve-?out)\b.{0,120}\bindemni(?:ty|ties|fication|fy|fies)\b"),
+    ("third-party indemnity", r"\bindemni(?:fy|fies|fication|ty|ties)\b.{0,140}\bthird-?party\s+claims?\b"),
+]
+
+_NO_REFUND_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("no refunds", r"\bno\s+refunds?\b"),
+    ("non-refundable prepaid fees", r"\bprepaid\s+fees?\b.{0,100}\bnon-?refundable\b|\bnon-?refundable\b.{0,100}\bprepaid\s+fees?\b"),
+    ("retained prepaid sums", r"\b(?:retain|keeps?|keep)\b.{0,120}\bprepaid\s+(?:fees?|sums?|amounts?)\b"),
+]
+
+_DATA_RIGHT_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("AI training use", r"\b(?:customer|client|personal|usage)?\s*data\b.{0,180}\b(?:train|training|artificial\s+intelligence|machine\s+learning|\bai\b)\b"),
+    ("onward transfer", r"\bonward\s+transfer\b|\bmay\s+(?:transfer|disclose)\b.{0,140}\b(?:customer|client|personal)\s+data\b"),
+    ("sublicensing data", r"\b(?:sublicen[cs]e|sub-license)\b.{0,120}\b(?:customer|client|personal|usage)?\s*data\b"),
+    ("broad disclosure", r"\bdisclose\b.{0,140}\b(?:customer|client|personal)\s+data\b.{0,120}\b(?:affiliates|third\s+parties|partners)\b"),
+]
+
+_WEAK_CONFIDENTIALITY_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("missing confidentiality", r"\bno\s+confidentiality\s+obligations?\b|\bwithout\s+confidentiality\s+obligations?\b"),
+    ("short confidentiality survival", r"\bconfidential(?:ity|\s+information)\b.{0,160}\bsurviv(?:e|al)\b.{0,100}\b(?:6|six|12|twelve)\s+months?\b"),
+    ("broad confidentiality exception", r"\bconfidential(?:ity|\s+information)\b.{0,180}\b(?:residual\s+knowledge|independently\s+remembered|general\s+knowledge)\b"),
+]
+
+_UPFRONT_PAYMENT_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("upfront payment", r"\b(?:upfront|up-front|advance)\s+payment\b|\bpayment\s+in\s+advance\b"),
+    ("prepaid fees", r"\bprepaid\s+fees?\b"),
+    ("front-loaded milestone", r"\bfront-?loaded\s+milestone\s+payments?\b|\bmilestone\s+payments?\b.{0,100}\bbefore\s+delivery\b"),
+    ("payment before delivery", r"\bpayment\b.{0,100}\bbefore\s+(?:delivery|acceptance|go-?live)\b"),
+]
+
+_BROAD_SUSPENSION_TEXT_PATTERNS: List[Tuple[str, str]] = [
+    ("disputed sums suspension", r"\bsuspend\b.{0,160}\bdisputed\s+(?:sums?|amounts?|invoices?)\b|\bdisputed\s+(?:sums?|amounts?|invoices?)\b.{0,160}\bsuspend\b"),
+    ("immediate suspension", r"\bsuspend\b.{0,140}\b(?:immediately|without\s+(?:notice|cure))\b"),
+    ("minor payment suspension", r"\bsuspend\b.{0,160}\b(?:minor|unresolved)\s+payment\s+(?:issue|dispute)\b"),
+]
 
 
 def _normalized_score(raw_score: int) -> int:
@@ -995,6 +1090,271 @@ def _apply_risk_appetite(
         ],
     )
 
+
+
+def _text_signal_labels(text: str, signal_patterns: List[Tuple[str, str]]) -> List[str]:
+    return [
+        label
+        for label, pattern in signal_patterns
+        if re.search(pattern, text, flags=re.IGNORECASE | re.DOTALL)
+    ]
+
+
+def _first_contributors(
+    by_rule_id: Dict[str, List[Dict[str, Any]]],
+    rule_ids: List[str],
+) -> List[Dict[str, Any]]:
+    contributors: List[Dict[str, Any]] = []
+    seen: set[str] = set()
+    for rule_id in rule_ids:
+        if rule_id in seen or rule_id not in by_rule_id:
+            continue
+        contributors.append(by_rule_id[rule_id][0])
+        seen.add(rule_id)
+    return contributors
+
+
+def _controlled_synthesis_finding(
+    *,
+    rule_id: str,
+    category: str,
+    title: str,
+    severity: int,
+    rationale: str,
+    why_it_matters: str,
+    triggered_by: List[str],
+    contributors: List[Dict[str, Any]],
+    pattern: str,
+    confidence: float = 0.82,
+) -> Dict[str, Any]:
+    finding = _derived_finding(
+        rule_id=rule_id,
+        category=category,
+        title=title,
+        severity=severity,
+        weight=1,
+        rationale=rationale,
+        triggered_by=triggered_by,
+        contributors=contributors,
+        matched_pattern=f"derived_cross_clause_{pattern}",
+        tags=["cross_clause", "derived_signal", pattern],
+    )
+    finding.update(
+        {
+            "why_it_matters": why_it_matters,
+            "confidence": confidence,
+            "pattern": pattern,
+            "synthesis_pattern": pattern,
+            "linked_rule_ids": triggered_by,
+            "linked_base_rule_ids": triggered_by,
+            "audit": SYNTHESIS_PATTERN_METADATA.get(pattern, {}),
+        }
+    )
+    return finding
+
+
+def _add_controlled_cross_clause_pattern(
+    *,
+    cross_findings: List[Dict[str, Any]],
+    cross_adjustments: List[Dict[str, Any]],
+    existing_rule_ids: set[str],
+    pattern: str,
+    rule_id: str,
+    category: str,
+    title: str,
+    severity: int,
+    rationale: str,
+    why_it_matters: str,
+    triggered_by: List[str],
+    contributors: List[Dict[str, Any]],
+    reason: str,
+    remaining_score_room: int,
+) -> int:
+    if rule_id in existing_rule_ids or remaining_score_room <= 0 or not contributors:
+        return 0
+
+    triggered = list(dict.fromkeys(triggered_by))
+    cross_findings.append(
+        _controlled_synthesis_finding(
+            rule_id=rule_id,
+            category=category,
+            title=title,
+            severity=severity,
+            rationale=rationale,
+            why_it_matters=why_it_matters,
+            triggered_by=triggered,
+            contributors=contributors,
+            pattern=pattern,
+        )
+    )
+    cross_adjustments.append(
+        {
+            "type": "cross_clause",
+            "pattern": pattern,
+            "rule_id": rule_id,
+            "effect": 1,
+            "impact": 1,
+            "reason": reason,
+            "triggered_by": triggered,
+            "audit": SYNTHESIS_PATTERN_METADATA.get(pattern, {}),
+        }
+    )
+    existing_rule_ids.add(rule_id)
+    return 1
+
+
+def _build_controlled_cross_clause_findings(
+    text: str,
+    findings: List[Dict[str, Any]],
+    matched_rule_ids: set[str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    by_rule_id: Dict[str, List[Dict[str, Any]]] = {}
+    for finding in findings:
+        by_rule_id.setdefault(str(finding.get("rule_id", "")), []).append(finding)
+
+    cross_findings: List[Dict[str, Any]] = []
+    cross_adjustments: List[Dict[str, Any]] = []
+    existing_rule_ids = set(matched_rule_ids)
+    remaining_score_room = _CONTROLLED_SYNTHESIS_SCORE_CAP
+
+    low_cap_text = _text_signal_labels(text, _LOW_LIABILITY_CAP_TEXT_PATTERNS)
+    indemnity_text = _text_signal_labels(text, _INDEMNITY_ESCALATION_TEXT_PATTERNS)
+    matched_low_cap = sorted(matched_rule_ids.intersection(_LOW_LIABILITY_CAP_RULE_IDS))
+    matched_indemnity = sorted(matched_rule_ids.intersection(_CONTROLLED_INDEMNITY_RULE_IDS))
+    has_low_cap = bool(matched_low_cap and low_cap_text)
+    has_indemnity = bool(matched_indemnity or indemnity_text)
+    if has_low_cap and has_indemnity:
+        triggered_by = matched_low_cap + matched_indemnity + low_cap_text + indemnity_text
+        contributors = _first_contributors(by_rule_id, matched_low_cap + matched_indemnity)
+        stronger = "liability_super_cap_carveout" in matched_indemnity or any(
+            signal in {"uncapped indemnity", "indemnity carve-out"} for signal in indemnity_text
+        )
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="low_cap_broad_indemnity",
+            rule_id="cross_low_cap_broad_indemnity",
+            category="liability",
+            title="Liability cap may be weakened by indemnity obligations outside the cap",
+            severity=5 if stronger else 4,
+            rationale="A low general liability cap may appear protective, but broad indemnity obligations or carve-outs may reduce the practical protection of the cap.",
+            why_it_matters="Hidden exposure: cap protection may be weaker than it appears.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Low cap language and broad indemnity or carve-out signals combine into weaker practical cap protection.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    no_refund_text = _text_signal_labels(text, _NO_REFUND_TEXT_PATTERNS)
+    matched_termination = sorted(matched_rule_ids.intersection(_TERMINATION_CONVENIENCE_RULE_IDS))
+    matched_no_refund = sorted(matched_rule_ids.intersection(_NO_REFUND_RULE_IDS))
+    if matched_termination and (matched_no_refund or no_refund_text):
+        triggered_by = matched_termination + matched_no_refund + no_refund_text
+        contributors = _first_contributors(by_rule_id, matched_termination + matched_no_refund)
+        stronger = "non-refundable prepaid fees" in no_refund_text or "retained prepaid sums" in no_refund_text
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="termination_no_refund",
+            rule_id="cross_termination_no_refund",
+            category="termination",
+            title="Termination rights combined with lack of refund may create asymmetric exposure",
+            severity=5 if stronger else 4,
+            rationale="One party may be able to exit while retaining prepaid sums or denying refund rights, creating commercial imbalance.",
+            why_it_matters="Asymmetric exposure: exit rights may leave prepaid economics with the terminating or non-performing side.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Termination-for-convenience signals combine with non-refundable or retained prepaid-fee language.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    data_text = _text_signal_labels(text, _DATA_RIGHT_TEXT_PATTERNS)
+    weak_conf_text = _text_signal_labels(text, _WEAK_CONFIDENTIALITY_TEXT_PATTERNS)
+    matched_data_rights = sorted(matched_rule_ids.intersection(_CONTROLLED_DATA_RIGHT_RULE_IDS))
+    matched_weak_conf = sorted(matched_rule_ids.intersection(_CONTROLLED_CONFIDENTIALITY_WEAKNESS_RULE_IDS))
+    if (matched_data_rights or data_text) and (matched_weak_conf or weak_conf_text):
+        triggered_by = matched_data_rights + matched_weak_conf + data_text + weak_conf_text
+        contributors = _first_contributors(by_rule_id, matched_data_rights + matched_weak_conf)
+        stronger = bool(
+            matched_data_rights.intersection({"broad_customer_data_use", "broad_sublicensing_right", "data_transfer_anonymisation_processing"})
+            if isinstance(matched_data_rights, set)
+            else any(rid in {"broad_customer_data_use", "broad_sublicensing_right", "data_transfer_anonymisation_processing"} for rid in matched_data_rights)
+        ) or any(signal in {"AI training use", "onward transfer", "sublicensing data"} for signal in data_text)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="data_confidentiality_gap",
+            rule_id="cross_data_confidentiality_gap",
+            category="data",
+            title="Broad data rights combined with weak confidentiality may increase governance risk",
+            severity=5 if stronger else 4,
+            rationale="Broad rights to use, disclose, transfer, sublicense, analyse, or train on data become materially riskier where confidentiality limits or survival protections are weak.",
+            why_it_matters="Governance risk: expanded data rights may outlast or outrun confidentiality controls.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Broad data-use or transfer signals combine with weak confidentiality or survival controls.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    upfront_text = _text_signal_labels(text, _UPFRONT_PAYMENT_TEXT_PATTERNS)
+    suspension_text = _text_signal_labels(text, _BROAD_SUSPENSION_TEXT_PATTERNS)
+    matched_upfront = sorted(matched_rule_ids.intersection(_UPFRONT_PAYMENT_RULE_IDS)) if upfront_text else []
+    matched_suspension = sorted(matched_rule_ids.intersection(_SUPPLIER_SUSPENSION_RULE_IDS))
+    if (upfront_text or matched_upfront) and (matched_suspension or suspension_text):
+        triggered_by = matched_upfront + matched_suspension + upfront_text + suspension_text
+        contributors = _first_contributors(by_rule_id, matched_upfront + matched_suspension)
+        stronger = bool(matched_suspension) and (
+            "disputed sums suspension" in suspension_text
+            or "immediate suspension" in suspension_text
+            or "service_suspension_right" in matched_suspension
+        )
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="upfront_payment_suspension",
+            rule_id="cross_upfront_payment_suspension",
+            category="payment",
+            title="Upfront payment combined with supplier suspension rights may create operational exposure",
+            severity=5 if stronger else 4,
+            rationale="A buyer may pay early while the supplier retains broad rights to suspend service, including for disputed, minor, or unresolved payment issues.",
+            why_it_matters="Operational exposure: early cash outflow may remain at risk if service continuity can still be interrupted.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Upfront or prepaid payment signals combine with broad supplier suspension rights.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    return cross_findings, cross_adjustments
+
+
+def apply_cross_clause_synthesis(
+    text: str,
+    findings: List[Dict[str, Any]],
+    matched_rule_ids: set[str],
+    raw_matched_rule_ids: set[str],
+) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
+    existing_findings, existing_adjustments = _build_cross_clause_findings(
+        findings,
+        matched_rule_ids,
+        raw_matched_rule_ids,
+    )
+    combined_rule_ids = matched_rule_ids.union(
+        {str(finding.get("rule_id", "")) for finding in existing_findings}
+    )
+    controlled_findings, controlled_adjustments = _build_controlled_cross_clause_findings(
+        text,
+        findings,
+        combined_rule_ids,
+    )
+    return existing_findings + controlled_findings, existing_adjustments + controlled_adjustments
 
 def _build_cross_clause_findings(
     findings: List[Dict[str, Any]],
@@ -1784,6 +2144,11 @@ def score_contract(
     include_findings: bool = True,
     include_meta: bool = True,
     risk_appetite: str = "balanced",
+    jurisdiction: Optional[str] = None,
+    sector: Optional[str] = None,
+    contract_type: Optional[str] = None,
+    user_role: Optional[str] = None,
+    objective: Optional[str] = None,
 ) -> Dict[str, Any]:
     original_text = text or ""
     scan_text = _scan_view(original_text)
@@ -1849,7 +2214,8 @@ def score_contract(
         matched_rule_ids, raw_risk_score
     )
 
-    cross_findings, cross_adjustments = _build_cross_clause_findings(
+    cross_findings, cross_adjustments = apply_cross_clause_synthesis(
+        scan_text,
         raw_findings,
         matched_rule_ids,
         raw_matched_rule_ids,
@@ -1901,6 +2267,13 @@ def score_contract(
     contradiction_count = sum(
         1 for adj in score_adjustments if adj.get("type") == "contradiction"
     )
+    synthesis_patterns_triggered = sorted(
+        {
+            str(adj.get("pattern"))
+            for adj in score_adjustments
+            if adj.get("type") == "cross_clause" and adj.get("pattern")
+        }
+    )
     suppressed_count = len(suppressed_rules)
 
     severity = _derive_severity(adjusted_risk_score)
@@ -1945,8 +2318,16 @@ def score_contract(
             "scan_truncated": len(original_text) > MAX_SCAN_CHARS,
             "rule_families_detected": sorted({str(f.get("category", "")) for f in deduped_findings if str(f.get("category", ""))}),
             "sector_playbooks": sector_playbooks,
+            "context_profile_used": build_context_profile_metadata(
+                jurisdiction=jurisdiction,
+                sector=sector,
+                contract_type=contract_type,
+                user_role=user_role,
+                objective=objective,
+            ),
             "risk_appetite": selected_risk_appetite,
             "risk_appetite_adjustments": appetite_adjustments,
+            "synthesis_patterns_triggered": synthesis_patterns_triggered,
             "derived_finding_count": sum(1 for f in deduped_findings if str(f.get("matched_pattern", "")).startswith("derived_")),
         }
         result["meta"]["top_risks"] = [
