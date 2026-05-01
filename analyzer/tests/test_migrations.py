@@ -51,6 +51,21 @@ def test_upgrade_head_on_fresh_db() -> None:
 
     columns = table_columns(DB_PATH, "scans")
     assert "scan_input_length" in columns
+    assert "source_title" in columns
+    assert "source_type" in columns
+    assert "severity" in columns
+    assert "top_findings_snapshot" in columns
+    assert "clause_families_detected" in columns
+    assert "synthesis_patterns_triggered" in columns
+    assert "context_profile_snapshot" in columns
+    assert "report_export_state" in columns
+
+    scan_note_columns = table_columns(DB_PATH, "scan_notes")
+    assert "org_id" in scan_note_columns
+    assert "scan_id" in scan_note_columns
+    assert "finding_rule_id" in scan_note_columns
+    assert "note" in scan_note_columns
+    assert "created_by_user_id" in scan_note_columns
 
     org_columns = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns
@@ -128,7 +143,7 @@ def test_upgrade_head_on_fresh_db() -> None:
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "c3f4e5a6b7d8"
+        assert row[0] == "d4e5f6a7b8c9"
     finally:
         conn.close()
 
@@ -139,6 +154,8 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
 
     columns_after_downgrade = table_columns(DB_PATH, "scans")
     assert "scan_input_length" not in columns_after_downgrade
+    assert "source_title" not in columns_after_downgrade
+    assert "context_profile_snapshot" not in columns_after_downgrade
 
     org_columns_after_downgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" not in org_columns_after_downgrade
@@ -170,6 +187,10 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='owner_entitlement_grants'"
         )
         assert cur.fetchone() is None
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='scan_notes'"
+        )
+        assert cur.fetchone() is None
     finally:
         conn.close()
 
@@ -177,6 +198,8 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
 
     columns_after_reupgrade = table_columns(DB_PATH, "scans")
     assert "scan_input_length" in columns_after_reupgrade
+    assert "source_title" in columns_after_reupgrade
+    assert "context_profile_snapshot" in columns_after_reupgrade
 
     org_columns_after_reupgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns_after_reupgrade
@@ -188,3 +211,5 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "action_type" in internal_action_columns_after_reupgrade
     owner_grant_columns_after_reupgrade = table_columns(DB_PATH, "owner_entitlement_grants")
     assert "granted_plan" in owner_grant_columns_after_reupgrade
+    scan_note_columns_after_reupgrade = table_columns(DB_PATH, "scan_notes")
+    assert "scan_id" in scan_note_columns_after_reupgrade

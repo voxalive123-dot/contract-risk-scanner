@@ -21,6 +21,7 @@ type Finding = {
   matched_text?: string;
   matched_location?: string | null;
   context_note?: string | null;
+  contextual_emphasis?: string | null;
 };
 
 type TopRisk = {
@@ -48,12 +49,39 @@ type AnalyzeResult = {
     suppressed_rule_count?: number;
     ruleset_version?: string;
     word_count?: number;
+    rule_families_detected?: string[];
+    synthesis_patterns_triggered?: string[];
+    context_profile_used?: Record<string, unknown> | null;
+    context_confidence?: string | null;
+    context_limitations?: string[];
+    context_emphasis?: string[];
   };
   extraction_method?: string | null;
   confidence_hint?: number | null;
   source_type?: string | null;
   page_count?: number | null;
   has_extractable_text?: boolean | null;
+};
+
+type ScanHistoryItem = {
+  id: string;
+  created_at?: string | null;
+  source_title?: string | null;
+  source_type?: string | null;
+  risk_score: number;
+  severity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
+  confidence?: number;
+  top_findings?: Finding[];
+  clause_families_detected?: string[];
+  synthesis_patterns_triggered?: string[];
+  report_export_state?: string | null;
+  context_profile_snapshot?: Record<string, unknown> | null;
+  notes?: Array<{ id: string; note: string; finding_rule_id?: string | null }>;
+};
+
+type ScanHistoryResponse = {
+  scans?: ScanHistoryItem[];
+  recurring_clause_families?: Array<{ family: string; count: number }>;
 };
 
 type AIReviewEvidenceNote = {
@@ -634,9 +662,60 @@ export default function DashboardPage() {
     "idle" | "loading" | "available" | "disabled" | "unavailable" | "denied" | "error"
   >("idle");
   const [aiMessage, setAIMessage] = useState<string | null>(null);
+  const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
+  const [recurringFamilies, setRecurringFamilies] = useState<Array<{ family: string; count: number }>>([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const previousTitleRef = useRef<string | null>(null);
+
+  async function loadScanHistory() {
+    setHistoryLoading(true);
+    try {
+      const response = await fetch("/api/account/scans", { cache: "no-store" });
+      if (!response.ok) return;
+      const payload: ScanHistoryResponse = await response.json();
+      setScanHistory(payload.scans ?? []);
+      setRecurringFamilies(payload.recurring_clause_families ?? []);
+    } catch {
+      setScanHistory([]);
+      setRecurringFamilies([]);
+    } finally {
+      setHistoryLoading(false);
+    }
+  }
+
+  async function reopenStoredScan(scanId: string) {
+    try {
+      const response = await fetch(`/api/account/scans/${encodeURIComponent(scanId)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const detail: ScanHistoryItem = await response.json();
+      const severity =
+        detail.severity === "HIGH" || detail.severity === "MEDIUM" || detail.severity === "LOW"
+          ? detail.severity
+          : "LOW";
+      setResult({
+        risk_score: detail.risk_score,
+        severity,
+        flags: detail.clause_families_detected ?? [],
+        findings: detail.top_findings ?? [],
+        meta: {
+          confidence: detail.confidence ?? 0,
+          matched_rule_count: detail.top_findings?.length ?? 0,
+          top_risks: detail.top_findings ?? [],
+          rule_families_detected: detail.clause_families_detected ?? [],
+          synthesis_patterns_triggered: detail.synthesis_patterns_triggered ?? [],
+          context_profile_used: detail.context_profile_snapshot ?? null,
+        },
+        source_type: detail.source_type ?? "unknown",
+      });
+      setReportGeneratedAt(detail.created_at ?? new Date().toISOString());
+      setReportTitle(detail.source_title ?? "Stored contract review");
+      resetAIReview();
+    } catch {
+      setErrorMessage("Stored scan could not be reopened.");
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -650,6 +729,7 @@ export default function DashboardPage() {
           if (cancelled) return;
           setAccountContext(payload);
           setAuthState("authenticated");
+          void loadScanHistory();
           return;
         }
         setAccountContext(null);
@@ -743,7 +823,15 @@ export default function DashboardPage() {
           : {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text }),
+              body: JSON.stringify({
+                text,
+                source_title: reportTitle.trim() || documentType || undefined,
+                source_type: "text",
+                user_role: undefined,
+                contract_type: documentType.toLowerCase().includes("service") ? "services" : undefined,
+                value_criticality: reviewPurpose.toLowerCase().includes("renewal") ? "recurring" : undefined,
+                document_position: reviewPurpose.toLowerCase().includes("renewal") ? "renewal" : undefined,
+              }),
             };
 
       const response = await fetch("/api/analyze", requestInit);
@@ -762,6 +850,7 @@ export default function DashboardPage() {
       const data: AnalyzeResult = JSON.parse(raw);
       setResult(data);
       setReportGeneratedAt(new Date().toISOString());
+      void loadScanHistory();
     } catch (error) {
       setErrorMessage(
         `Analysis could not be completed at this time. Review the source text or file and try again. ${String(error)}`,
@@ -1075,6 +1164,93 @@ export default function DashboardPage() {
                 Account verified
               </div>
             </aside>
+          </div>
+
+
+          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-semibold text-neutral-950">Previous scans</h2>
+                <p className="mt-1 text-sm text-[#8f7245]">
+                  Organisation-scoped history for this workspace. Stored snapshots keep evidence visible without cross-customer analytics.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => void loadScanHistory()}
+                className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-2 text-sm font-medium text-neutral-700"
+              >
+                Refresh
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
+              <div className="space-y-3">
+                {historyLoading && (
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
+                    Loading scan history...
+                  </div>
+                )}
+                {!historyLoading && scanHistory.length === 0 && (
+                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
+                    No previous scans stored for this organisation yet.
+                  </div>
+                )}
+                {scanHistory.slice(0, 5).map((scan) => {
+                  const severity =
+                    scan.severity === "HIGH" || scan.severity === "MEDIUM" || scan.severity === "LOW"
+                      ? scan.severity
+                      : "LOW";
+                  return (
+                    <button
+                      key={scan.id}
+                      type="button"
+                      onClick={() => void reopenStoredScan(scan.id)}
+                      className="w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4 text-left transition hover:border-[#b08d57]"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="truncate text-sm font-semibold text-neutral-950">
+                            {scan.source_title || "Untitled scan"}
+                          </div>
+                          <div className="mt-1 text-xs text-[#8f7245]">
+                            {scan.created_at ? new Date(scan.created_at).toLocaleDateString() : "Date unavailable"} · {readableSourceType(scan.source_type)}
+                          </div>
+                        </div>
+                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${severityBadgeClass(severity)}`}>
+                          {severity} · {scan.risk_score}
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(scan.clause_families_detected ?? []).slice(0, 4).map((family) => (
+                          <span key={family} className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-2.5 py-1 text-xs text-[#6f552d]">
+                            {family}
+                          </span>
+                        ))}
+                        <span className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-2.5 py-1 text-xs text-[#6f552d]">
+                          report: {scan.report_export_state ?? "absent"}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <aside className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                  Recurring families
+                </div>
+                <div className="mt-3 space-y-2 text-sm text-neutral-700">
+                  {recurringFamilies.slice(0, 6).map((item) => (
+                    <div key={item.family} className="flex items-center justify-between gap-3">
+                      <span>{item.family}</span>
+                      <span className="font-semibold text-neutral-950">{item.count}</span>
+                    </div>
+                  ))}
+                  {recurringFamilies.length === 0 && <div>No recurring families yet.</div>}
+                </div>
+              </aside>
+            </div>
           </div>
 
           <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">

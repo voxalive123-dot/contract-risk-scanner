@@ -2138,6 +2138,45 @@ def _display_flag(finding: Dict[str, Any]) -> str:
     return str(finding.get("title", "")).lower()
 
 
+def _contextual_emphasis_for_finding(
+    finding: Dict[str, Any],
+    context_profile: Dict[str, Any],
+) -> Optional[str]:
+    context = context_profile.get("context", {}) or {}
+    role = context.get("user_role", "unknown")
+    contract_type = context.get("contract_type", "unknown")
+    criticality = context.get("value_criticality", "unknown")
+    category = str(finding.get("category", ""))
+    rule_id = str(finding.get("rule_id", ""))
+
+    if role == "buyer" and (category in {"service", "payment", "termination"} or "suspension" in rule_id):
+        return "Buyer context: review operational continuity, cash-flow exposure, and supplier control leverage before acceptance."
+
+    if role in {"supplier", "saas_provider", "consultant", "agency"} and category in {"liability", "indemnity"}:
+        return "Supplier context: review downside exposure, insurability, and margin protection before accepting this allocation."
+
+    if contract_type in {"saas", "data_processing", "healthcare"} and category in {"data", "confidentiality", "licensing"}:
+        return "Data-heavy context: review governance, confidentiality, onward transfer, and trust impact before relying on the clause package."
+
+    if criticality in {"high_value", "business_critical", "strategic_partnership"}:
+        return "Criticality context: evidence-backed escalation should be stronger because operational or financial consequence may be material."
+
+    if criticality in {"low_value", "one_off", "pilot"}:
+        return "Limited-criticality context: keep the finding visible, but calibrate escalation to the deal value and dependency."
+
+    return None
+
+
+def _apply_contextual_emphasis(
+    findings: List[Dict[str, Any]],
+    context_profile: Dict[str, Any],
+) -> None:
+    for finding in findings:
+        emphasis = _contextual_emphasis_for_finding(finding, context_profile)
+        if emphasis:
+            finding["contextual_emphasis"] = emphasis
+
+
 def score_contract(
     text: str,
     *,
@@ -2148,8 +2187,21 @@ def score_contract(
     sector: Optional[str] = None,
     contract_type: Optional[str] = None,
     user_role: Optional[str] = None,
+    counterparty_profile: Optional[str] = None,
+    value_criticality: Optional[str] = None,
+    document_position: Optional[str] = None,
     objective: Optional[str] = None,
 ) -> Dict[str, Any]:
+    context_profile = build_context_profile_metadata(
+        jurisdiction=jurisdiction,
+        sector=sector,
+        contract_type=contract_type,
+        user_role=user_role,
+        counterparty_profile=counterparty_profile,
+        value_criticality=value_criticality,
+        document_position=document_position,
+        objective=objective,
+    )
     original_text = text or ""
     scan_text = _scan_view(original_text)
     raw_findings: List[Dict[str, Any]] = []
@@ -2249,6 +2301,8 @@ def score_contract(
     if appetite_adjustments:
         score_adjustments.extend(appetite_adjustments)
 
+    _apply_contextual_emphasis(deduped_findings, context_profile)
+
     flags: List[str] = [_display_flag(f) for f in deduped_findings]
 
     if "termination_for_convenience_counterparty" in matched_rule_ids:
@@ -2318,13 +2372,10 @@ def score_contract(
             "scan_truncated": len(original_text) > MAX_SCAN_CHARS,
             "rule_families_detected": sorted({str(f.get("category", "")) for f in deduped_findings if str(f.get("category", ""))}),
             "sector_playbooks": sector_playbooks,
-            "context_profile_used": build_context_profile_metadata(
-                jurisdiction=jurisdiction,
-                sector=sector,
-                contract_type=contract_type,
-                user_role=user_role,
-                objective=objective,
-            ),
+            "context_profile_used": context_profile,
+            "context_confidence": context_profile.get("context_confidence"),
+            "context_limitations": context_profile.get("context_limitations", []),
+            "context_emphasis": context_profile.get("context_emphasis", []),
             "risk_appetite": selected_risk_appetite,
             "risk_appetite_adjustments": appetite_adjustments,
             "synthesis_patterns_triggered": synthesis_patterns_triggered,

@@ -51,10 +51,15 @@ from auth_keys import hash_api_key
 from crud import (
     count_scans_for_org_since,
     create_scan,
+    create_scan_note,
     create_usage_log,
     get_api_key_by_hash,
     get_organization_by_id,
+    get_scan_for_org,
+    list_scans_for_org,
     month_start_utc,
+    serialize_scan_detail,
+    serialize_scan_summary,
     touch_api_key_last_used,
 )
 from db import get_db
@@ -129,6 +134,19 @@ RESET_ERROR_STATUSES = {
 }
 
 
+def _normalize_choice(value: str) -> str:
+    return value.strip().lower().replace("-", "_").replace(" ", "_")
+
+
+def _validate_optional_choice(value: str | None, allowed: set[str], message: str) -> str | None:
+    if value is None:
+        return None
+    normalized = _normalize_choice(value)
+    if normalized not in allowed:
+        raise ValueError(message)
+    return normalized
+
+
 def reset_error_response(code: str) -> JSONResponse:
     return JSONResponse(
         status_code=RESET_ERROR_STATUSES.get(code, status.HTTP_400_BAD_REQUEST),
@@ -164,6 +182,63 @@ ALLOWED_IMAGE_TYPES = {
     "image/jpg",
     "image/png",
     "image/webp",
+}
+
+ALLOWED_SOURCE_TYPES = {"text", "pdf", "image", "unknown"}
+ALLOWED_USER_ROLES = {
+    "buyer",
+    "supplier",
+    "saas_provider",
+    "agency",
+    "consultant",
+    "employer",
+    "contractor",
+    "reseller",
+    "processor",
+    "controller",
+    "unknown",
+}
+ALLOWED_CONTRACT_TYPES = {
+    "saas",
+    "services",
+    "consultancy",
+    "procurement",
+    "employment",
+    "lease",
+    "data_processing",
+    "franchise",
+    "logistics",
+    "security_services",
+    "healthcare",
+    "unknown",
+}
+ALLOWED_COUNTERPARTY_PROFILES = {
+    "larger_counterparty",
+    "smaller_counterparty",
+    "strategic_customer",
+    "key_supplier",
+    "public_sector",
+    "regulated_party",
+    "unknown",
+}
+ALLOWED_VALUE_CRITICALITY = {
+    "low_value",
+    "high_value",
+    "business_critical",
+    "recurring",
+    "one_off",
+    "pilot",
+    "strategic_partnership",
+    "unknown",
+}
+ALLOWED_DOCUMENT_POSITIONS = {
+    "vendor_paper",
+    "negotiated_draft",
+    "renewal",
+    "amendment",
+    "supplier_terms",
+    "customer_terms",
+    "unknown",
 }
 
 
@@ -202,6 +277,13 @@ def enforce_rate_limit(request: Request) -> None:
 # ==========================================================
 class AnalyzeRequest(BaseModel):
     text: str = Field(...)
+    source_title: str | None = None
+    source_type: str | None = None
+    user_role: str | None = None
+    contract_type: str | None = None
+    counterparty_profile: str | None = None
+    value_criticality: str | None = None
+    document_position: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -213,6 +295,49 @@ class AnalyzeRequest(BaseModel):
         if len(value) > MAX_TEXT_CHARS:
             raise ValueError(f"maximum length is {MAX_TEXT_CHARS} characters")
         return value
+
+    @field_validator("source_title")
+    @classmethod
+    def validate_source_title(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:255] if stripped else None
+
+    @field_validator("source_type")
+    @classmethod
+    def validate_source_type(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower().replace("-", "_")
+        if normalized not in ALLOWED_SOURCE_TYPES:
+            raise ValueError("unsupported source_type")
+        return normalized
+
+    @field_validator("user_role")
+    @classmethod
+    def validate_user_role(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_USER_ROLES, "unsupported user_role")
+
+    @field_validator("contract_type")
+    @classmethod
+    def validate_contract_type(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_CONTRACT_TYPES, "unsupported contract_type")
+
+    @field_validator("counterparty_profile")
+    @classmethod
+    def validate_counterparty_profile(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_COUNTERPARTY_PROFILES, "unsupported counterparty_profile")
+
+    @field_validator("value_criticality")
+    @classmethod
+    def validate_value_criticality(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_VALUE_CRITICALITY, "unsupported value_criticality")
+
+    @field_validator("document_position")
+    @classmethod
+    def validate_document_position(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_DOCUMENT_POSITIONS, "unsupported document_position")
 
 
 class AnalyzeResponse(BaseModel):
@@ -285,6 +410,26 @@ class AccountBillingPortalRequest(BaseModel):
         if not stripped.startswith(("https://", "http://")):
             raise ValueError("return_url must be absolute HTTP(S)")
         return stripped
+
+
+class ScanNoteRequest(BaseModel):
+    note: str = Field(...)
+    finding_rule_id: str | None = None
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 1:
+            raise ValueError("note is required")
+        return value.strip()[:4000]
+
+    @field_validator("finding_rule_id")
+    @classmethod
+    def validate_finding_rule_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:120] if stripped else None
 
 
 class InternalWorkflowReasonRequest(BaseModel):
@@ -605,11 +750,85 @@ def enforce_org_plan_quota(
         )
 
 
-def _build_detailed_payload(text: str) -> dict[str, Any]:
+def _context_from_request(request: AnalyzeRequest) -> dict[str, Any]:
+    return {
+        "user_role": request.user_role,
+        "contract_type": request.contract_type,
+        "counterparty_profile": request.counterparty_profile,
+        "value_criticality": request.value_criticality,
+        "document_position": request.document_position,
+    }
+
+
+def _derive_clause_families(findings: list[dict[str, Any]]) -> list[str]:
+    families: set[str] = set()
+    for finding in findings:
+        category = str(finding.get("category") or "").lower()
+        rule_id = str(finding.get("rule_id") or "").lower()
+        title = str(finding.get("title") or "").lower()
+        haystack = f"{category} {rule_id} {title}"
+        if "indemn" in haystack:
+            families.add("indemnity")
+        if "liability" in haystack:
+            families.add("liability")
+        if "renewal" in haystack or "auto_renew" in haystack:
+            families.add("auto-renewal")
+        if category == "jurisdiction" or "forum" in haystack or "dispute" in haystack:
+            families.add("jurisdiction")
+        if category in {"data", "licensing"} or "data" in haystack:
+            families.add("data use")
+        if category == "termination" or "termination" in haystack:
+            families.add("termination")
+        if "price" in haystack or "pricing" in haystack or "fee increase" in haystack:
+            families.add("price variation")
+        if "suspension" in haystack or "suspend" in haystack:
+            families.add("suspension")
+        if "subcontract" in haystack:
+            families.add("subcontracting")
+        if category == "payment" or "payment" in haystack or "fee" in haystack:
+            families.add("payment")
+        if "confidential" in haystack:
+            families.add("confidentiality")
+        if category in {"control", "amendment", "audit"} or "control" in haystack or "variation" in haystack:
+            families.add("dispute/control")
+    return sorted(families)
+
+
+def _scan_snapshot_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    findings = payload.get("findings", []) or []
+    meta = payload.get("meta", {}) or {}
+    top_findings = [
+        {
+            "rule_id": finding.get("rule_id"),
+            "title": finding.get("title"),
+            "category": finding.get("category"),
+            "severity": finding.get("severity"),
+            "matched_text": finding.get("matched_text"),
+            "contextual_emphasis": finding.get("contextual_emphasis"),
+        }
+        for finding in findings[:5]
+    ]
+    families = sorted(set(meta.get("rule_families_detected") or []) | set(_derive_clause_families(findings)))
+    return {
+        "severity": str(payload.get("severity", "LOW")),
+        "top_findings_snapshot": top_findings,
+        "clause_families_detected": families,
+        "synthesis_patterns_triggered": list(meta.get("synthesis_patterns_triggered") or []),
+        "context_profile_snapshot": meta.get("context_profile_used"),
+    }
+
+
+def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
+    context = context or {}
     result = score_contract(
         text,
         include_findings=True,
         include_meta=True,
+        user_role=context.get("user_role"),
+        contract_type=context.get("contract_type"),
+        counterparty_profile=context.get("counterparty_profile"),
+        value_criticality=context.get("value_criticality"),
+        document_position=context.get("document_position"),
     )
 
     raw_meta = result.get("meta", {}) or {}
@@ -642,6 +861,7 @@ def _build_detailed_payload(text: str) -> dict[str, Any]:
                 "matched_location": f.get("matched_location"),
                 "context_note": f.get("context_note"),
                 "rationale": f.get("rationale"),
+                "contextual_emphasis": f.get("contextual_emphasis"),
             }
         )
 
@@ -663,6 +883,12 @@ def _build_detailed_payload(text: str) -> dict[str, Any]:
         "suppressed_rule_count": raw_meta.get("suppressed_rule_count", 0),
         "contradiction_count": raw_meta.get("contradiction_count", 0),
         "top_risks": raw_meta.get("top_risks", []),
+        "rule_families_detected": raw_meta.get("rule_families_detected", []),
+        "synthesis_patterns_triggered": raw_meta.get("synthesis_patterns_triggered", []),
+        "context_profile_used": raw_meta.get("context_profile_used"),
+        "context_confidence": raw_meta.get("context_confidence"),
+        "context_limitations": raw_meta.get("context_limitations", []),
+        "context_emphasis": raw_meta.get("context_emphasis", []),
     }
 
     return {
@@ -681,6 +907,10 @@ def _persist_analysis(
     http_request: Request,
     endpoint: str,
     payload: dict[str, Any],
+    source_title: str | None = None,
+    source_type: str = "unknown",
+    scan_input_length: int = 0,
+    report_export_state: str = "absent",
 ) -> None:
     req_id = getattr(http_request.state, "request_id", "unknown")
     meta = payload.get("meta", {}) or {}
@@ -694,6 +924,11 @@ def _persist_analysis(
         risk_density=float(meta.get("risk_density_per_1000_words", 0.0)) / 1000.0,
         confidence=float(meta.get("confidence", 0.0)),
         ruleset_version=str(meta.get("ruleset_version", "unknown")),
+        scan_input_length=scan_input_length,
+        source_title=source_title,
+        source_type=source_type,
+        report_export_state=report_export_state,
+        **_scan_snapshot_fields(payload),
     )
 
     create_usage_log(
@@ -1330,6 +1565,67 @@ def account_ai_explain(
     return response.model_dump(mode="json")
 
 
+@app.get("/account/scans")
+def account_scan_history(
+    offset: int = 0,
+    limit: int = 25,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    bounded_offset = max(int(offset or 0), 0)
+    bounded_limit = min(max(int(limit or 25), 1), 100)
+    scans = list_scans_for_org(
+        db,
+        account_ctx.organization.id,
+        offset=bounded_offset,
+        limit=bounded_limit,
+    )
+    family_counts: dict[str, int] = {}
+    serialized = [serialize_scan_summary(scan) for scan in scans]
+    for scan in serialized:
+        for family in scan.get("clause_families_detected", []) or []:
+            family_counts[str(family)] = family_counts.get(str(family), 0) + 1
+    recurring_families = [
+        {"family": family, "count": count}
+        for family, count in sorted(family_counts.items(), key=lambda item: (-item[1], item[0]))
+    ]
+    return {"scans": serialized, "recurring_clause_families": recurring_families}
+
+
+@app.get("/account/scans/{scan_id}")
+def account_scan_detail(
+    scan_id: uuid.UUID,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    scan = get_scan_for_org(db, account_ctx.organization.id, scan_id)
+    if scan is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
+    return serialize_scan_detail(scan)
+
+
+@app.post("/account/scans/{scan_id}/notes")
+def account_scan_note_create(
+    scan_id: uuid.UUID,
+    request: ScanNoteRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        note = create_scan_note(
+            db,
+            org_id=account_ctx.organization.id,
+            scan_id=scan_id,
+            created_by_user_id=account_ctx.user.id,
+            note=request.note,
+            finding_rule_id=request.finding_rule_id,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+    scan = get_scan_for_org(db, account_ctx.organization.id, scan_id)
+    return {"note": serialize_scan_detail(scan)["notes"][-1] if scan else {"id": str(note.id)}}
+
+
 @app.post("/account/logout")
 def account_logout():
     return {"status": "signed_out"}
@@ -1346,13 +1642,16 @@ def account_analyze_detailed(
     enforce_org_plan_quota(db=db, api_key_ctx=runtime_subject)
     enforce_rate_limit(http_request)
 
-    payload = _build_detailed_payload(request.text)
+    payload = _build_detailed_payload(request.text, _context_from_request(request))
     _persist_analysis(
         db=db,
         api_key_ctx=runtime_subject,
         http_request=http_request,
         endpoint="/account/analyze_detailed",
         payload=payload,
+        source_title=request.source_title,
+        source_type=request.source_type or "text",
+        scan_input_length=len(request.text),
     )
     return payload
 
@@ -1398,6 +1697,9 @@ async def account_analyze_pdf(
             http_request=http_request,
             endpoint="/account/analyze_pdf",
             payload=payload,
+            source_title=file.filename,
+            source_type="pdf",
+            scan_input_length=len(extraction.text),
         )
         return payload
     except PdfExtractionError as exc:
@@ -1448,6 +1750,9 @@ async def account_analyze_image(
             http_request=http_request,
             endpoint="/account/analyze_image",
             payload=payload,
+            source_title=file.filename,
+            source_type="image",
+            scan_input_length=len(text),
         )
         return payload
     finally:
@@ -1493,7 +1798,8 @@ def analyze(
     enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
-    result = score_contract(request.text)
+    result = score_contract(request.text, **_context_from_request(request))
+    result_meta = result.get("meta", {}) or {}
     risk_score = int(result.get("risk_score", 0))
     req_id = getattr(http_request.state, "request_id", "unknown")
 
@@ -1503,9 +1809,17 @@ def analyze(
         user_id=api_key_ctx.user_id,
         request_id=req_id,
         risk_score=risk_score,
-        risk_density=float(result.get("risk_density", 0.0)),
-        confidence=float(result.get("confidence", 0.0)),
-        ruleset_version=result.get("ruleset_version", "unknown"),
+        risk_density=float(result_meta.get("risk_density", 0.0)),
+        confidence=float(result_meta.get("confidence", 0.0)),
+        ruleset_version=result_meta.get("ruleset_version", "unknown"),
+        scan_input_length=len(request.text),
+        source_title=request.source_title,
+        source_type=request.source_type or "text",
+        severity=str(result.get("severity", "LOW")),
+        top_findings_snapshot=[],
+        clause_families_detected=list(result_meta.get("rule_families_detected", [])),
+        synthesis_patterns_triggered=list(result_meta.get("synthesis_patterns_triggered", [])),
+        context_profile_snapshot=result_meta.get("context_profile_used"),
     )
 
     create_usage_log(
@@ -1541,13 +1855,16 @@ def analyze_detailed(
     enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
-    payload = _build_detailed_payload(request.text)
+    payload = _build_detailed_payload(request.text, _context_from_request(request))
     _persist_analysis(
         db=db,
         api_key_ctx=api_key_ctx,
         http_request=http_request,
         endpoint="/analyze_detailed",
         payload=payload,
+        source_title=request.source_title,
+        source_type=request.source_type or "text",
+        scan_input_length=len(request.text),
     )
     return payload
 
@@ -1595,6 +1912,9 @@ async def analyze_pdf(
             http_request=http_request,
             endpoint="/analyze_pdf",
             payload=payload,
+            source_title=file.filename,
+            source_type="pdf",
+            scan_input_length=len(extraction.text),
         )
         return payload
 
@@ -1648,6 +1968,9 @@ async def analyze_image(
             http_request=http_request,
             endpoint="/analyze_image",
             payload=payload,
+            source_title=file.filename,
+            source_type="image",
+            scan_input_length=len(text),
         )
         return payload
     finally:

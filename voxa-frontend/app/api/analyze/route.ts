@@ -35,7 +35,16 @@ export async function POST(request: Request) {
           "Content-Type": "application/json",
           Authorization: `Bearer ${accountSession}`,
         },
-        body: JSON.stringify({ text }),
+        body: JSON.stringify({
+          text,
+          source_title: typeof body?.source_title === "string" ? body.source_title : undefined,
+          source_type: typeof body?.source_type === "string" ? body.source_type : "text",
+          user_role: typeof body?.user_role === "string" ? body.user_role : undefined,
+          contract_type: typeof body?.contract_type === "string" ? body.contract_type : undefined,
+          counterparty_profile: typeof body?.counterparty_profile === "string" ? body.counterparty_profile : undefined,
+          value_criticality: typeof body?.value_criticality === "string" ? body.value_criticality : undefined,
+          document_position: typeof body?.document_position === "string" ? body.document_position : undefined,
+        }),
         cache: "no-store",
       });
 
