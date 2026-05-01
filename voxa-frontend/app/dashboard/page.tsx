@@ -110,15 +110,21 @@ type AIReviewSummary = {
 type AIExplainResponse = AIReviewSummary & {
   status?: "available" | "disabled" | "unavailable";
   model?: string;
+  source?: string;
   reason?: string;
-  ai_summary?: AIReviewSummary;
-  summary?: AIReviewSummary;
-  ai_review?: AIReviewSummary;
-  review_notes?: AIReviewSummary;
+  ai_summary?: AIReviewSummary | string;
+  summary?: AIReviewSummary | string;
+  ai_review?: AIReviewSummary | string;
+  review_notes?: AIReviewSummary | string;
   data?: {
-    ai_summary?: AIReviewSummary;
-    summary?: AIReviewSummary;
+    ai_summary?: AIReviewSummary | string;
+    summary?: AIReviewSummary | string;
   };
+};
+
+type NormalizedAIExplainResponse = Omit<AIExplainResponse, "ai_summary"> & {
+  status: "available";
+  ai_summary: AIReviewSummary;
 };
 
 type DashboardAccountContext = {
@@ -795,16 +801,25 @@ function extractCustomerError(raw: string) {
   return raw;
 }
 
-function normalizeAIExplainResponse(payload: AIExplainResponse | null): AIExplainResponse | null {
+function coerceAIReviewSummary(value?: AIReviewSummary | string | null): AIReviewSummary | null {
+  if (!value) return null;
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    return trimmed ? { overview: trimmed } : null;
+  }
+  return value;
+}
+
+function normalizeAIExplainResponse(payload: AIExplainResponse | null): NormalizedAIExplainResponse | AIExplainResponse | null {
   if (!payload) return null;
 
   const summary =
-    payload.ai_summary ??
-    payload.summary ??
-    payload.ai_review ??
-    payload.review_notes ??
-    payload.data?.ai_summary ??
-    payload.data?.summary;
+    coerceAIReviewSummary(payload.ai_summary) ??
+    coerceAIReviewSummary(payload.summary) ??
+    coerceAIReviewSummary(payload.ai_review) ??
+    coerceAIReviewSummary(payload.review_notes) ??
+    coerceAIReviewSummary(payload.data?.ai_summary) ??
+    coerceAIReviewSummary(payload.data?.summary);
 
   const directSummary =
     !summary && (payload.overview || payload.risk_posture_summary)
@@ -826,7 +841,7 @@ function normalizeAIExplainResponse(payload: AIExplainResponse | null): AIExplai
     ...payload,
     status: "available",
     ai_summary: aiSummary,
-  };
+  } as NormalizedAIExplainResponse;
 }
 
 export default function DashboardPage() {
@@ -846,7 +861,7 @@ export default function DashboardPage() {
   const [reviewPurpose, setReviewPurpose] = useState("");
   const [internalReference, setInternalReference] = useState("");
   const [reportValidationMessage, setReportValidationMessage] = useState<string | null>(null);
-  const [aiReview, setAIReview] = useState<AIExplainResponse | null>(null);
+  const [aiReview, setAIReview] = useState<NormalizedAIExplainResponse | null>(null);
   const [aiState, setAIState] = useState<
     "idle" | "loading" | "available" | "disabled" | "unavailable" | "denied" | "error"
   >("idle");
@@ -1124,7 +1139,7 @@ export default function DashboardPage() {
       const aiPayload = normalizeAIExplainResponse(payload as AIExplainResponse | null);
 
       if (aiPayload?.status === "available" && aiPayload.ai_summary) {
-        setAIReview(aiPayload);
+        setAIReview(aiPayload as NormalizedAIExplainResponse);
         setAIState("available");
         return;
       }

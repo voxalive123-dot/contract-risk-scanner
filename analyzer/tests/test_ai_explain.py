@@ -205,7 +205,10 @@ def test_active_business_plan_allowed_and_provider_receives_only_deterministic_f
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "available"
+    assert body["source"] == "ai"
     assert body["model"] == "gpt-4o-mini"
+    assert isinstance(body["ai_summary"], str)
+    assert "deterministic scan surfaced a contract control issue" in body["ai_summary"]
     assert set(captured["payload"].keys()) == {
         "risk_score",
         "severity",
@@ -220,6 +223,60 @@ def test_active_business_plan_allowed_and_provider_receives_only_deterministic_f
     assert captured["payload"]["findings"][0]["matched_text"] == (
         "Either party may terminate this agreement without notice."
     )
+
+
+def test_malformed_but_usable_provider_output_becomes_ai_summary(ai_test_client, monkeypatch, caplog):
+    client, session_factory = ai_test_client
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ai_explain,
+        "_call_openai_json",
+        lambda *args, **kwargs: {"overview": "Review the termination wording before approval."},
+    )
+
+    response = client.post(
+        "/ai/explain",
+        headers={"X-API-Key": raw_key},
+        json=build_request(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "available"
+    assert body["source"] == "ai"
+    assert "Review the termination wording before approval." in body["ai_summary"]
+    assert "not legal advice" in body["ai_summary"]
+    assert "AI provider output schema invalid; using plain-text fallback" in caplog.text
+
+
+def test_empty_provider_output_returns_unavailable(ai_test_client, monkeypatch):
+    client, session_factory = ai_test_client
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(ai_explain, "_call_openai_json", lambda *args, **kwargs: {})
+
+    response = client.post(
+        "/ai/explain",
+        headers={"X-API-Key": raw_key},
+        json=build_request(),
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "status": "unavailable",
+        "reason": "ai_provider_error",
+    }
 
 
 @pytest.mark.parametrize("status_value", ["past_due", "canceled", "mystery_status"])
@@ -344,12 +401,11 @@ def test_low_confidence_or_sparse_findings_produce_uncertainty_notes(ai_test_cli
     )
 
     assert response.status_code == 200
-    notes = response.json()["ai_summary"]["uncertainty_notes"]
-    assert notes
-    assert any("confidence" in note.lower() for note in notes)
-    assert any(
-        "few or no deterministic findings" in note.lower()
-        or "small number of deterministic findings" in note.lower()
-        for note in notes
+    summary_text = response.json()["ai_summary"]
+    assert summary_text
+    assert "confidence" in summary_text.lower()
+    assert (
+        "few or no deterministic findings" in summary_text.lower()
+        or "small number of deterministic findings" in summary_text.lower()
     )
-    assert any("extraction" in note.lower() or "ocr" in note.lower() for note in notes)
+    assert "extraction" in summary_text.lower() or "ocr" in summary_text.lower()

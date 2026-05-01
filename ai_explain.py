@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any, Literal
 
@@ -8,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
+logger = logging.getLogger("voxarisk.ai_explain")
 AI_BOUNDARY_NOTICE = (
     "This AI explanation is not legal advice, legal opinion, contract approval, "
     "or a guarantee that a contract is safe."
@@ -84,7 +86,8 @@ class AIExplainAvailableResponse(BaseModel):
 
     status: Literal["available"]
     model: str
-    ai_summary: AISummary
+    source: Literal["ai"] = "ai"
+    ai_summary: str
 
 
 class AIProviderError(Exception):
@@ -214,7 +217,7 @@ def _call_openai_json(
     *,
     model: str,
     uncertainty_notes: list[str],
-) -> dict[str, Any]:
+) -> dict[str, Any] | str:
     api_key = os.getenv("OPENAI_API_KEY", "").strip()
     if not api_key:
         raise AIProviderError("OPENAI_API_KEY missing")
@@ -241,8 +244,94 @@ def _call_openai_json(
 
     try:
         return json.loads(raw_content)
-    except json.JSONDecodeError as exc:
-        raise AIProviderError("Provider did not return valid JSON") from exc
+    except json.JSONDecodeError:
+        plain_text = raw_content.strip()
+        if not plain_text:
+            raise AIProviderError("Provider returned empty content")
+        return plain_text
+
+
+def _stringify_provider_value(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, (int, float, bool)):
+        return str(value)
+    if isinstance(value, list):
+        return "\n".join(
+            item
+            for item in (_stringify_provider_value(item) for item in value)
+            if item
+        ).strip()
+    if isinstance(value, dict):
+        preferred_keys = (
+            "overview",
+            "risk_posture_summary",
+            "summary",
+            "explanation",
+            "executive_summary",
+            "review_notes",
+            "content",
+            "text",
+            "negotiation_focus",
+            "evidence_notes",
+            "uncertainty_notes",
+            "boundary_notice",
+        )
+        parts: list[str] = []
+        used: set[str] = set()
+        for key in preferred_keys:
+            if key in value:
+                text = _stringify_provider_value(value.get(key))
+                if text:
+                    parts.append(text)
+                    used.add(key)
+        for key, nested in value.items():
+            if key in used:
+                continue
+            text = _stringify_provider_value(nested)
+            if text:
+                parts.append(text)
+        return "\n".join(parts).strip()
+    return ""
+
+
+def _format_structured_summary(summary: AISummary) -> str:
+    parts = [
+        summary.overview,
+        summary.risk_posture_summary,
+    ]
+
+    if summary.negotiation_focus:
+        parts.append("Negotiation focus:\n" + "\n".join(f"- {item}" for item in summary.negotiation_focus))
+
+    if summary.evidence_notes:
+        evidence_lines = []
+        for note in summary.evidence_notes:
+            line = f"- {note.title}: {note.explanation}"
+            if note.evidence_excerpt:
+                line += f" Evidence: {note.evidence_excerpt}"
+            evidence_lines.append(line)
+        parts.append("Evidence notes:\n" + "\n".join(evidence_lines))
+
+    if summary.uncertainty_notes:
+        parts.append("Uncertainty notes:\n" + "\n".join(f"- {item}" for item in summary.uncertainty_notes))
+
+    parts.append(AI_BOUNDARY_NOTICE)
+    return "\n\n".join(part.strip() for part in parts if part and part.strip()).strip()
+
+
+def _plain_text_summary_from_provider_output(provider_output: dict[str, Any] | str, uncertainty_notes: list[str]) -> str:
+    text = _stringify_provider_value(provider_output).strip()
+    if not text:
+        raise AIProviderError("Provider returned empty content")
+
+    parts = [text]
+    if uncertainty_notes:
+        parts.append("Uncertainty notes:\n" + "\n".join(f"- {item}" for item in uncertainty_notes))
+    parts.append(AI_BOUNDARY_NOTICE)
+    return "\n\n".join(part.strip() for part in parts if part and part.strip()).strip()
 
 
 def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResponse:
@@ -258,8 +347,13 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
 
     try:
         summary = AISummary.model_validate(provider_payload)
-    except ValidationError as exc:
-        raise AIProviderError("Provider output failed schema validation") from exc
+    except ValidationError:
+        logger.warning("AI provider output schema invalid; using plain-text fallback")
+        return AIExplainAvailableResponse(
+            status="available",
+            model=model,
+            ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
+        )
 
     allowed_by_rule_id = {
         finding.rule_id: finding
@@ -271,7 +365,12 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
     for note in summary.evidence_notes:
         deterministic_finding = allowed_by_rule_id.get(note.rule_id)
         if deterministic_finding is None:
-            raise AIProviderError("Provider referenced unknown rule_id")
+            logger.warning("AI provider output schema invalid; using plain-text fallback")
+            return AIExplainAvailableResponse(
+                status="available",
+                model=model,
+                ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
+            )
 
         excerpt = (note.evidence_excerpt or "").strip()
         deterministic_excerpt = (deterministic_finding.matched_text or "").strip()
@@ -294,5 +393,5 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
     return AIExplainAvailableResponse(
         status="available",
         model=model,
-        ai_summary=summary,
+        ai_summary=_format_structured_summary(summary),
     )
