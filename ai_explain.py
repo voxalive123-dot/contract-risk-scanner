@@ -3,9 +3,10 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
 
 DEFAULT_OPENAI_MODEL = "gpt-4o-mini"
@@ -50,7 +51,8 @@ class AIExplainMeta(BaseModel):
 class AIExplainRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    risk_score: int
+    normalized_score: int | None = None
+    risk_score: int | None = Field(default=None, exclude=True)
     severity: Literal["LOW", "MEDIUM", "HIGH"]
     flags: list[str] = Field(default_factory=list)
     findings: list[AIExplainFinding] = Field(default_factory=list)
@@ -59,6 +61,14 @@ class AIExplainRequest(BaseModel):
     extraction_method: str | None = None
     confidence_hint: float | None = None
     has_extractable_text: bool | None = None
+
+    @model_validator(mode="after")
+    def ensure_normalized_score(self):
+        if self.normalized_score is None:
+            if self.risk_score is None:
+                raise ValueError("normalized_score is required")
+            self.normalized_score = self.risk_score
+        return self
 
 
 class AIEvidenceNote(BaseModel):
@@ -73,12 +83,12 @@ class AIEvidenceNote(BaseModel):
 class AISummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    overview: str
-    risk_posture_summary: str
-    negotiation_focus: list[str] = Field(default_factory=list)
-    evidence_notes: list[AIEvidenceNote] = Field(default_factory=list)
+    executive_overview: str = ""
+    primary_risk_drivers: list[str] = Field(default_factory=list)
+    recommended_review_focus: list[str] = Field(default_factory=list)
+    evidence_signals: list[str] = Field(default_factory=list)
     uncertainty_notes: list[str] = Field(default_factory=list)
-    boundary_notice: str
+    boundary_note: str = ""
 
 
 class AIExplainAvailableResponse(BaseModel):
@@ -167,17 +177,21 @@ def _build_messages(
     payload: dict[str, Any],
     uncertainty_notes: list[str],
 ) -> list[dict[str, str]]:
+    normalized_score = payload.get("normalized_score")
     system_prompt = (
-        "You are generating a VoxaRisk AI explanation layer. "
+        "You are generating a VoxaRisk AI explanation layer as a board-level commercial briefing. "
         "You must augment deterministic findings only. "
-        "Do not change, recalculate, reinterpret, or override risk_score, severity, flags, findings, top_risks, or confidence. "
+        "Do not change, recalculate, reinterpret, or override normalized_score, severity, flags, findings, top_risks, or confidence. "
+        "Only discuss the supplied normalized_score; do not refer to any other score field, internal score, uncalibrated score, or alternate score value. "
+        f"If referring to score, use exactly: normalized exposure score of {normalized_score}. "
+        "You may also use qualitative wording such as elevated risk posture or high risk posture. "
         "Do not invent risks, clauses, or evidence. "
-        "For evidence_excerpt, copy exact matched_text from the supplied finding where available. "
+        "For evidence_signals, use only supplied deterministic findings and matched evidence. "
         "Do not provide legal advice, legal opinion, contract approval, or any guarantee of safety. "
-        "Use only the supplied deterministic findings and matched evidence. "
         "If evidence is limited, findings are sparse, or confidence is weak, say so plainly. "
-        "Return JSON only with keys: overview, risk_posture_summary, negotiation_focus, evidence_notes, uncertainty_notes, boundary_notice. "
-        "boundary_notice must state that this is not legal advice, legal opinion, contract approval, or a guarantee that a contract is safe."
+        "Return JSON only with keys: executive_overview, primary_risk_drivers, recommended_review_focus, evidence_signals, uncertainty_notes, boundary_note. "
+        "primary_risk_drivers, recommended_review_focus, evidence_signals, and uncertainty_notes must be arrays of concise strings. "
+        "boundary_note must state that this is not legal advice, legal opinion, contract approval, or a guarantee that a contract is safe."
     )
 
     user_payload = {
@@ -191,7 +205,8 @@ def _build_messages(
         {
             "role": "user",
             "content": (
-                "Create a concise executive explanation grounded only in this deterministic VoxaRisk analysis.\n"
+                "Create a concise executive AI Review briefing grounded only in this deterministic VoxaRisk analysis. "
+                "Use the normalized exposure score only, never a raw score.\n"
                 + json.dumps(user_payload, ensure_ascii=True)
             ),
         },
@@ -266,6 +281,11 @@ def _stringify_provider_value(value: Any) -> str:
         ).strip()
     if isinstance(value, dict):
         preferred_keys = (
+            "executive_overview",
+            "primary_risk_drivers",
+            "recommended_review_focus",
+            "evidence_signals",
+            "boundary_note",
             "overview",
             "risk_posture_summary",
             "summary",
@@ -297,54 +317,108 @@ def _stringify_provider_value(value: Any) -> str:
     return ""
 
 
+def _normalize_score_language(text: str, normalized_score: int) -> str:
+    normalized = str(normalized_score)
+    chunks = re.split(r"(?<=[.!?])\s+|\n+", text or "")
+    cleaned: list[str] = []
+
+    for chunk in chunks:
+        item = chunk.strip()
+        if not item:
+            continue
+
+        lower = item.lower()
+        if (
+            "risk_score" in lower
+            or "raw score" in lower
+            or "raw risk score" in lower
+            or "unnormalised score" in lower
+            or "unnormalized score" in lower
+        ):
+            continue
+
+        if "score" in lower:
+            numbers = [int(value) for value in re.findall(r"\b\d{1,3}\b", item)]
+            if any(value != normalized_score for value in numbers):
+                continue
+            item = re.sub(r"\brisk score\b", "normalized exposure score", item, flags=re.IGNORECASE)
+            item = re.sub(r"\bnormalized score\b", "normalized exposure score", item, flags=re.IGNORECASE)
+
+        if normalized in item and "score" in item.lower() and "normalized exposure score" not in item.lower():
+            item = re.sub(r"\bscore\b", "normalized exposure score", item, count=1, flags=re.IGNORECASE)
+
+        cleaned.append(item)
+
+    return "\n".join(cleaned).strip()
+
+
+def _clean_score_list(items: list[str], normalized_score: int) -> list[str]:
+    return _merge_unique(
+        item
+        for item in (_normalize_score_language(value, normalized_score) for value in items)
+        if item
+    )
+
+
+def _join_briefing_parts(parts: list[str]) -> str:
+    body = "\n\n".join(part.strip() for part in parts if part and part.strip()).strip()
+    if not body:
+        return ""
+    if "not legal advice" not in body.lower():
+        body = f"{body}\n\nBoundary note\n{AI_BOUNDARY_NOTICE}"
+    return body.strip()
+
+
 def _structured_summary_has_content(summary: AISummary) -> bool:
-    if summary.overview.strip() or summary.risk_posture_summary.strip():
+    if summary.executive_overview.strip():
         return True
-    if any(item.strip() for item in summary.negotiation_focus):
+    if any(item.strip() for item in summary.primary_risk_drivers):
         return True
-    if any(
-        note.title.strip() or note.explanation.strip() or note.evidence_excerpt.strip()
-        for note in summary.evidence_notes
-    ):
+    if any(item.strip() for item in summary.recommended_review_focus):
+        return True
+    if any(item.strip() for item in summary.evidence_signals):
         return True
     return False
 
 
-def _format_structured_summary(summary: AISummary) -> str:
-    parts = [
-        summary.overview,
-        summary.risk_posture_summary,
-    ]
+def _format_structured_summary(summary: AISummary, normalized_score: int) -> str:
+    overview = _normalize_score_language(summary.executive_overview, normalized_score)
+    primary_risk_drivers = _clean_score_list(summary.primary_risk_drivers, normalized_score)
+    recommended_review_focus = _clean_score_list(summary.recommended_review_focus, normalized_score)
+    evidence_signals = _clean_score_list(summary.evidence_signals, normalized_score)
+    uncertainty_notes = _clean_score_list(summary.uncertainty_notes, normalized_score)
 
-    if summary.negotiation_focus:
-        parts.append("Negotiation focus:\n" + "\n".join(f"- {item}" for item in summary.negotiation_focus))
+    parts: list[str] = []
+    if overview:
+        parts.append(f"Executive overview\n{overview}")
+    if primary_risk_drivers:
+        parts.append("Primary risk drivers\n" + "\n".join(f"- {item}" for item in primary_risk_drivers))
+    if recommended_review_focus:
+        parts.append("Recommended review focus\n" + "\n".join(f"- {item}" for item in recommended_review_focus))
+    if evidence_signals:
+        parts.append("Evidence signals\n" + "\n".join(f"- {item}" for item in evidence_signals))
+    if uncertainty_notes:
+        parts.append("Uncertainty notes\n" + "\n".join(f"- {item}" for item in uncertainty_notes))
+    parts.append(f"Boundary note\n{AI_BOUNDARY_NOTICE}")
 
-    if summary.evidence_notes:
-        evidence_lines = []
-        for note in summary.evidence_notes:
-            line = f"- {note.title}: {note.explanation}"
-            if note.evidence_excerpt:
-                line += f" Evidence: {note.evidence_excerpt}"
-            evidence_lines.append(line)
-        parts.append("Evidence notes:\n" + "\n".join(evidence_lines))
-
-    if summary.uncertainty_notes:
-        parts.append("Uncertainty notes:\n" + "\n".join(f"- {item}" for item in summary.uncertainty_notes))
-
-    parts.append(AI_BOUNDARY_NOTICE)
-    return "\n\n".join(part.strip() for part in parts if part and part.strip()).strip()
+    return _join_briefing_parts(parts)
 
 
-def _plain_text_summary_from_provider_output(provider_output: dict[str, Any] | str, uncertainty_notes: list[str]) -> str:
-    text = _stringify_provider_value(provider_output).strip()
+def _plain_text_summary_from_provider_output(
+    provider_output: dict[str, Any] | str,
+    uncertainty_notes: list[str],
+    normalized_score: int,
+) -> str:
+    text = _normalize_score_language(_stringify_provider_value(provider_output), normalized_score)
     if not text:
         raise AIProviderError("Provider returned empty content")
 
     parts = [text]
-    if uncertainty_notes:
-        parts.append("Uncertainty notes:\n" + "\n".join(f"- {item}" for item in uncertainty_notes))
-    parts.append(AI_BOUNDARY_NOTICE)
-    return "\n\n".join(part.strip() for part in parts if part and part.strip()).strip()
+    cleaned_uncertainty = _clean_score_list(uncertainty_notes, normalized_score)
+    if cleaned_uncertainty:
+        parts.append("Uncertainty notes\n" + "\n".join(f"- {item}" for item in cleaned_uncertainty))
+    parts.append(f"Boundary note\n{AI_BOUNDARY_NOTICE}")
+    return _join_briefing_parts(parts)
 
 
 def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResponse:
@@ -365,7 +439,11 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
         return AIExplainAvailableResponse(
             status="available",
             model=model,
-            ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
+            ai_summary=_plain_text_summary_from_provider_output(
+                provider_payload,
+                uncertainty_notes,
+                request.normalized_score,
+            ),
         )
 
     if not _structured_summary_has_content(summary):
@@ -373,46 +451,18 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
         return AIExplainAvailableResponse(
             status="available",
             model=model,
-            ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
+            ai_summary=_plain_text_summary_from_provider_output(
+                provider_payload,
+                uncertainty_notes,
+                request.normalized_score,
+            ),
         )
 
-    allowed_by_rule_id = {
-        finding.rule_id: finding
-        for finding in request.findings
-        if finding.rule_id
-    }
-
-    validated_notes: list[AIEvidenceNote] = []
-    for note in summary.evidence_notes:
-        deterministic_finding = allowed_by_rule_id.get(note.rule_id)
-        if deterministic_finding is None:
-            logger.warning("AI provider output schema invalid; using plain-text fallback")
-            return AIExplainAvailableResponse(
-                status="available",
-                model=model,
-                ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
-            )
-
-        excerpt = (note.evidence_excerpt or "").strip()
-        deterministic_excerpt = (deterministic_finding.matched_text or "").strip()
-        if deterministic_excerpt:
-            excerpt = deterministic_excerpt
-
-        validated_notes.append(
-            AIEvidenceNote(
-                rule_id=note.rule_id,
-                title=note.title,
-                explanation=note.explanation,
-                evidence_excerpt=excerpt,
-            )
-        )
-
-    summary.evidence_notes = validated_notes
     summary.uncertainty_notes = _merge_unique(uncertainty_notes + summary.uncertainty_notes)
-    summary.boundary_notice = AI_BOUNDARY_NOTICE
+    summary.boundary_note = AI_BOUNDARY_NOTICE
 
     return AIExplainAvailableResponse(
         status="available",
         model=model,
-        ai_summary=_format_structured_summary(summary),
+        ai_summary=_format_structured_summary(summary, request.normalized_score),
     )

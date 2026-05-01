@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 
 import SiteHeader from "../site-header";
 import SiteFooter from "../site-footer";
@@ -100,6 +100,11 @@ type AIReviewEvidenceNote = {
 
 type AIReviewSummary = {
   raw_text?: string;
+  executive_overview?: string;
+  primary_risk_drivers?: string[];
+  recommended_review_focus?: string[];
+  evidence_signals?: string[];
+  boundary_note?: string;
   overview?: string;
   risk_posture_summary?: string;
   negotiation_focus?: string[];
@@ -128,9 +133,10 @@ type NormalizedAIExplainResponse = Omit<AIExplainResponse, "ai_summary"> & {
   ai_summary: AIReviewSummary;
 };
 
-type AIRawReviewSection = {
+type AIReviewDisplaySection = {
   heading: string;
   items: string[];
+  kind: "paragraph" | "bullets" | "boundary";
 };
 
 type DashboardAccountContext = {
@@ -737,7 +743,7 @@ function optionalNumber(value: unknown) {
 
 function buildAIExplainPayload(result: AnalyzeResult) {
   return {
-    risk_score: result.risk_score,
+    normalized_score: result.meta?.normalized_score ?? result.risk_score,
     severity: normalizeAIExplainSeverity(result.severity),
     flags: result.flags ?? [],
     findings: (result.findings ?? []).map((finding) => ({
@@ -820,42 +826,194 @@ function hasAISectionText(value?: string | null) {
   return Boolean(value?.trim());
 }
 
-function splitAIRawText(rawText?: string | null) {
+const AI_BOUNDARY_FALLBACK = "AI Review Notes explain deterministic VoxaRisk findings only. They do not change the score, severity, findings, or decision posture, and they are not legal advice.";
+
+const AI_SECTION_HEADINGS: Record<string, { heading: string; kind: AIReviewDisplaySection["kind"] }> = {
+  "executive overview": { heading: "Executive overview", kind: "paragraph" },
+  overview: { heading: "Executive overview", kind: "paragraph" },
+  "primary risk drivers": { heading: "Primary risk drivers", kind: "bullets" },
+  "key risk drivers": { heading: "Primary risk drivers", kind: "bullets" },
+  "recommended review focus": { heading: "Recommended review focus", kind: "bullets" },
+  "suggested review focus": { heading: "Recommended review focus", kind: "bullets" },
+  "negotiation focus": { heading: "Recommended review focus", kind: "bullets" },
+  "evidence signals": { heading: "Evidence signals", kind: "bullets" },
+  "evidence notes": { heading: "Evidence signals", kind: "bullets" },
+  "uncertainty notes": { heading: "Evidence signals", kind: "bullets" },
+  "boundary note": { heading: "Boundary note", kind: "boundary" },
+  "boundary notice": { heading: "Boundary note", kind: "boundary" },
+};
+
+function cleanAIReviewItem(value?: string | null) {
+  return (value ?? "")
+    .replace(/^[-*\d.)\s]+/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function addAISectionItem(sections: AIReviewDisplaySection[], heading: string, kind: AIReviewDisplaySection["kind"], value?: string | null) {
+  const item = cleanAIReviewItem(value);
+  if (!item) return;
+
+  let section = sections.find((candidate) => candidate.heading === heading);
+  if (!section) {
+    section = { heading, kind, items: [] };
+    sections.push(section);
+  }
+  if (!section.items.includes(item)) {
+    section.items.push(item);
+  }
+}
+
+function normalizeAIHeading(value: string) {
+  return value
+    .replace(/[:?-]+$/g, "")
+    .replace(/^#+\s*/, "")
+    .trim()
+    .toLowerCase();
+}
+
+function sectionForAIHeading(value: string) {
+  const normalized = normalizeAIHeading(value);
+  if (normalized === "ai review") return null;
+  return AI_SECTION_HEADINGS[normalized];
+}
+
+function splitAISentences(rawText?: string | null) {
   return (rawText ?? "")
     .split(/\n+|(?<=[.!?])\s+(?=[A-Z])/)
-    .map((item) => item.replace(/^[-*\d.)\s]+/, "").trim())
+    .map(cleanAIReviewItem)
     .filter(Boolean);
 }
 
-function formatAIRawReviewSections(rawText?: string | null): AIRawReviewSection[] {
-  const items = splitAIRawText(rawText);
-  if (!items.length) return [];
+function isBoundaryAIText(value: string) {
+  const lower = value.toLowerCase();
+  return lower.includes("not legal advice") || lower.includes("legal opinion") || lower.includes("contract approval") || lower.includes("guarantee");
+}
 
-  const boundaryTerms = ["not legal advice", "legal opinion", "contract approval", "guarantee"];
-  const boundaryItems = items.filter((item) => boundaryTerms.some((term) => item.toLowerCase().includes(term)));
-  const contentItems = items.filter((item) => !boundaryItems.includes(item));
+function isRiskDriverText(value: string) {
+  const lower = value.toLowerCase();
+  return [
+    "risk",
+    "exposure",
+    "liability",
+    "indemnity",
+    "termination",
+    "refund",
+    "data",
+    "confidentiality",
+    "suspension",
+    "payment",
+    "jurisdiction",
+    "governing law",
+    "score",
+  ].some((term) => lower.includes(term));
+}
 
-  const sections: AIRawReviewSection[] = [];
-  sections.push({ heading: "Executive overview", items: contentItems.slice(0, 2) });
+function isReviewFocusText(value: string) {
+  const lower = value.toLowerCase();
+  return ["review", "negotiate", "narrow", "limit", "add", "remove", "align", "escalate", "confirm", "focus"].some((term) => lower.includes(term));
+}
 
-  const keyRiskDrivers = contentItems.slice(2, 5);
-  if (keyRiskDrivers.length) {
-    sections.push({ heading: "Key risk drivers", items: keyRiskDrivers });
+function isEvidenceText(value: string) {
+  const lower = value.toLowerCase();
+  return ["evidence", "deterministic", "finding", "clause", "signal", "matched"].some((term) => lower.includes(term));
+}
+
+function parseStructuredAIText(rawText?: string | null) {
+  const sections: AIReviewDisplaySection[] = [];
+  let current: AIReviewDisplaySection | null = null;
+  const unassigned: string[] = [];
+
+  for (const rawLine of (rawText ?? "").split(/\n+/)) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const heading = sectionForAIHeading(line);
+    if (heading) {
+      current = sections.find((section) => section.heading === heading.heading) ?? null;
+      if (!current) {
+        current = { heading: heading.heading, kind: heading.kind, items: [] };
+        sections.push(current);
+      }
+      continue;
+    }
+
+    const item = cleanAIReviewItem(line);
+    if (!item) continue;
+    if (current) {
+      addAISectionItem(sections, current.heading, current.kind, item);
+    } else {
+      unassigned.push(item);
+    }
   }
 
-  const suggestedReviewFocus = contentItems.slice(5, 8);
-  if (suggestedReviewFocus.length) {
-    sections.push({ heading: "Suggested review focus", items: suggestedReviewFocus });
-  }
+  const populated = sections.filter((section) => section.items.length > 0);
+  if (populated.length) return populated;
+  if (!unassigned.length) return [];
 
-  sections.push({
-    heading: "Boundary note",
-    items: boundaryItems.length
-      ? boundaryItems
-      : ["AI Review Notes explain deterministic VoxaRisk findings only. They do not change the score, severity, findings, or decision posture, and they are not legal advice."],
-  });
-
+  addAISectionItem(sections, "Executive overview", "paragraph", unassigned[0]);
+  unassigned.slice(1).forEach((item) => addAISectionItem(sections, "Primary risk drivers", "bullets", item));
   return sections.filter((section) => section.items.length > 0);
+}
+
+function formatAIReviewSections(summary?: AIReviewSummary | null): AIReviewDisplaySection[] {
+  if (!summary) return [];
+
+  const sections: AIReviewDisplaySection[] = [];
+  addAISectionItem(sections, "Executive overview", "paragraph", summary.executive_overview ?? summary.overview);
+  (summary.primary_risk_drivers ?? []).forEach((item) => addAISectionItem(sections, "Primary risk drivers", "bullets", item));
+  (summary.recommended_review_focus ?? summary.negotiation_focus ?? []).forEach((item) => addAISectionItem(sections, "Recommended review focus", "bullets", item));
+  (summary.evidence_signals ?? []).forEach((item) => addAISectionItem(sections, "Evidence signals", "bullets", item));
+  (summary.evidence_notes ?? []).forEach((note) => {
+    addAISectionItem(sections, "Evidence signals", "bullets", [note.title, note.explanation, note.evidence_excerpt].filter(Boolean).join(": "));
+  });
+  (summary.uncertainty_notes ?? []).forEach((item) => addAISectionItem(sections, "Evidence signals", "bullets", item));
+
+  const structuredBoundary = summary.boundary_note ?? summary.boundary_notice;
+  if (structuredBoundary) {
+    addAISectionItem(sections, "Boundary note", "boundary", structuredBoundary);
+  }
+
+  if (sections.length === 0 && hasAISectionText(summary.raw_text)) {
+    const parsed = parseStructuredAIText(summary.raw_text);
+    if (parsed.length) {
+      sections.push(...parsed);
+    } else {
+      const items = splitAISentences(summary.raw_text);
+      const boundaryItems = items.filter(isBoundaryAIText);
+      const contentItems = items.filter((item) => !isBoundaryAIText(item));
+      const [overview, ...remaining] = contentItems;
+
+      addAISectionItem(sections, "Executive overview", "paragraph", overview);
+      const riskDrivers = remaining.filter(isRiskDriverText).slice(0, 5);
+      const reviewFocus = remaining.filter(isReviewFocusText).slice(0, 4);
+      const evidenceSignals = remaining.filter(isEvidenceText).slice(0, 4);
+
+      (riskDrivers.length ? riskDrivers : remaining.slice(0, 4)).forEach((item) => addAISectionItem(sections, "Primary risk drivers", "bullets", item));
+      reviewFocus.forEach((item) => addAISectionItem(sections, "Recommended review focus", "bullets", item));
+      evidenceSignals.forEach((item) => addAISectionItem(sections, "Evidence signals", "bullets", item));
+      boundaryItems.forEach((item) => addAISectionItem(sections, "Boundary note", "boundary", item));
+    }
+  }
+
+  if (!sections.some((section) => section.heading === "Boundary note")) {
+    addAISectionItem(sections, "Boundary note", "boundary", AI_BOUNDARY_FALLBACK);
+  }
+
+  const sectionOrder = ["Executive overview", "Primary risk drivers", "Recommended review focus", "Evidence signals", "Boundary note"];
+  return sections
+    .filter((section) => section.items.length > 0)
+    .sort((left, right) => sectionOrder.indexOf(left.heading) - sectionOrder.indexOf(right.heading));
+}
+
+function renderAITextWithEmphasis(text: string): ReactNode {
+  const emphasisPattern = /(termination without refund|broad data rights|weak confidentiality|broad indemnity|low liability cap|supplier suspension|upfront payment|no refund|ai training|onward sharing|liability cap|indemnity|termination|confidentiality|data rights|suspension rights)/gi;
+  return text.split(emphasisPattern).map((part, index) => {
+    if (index % 2 === 1) {
+      return <strong key={`${part}-${index}`} className="font-semibold text-neutral-950">{part}</strong>;
+    }
+    return part;
+  });
 }
 
 function normalizeAIExplainResponse(payload: AIExplainResponse | null): NormalizedAIExplainResponse | AIExplainResponse | null {
@@ -870,8 +1028,20 @@ function normalizeAIExplainResponse(payload: AIExplainResponse | null): Normaliz
     coerceAIReviewSummary(payload.data?.summary);
 
   const directSummary =
-    !summary && (payload.overview || payload.risk_posture_summary)
+    !summary && (
+      payload.executive_overview ||
+      payload.primary_risk_drivers ||
+      payload.recommended_review_focus ||
+      payload.evidence_signals ||
+      payload.overview ||
+      payload.risk_posture_summary
+    )
       ? {
+          executive_overview: payload.executive_overview,
+          primary_risk_drivers: payload.primary_risk_drivers,
+          recommended_review_focus: payload.recommended_review_focus,
+          evidence_signals: payload.evidence_signals,
+          boundary_note: payload.boundary_note,
           overview: payload.overview,
           risk_posture_summary: payload.risk_posture_summary,
           negotiation_focus: payload.negotiation_focus,
@@ -1276,6 +1446,7 @@ export default function DashboardPage() {
 
   const normalizedScore = result?.meta?.normalized_score ?? result?.risk_score ?? 0;
   const rawRiskScore = result?.risk_score ?? 0;
+  const aiReviewSections = useMemo(() => formatAIReviewSections(aiReview?.ai_summary), [aiReview?.ai_summary]);
   const findings = useMemo(() => result?.findings ?? [], [result?.findings]);
   const topRisks = useMemo(() => result?.meta?.top_risks ?? [], [result?.meta?.top_risks]);
   const confidence = result?.meta?.confidence ?? 0;
@@ -2240,128 +2411,63 @@ export default function DashboardPage() {
                         </div>
                       )}
 
-                    {aiState === "available" && aiReview?.ai_summary && (
-                      <div className="mt-6 space-y-5">
-                        {hasAISectionText(aiReview.ai_summary.raw_text) && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              AI review
+                    {aiState === "available" && aiReview?.ai_summary && aiReviewSections.length > 0 && (
+                      <div className="mt-6 rounded-[28px] border border-[#d4bd94] bg-[#fffaf0] p-5 shadow-[0_14px_32px_rgba(80,60,30,0.07)] md:p-6">
+                        <div className="flex flex-col gap-2 border-b border-[#e3d4bb] pb-4 md:flex-row md:items-end md:justify-between">
+                          <div>
+                            <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
+                              AI Review
                             </div>
-                            <div className="mt-4 grid gap-4 md:grid-cols-2">
-                              {formatAIRawReviewSections(aiReview.ai_summary.raw_text).map((section) => (
-                                <section
-                                  key={section.heading}
-                                  className="rounded-2xl border border-[#e3d4bb] bg-[#fcf7ee] p-4"
-                                >
-                                  <h4 className="text-sm font-semibold text-neutral-950">{section.heading}</h4>
-                                  {section.items.length === 1 ? (
-                                    <p className="mt-2 text-sm leading-6 text-neutral-700">{section.items[0]}</p>
-                                  ) : (
-                                    <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
-                                      {section.items.map((item) => (
-                                        <li key={item} className="flex gap-2">
-                                          <span className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[#8f7245]" />
-                                          <span>{item}</span>
-                                        </li>
-                                      ))}
-                                    </ul>
-                                  )}
-                                </section>
-                              ))}
-                            </div>
+                            <h4 className="mt-2 text-xl font-semibold tracking-tight text-neutral-950">
+                              Executive briefing note
+                            </h4>
                           </div>
-                        )}
+                          <div className="text-xs font-medium text-[#8f7245]">
+                            Explanation layer only
+                          </div>
+                        </div>
 
-                        {(hasAISectionText(aiReview.ai_summary.overview) ||
-                          hasAISectionText(aiReview.ai_summary.risk_posture_summary)) && (
-                          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-                            {hasAISectionText(aiReview.ai_summary.overview) && (
-                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                                  Overview
+                        <div className="mt-5 space-y-4">
+                          {aiReviewSections
+                            .filter((section) => section.kind !== "boundary")
+                            .map((section) => (
+                              <section
+                                key={section.heading}
+                                className="border-l-2 border-[#b08d57]/50 bg-[#fcf7ee] px-4 py-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]"
+                              >
+                                <div className="text-[0.68rem] font-semibold uppercase tracking-[0.22em] text-[#8f7245]">
+                                  {section.heading}
                                 </div>
-                                <p className="mt-3 text-sm leading-7 text-neutral-700">
-                                  {aiReview.ai_summary.overview}
-                                </p>
-                              </div>
-                            )}
+                                {section.kind === "paragraph" ? (
+                                  <div className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                                    {section.items.map((item) => (
+                                      <p key={item} className="max-w-4xl">
+                                        {renderAITextWithEmphasis(item)}
+                                      </p>
+                                    ))}
+                                  </div>
+                                ) : (
+                                  <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
+                                    {section.items.map((item) => (
+                                      <li key={item} className="flex gap-3">
+                                        <span className="mt-[0.6rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[#8f7245]" />
+                                        <span>{renderAITextWithEmphasis(item)}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                )}
+                              </section>
+                            ))}
+                        </div>
 
-                            {hasAISectionText(aiReview.ai_summary.risk_posture_summary) && (
-                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                                  Risk posture summary
-                                </div>
-                                <p className="mt-3 text-sm leading-7 text-neutral-700">
-                                  {aiReview.ai_summary.risk_posture_summary}
-                                </p>
-                              </div>
-                            )}
-                          </div>
-                        )}
-
-                        {(aiReview.ai_summary.negotiation_focus ?? []).length > 0 && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Negotiation focus
+                        {aiReviewSections
+                          .filter((section) => section.kind === "boundary")
+                          .slice(0, 1)
+                          .map((section) => (
+                            <div key={section.heading} className="mt-5 border-t border-[#e3d4bb] pt-4 text-xs leading-5 text-[#8f7245]">
+                              {section.items[0]}
                             </div>
-                            <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
-                              {(aiReview.ai_summary.negotiation_focus ?? []).map((item) => (
-                                <li
-                                  key={item}
-                                  className="rounded-xl border border-[#e3d4bb] bg-[#fcf7ee] px-4 py-3"
-                                >
-                                  {item}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {(aiReview.ai_summary.evidence_notes ?? []).length > 0 && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Evidence notes
-                            </div>
-                            <div className="mt-4 space-y-4">
-                              {(aiReview.ai_summary.evidence_notes ?? []).map((note, index) => (
-                                <div
-                                  key={`${note.rule_id ?? note.title ?? "evidence"}-${index}`}
-                                  className="rounded-2xl border border-[#e3d4bb] bg-[#fcf7ee] p-4"
-                                >
-                                  <h4 className="text-sm font-semibold text-neutral-950">
-                                    {note.title ?? "Evidence note"}
-                                  </h4>
-                                  <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                    {note.explanation}
-                                  </p>
-                                  {note.evidence_excerpt && (
-                                    <div className="mt-3 rounded-xl border border-[#dccaa8] bg-[#fffaf0] p-3 text-sm leading-6 text-neutral-700">
-                                      {note.evidence_excerpt}
-                                    </div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {(aiReview.ai_summary.uncertainty_notes ?? []).length > 0 && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Uncertainty notes
-                            </div>
-                            <ul className="mt-3 space-y-2 text-sm leading-6 text-neutral-700">
-                              {(aiReview.ai_summary.uncertainty_notes ?? []).map((item) => (
-                                <li
-                                  key={item}
-                                  className="rounded-xl border border-[#e3d4bb] bg-[#fcf7ee] px-4 py-3"
-                                >
-                                  {item}
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
+                          ))}
                       </div>
                     )}
                   </div>

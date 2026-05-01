@@ -99,7 +99,7 @@ def build_request(
     findings: list[dict] | None = None,
 ):
     return {
-        "risk_score": 9,
+        "normalized_score": 28,
         "severity": "MEDIUM",
         "flags": ["termination without notice"],
         "findings": findings
@@ -138,22 +138,20 @@ def build_request(
 
 def build_provider_summary():
     return {
-        "overview": "The deterministic scan surfaced a contract control issue that should be reviewed before acceptance.",
-        "risk_posture_summary": "The current posture supports negotiation rather than passive acceptance.",
-        "negotiation_focus": [
+        "executive_overview": "The deterministic scan surfaced a contract control issue with a normalized exposure score of 28.",
+        "primary_risk_drivers": [
+            "Termination rights appear broad against the supplied evidence.",
+            "Commercial control may sit with the counterparty unless the exit right is narrowed.",
+        ],
+        "recommended_review_focus": [
             "Tighten termination notice requirements.",
             "Balance exit rights before approval.",
         ],
-        "evidence_notes": [
-            {
-                "rule_id": "termination_without_notice",
-                "title": "Termination without notice",
-                "explanation": "The deterministic finding indicates that exit rights may be too broad.",
-                "evidence_excerpt": "terminate this agreement without notice",
-            }
+        "evidence_signals": [
+            "Termination without notice: Either party may terminate this agreement without notice.",
         ],
         "uncertainty_notes": [],
-        "boundary_notice": "placeholder",
+        "boundary_note": "placeholder",
     }
 
 
@@ -209,8 +207,9 @@ def test_active_business_plan_allowed_and_provider_receives_only_deterministic_f
     assert body["model"] == "gpt-4o-mini"
     assert isinstance(body["ai_summary"], str)
     assert "deterministic scan surfaced a contract control issue" in body["ai_summary"]
+    assert "normalized exposure score of 28" in body["ai_summary"]
     assert set(captured["payload"].keys()) == {
-        "risk_score",
+        "normalized_score",
         "severity",
         "flags",
         "findings",
@@ -223,6 +222,39 @@ def test_active_business_plan_allowed_and_provider_receives_only_deterministic_f
     assert captured["payload"]["findings"][0]["matched_text"] == (
         "Either party may terminate this agreement without notice."
     )
+    assert captured["payload"]["normalized_score"] == 28
+    assert "risk_score" not in captured["payload"]
+
+
+def test_ai_output_never_exposes_raw_score_when_normalized_score_exists(ai_test_client, monkeypatch):
+    client, session_factory = ai_test_client
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ai_explain,
+        "_call_openai_json",
+        lambda *args, **kwargs: (
+            "Raw score 56 should not be shown. The normalized exposure score of 28 supports an elevated risk posture."
+        ),
+    )
+
+    response = client.post(
+        "/ai/explain",
+        headers={"X-API-Key": raw_key},
+        json=build_request(),
+    )
+
+    assert response.status_code == 200
+    summary = response.json()["ai_summary"]
+    assert "56" not in summary
+    assert "raw score" not in summary.lower()
+    assert "risk_score" not in summary
+    assert "normalized exposure score of 28" in summary
 
 
 def test_malformed_but_usable_provider_output_becomes_ai_summary(ai_test_client, monkeypatch, caplog):
