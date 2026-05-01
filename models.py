@@ -171,6 +171,7 @@ class Scan(Base):
     synthesis_patterns_triggered: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     context_profile_snapshot: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     report_export_state: Mapped[str] = mapped_column(String(50), nullable=False, server_default="absent")
+    decision_intelligence_snapshot: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
@@ -180,6 +181,15 @@ class Scan(Base):
     organization: Mapped["Organization"] = relationship("Organization", back_populates="scans")
     user: Mapped[Optional["User"]] = relationship("User", back_populates="scans")
     notes: Mapped[List["ScanNote"]] = relationship("ScanNote", back_populates="scan", cascade="all, delete-orphan")
+    scan_decision: Mapped[Optional["ScanDecisionState"]] = relationship(
+        "ScanDecisionState",
+        back_populates="scan",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )
+    finding_decisions: Mapped[List["FindingDecisionStatus"]] = relationship(
+        "FindingDecisionStatus", back_populates="scan", cascade="all, delete-orphan"
+    )
 
 
 class ScanNote(Base):
@@ -216,6 +226,184 @@ class ScanNote(Base):
     )
 
     scan: Mapped["Scan"] = relationship("Scan", back_populates="notes")
+
+
+class OrganizationRiskPolicy(Base):
+    __tablename__ = "organization_risk_policies"
+    __table_args__ = (
+        UniqueConstraint("org_id", "policy_key", name="uq_org_risk_policy_key"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    policy_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    policy_value: Mapped[str] = mapped_column(String(80), nullable=False, server_default="unknown")
+    updated_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class OrganizationRiskPolicyAudit(Base):
+    __tablename__ = "organization_risk_policy_audits"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    changed_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    changed_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    policy_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    old_value: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    new_value: Mapped[str] = mapped_column(String(80), nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+
+
+class ScanDecisionState(Base):
+    __tablename__ = "scan_decision_states"
+    __table_args__ = (
+        UniqueConstraint("org_id", "scan_id", name="uq_scan_decision_org_scan"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    state: Mapped[str] = mapped_column(String(50), nullable=False, server_default="pending")
+    reason_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    scan: Mapped["Scan"] = relationship("Scan", back_populates="scan_decision")
+
+
+class FindingDecisionStatus(Base):
+    __tablename__ = "finding_decision_statuses"
+    __table_args__ = (
+        UniqueConstraint("org_id", "scan_id", "finding_id", name="uq_finding_decision_org_scan_finding"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    finding_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="unresolved")
+    reason_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    updated_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+    scan: Mapped["Scan"] = relationship("Scan", back_populates="finding_decisions")
+
+
+class DecisionNote(Base):
+    __tablename__ = "decision_notes"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    finding_id: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    created_by_user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    reason_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    note: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+class DecisionAuditLog(Base):
+    __tablename__ = "decision_audit_logs"
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    scan_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("scans.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    finding_id: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    user_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    previous_state: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    new_state: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    reason_code: Mapped[Optional[str]] = mapped_column(String(80), nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
 
 
 # ---------------------------

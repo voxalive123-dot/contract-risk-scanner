@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
+from decision_intelligence import apply_policy_to_payload
 from analyzer.context_profiles import (
     SYNTHESIS_PATTERN_METADATA,
     build_context_profile_metadata,
@@ -2191,6 +2192,7 @@ def score_contract(
     value_criticality: Optional[str] = None,
     document_position: Optional[str] = None,
     objective: Optional[str] = None,
+    policy_profile: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     context_profile = build_context_profile_metadata(
         jurisdiction=jurisdiction,
@@ -2395,6 +2397,9 @@ def score_contract(
         ]
         if overlap_suppressions:
             result["meta"]["overlap_suppressions"] = overlap_suppressions
+
+    if policy_profile is not None:
+        apply_policy_to_payload(result, policy_profile)
 
     return result
 

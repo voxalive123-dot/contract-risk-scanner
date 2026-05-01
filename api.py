@@ -48,19 +48,36 @@ from billing_portal import (
 )
 from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
+from decision_intelligence import (
+    DECISION_REASON_CODES,
+    FINDING_DECISION_STATUSES,
+    POLICY_METADATA,
+    SCAN_DECISION_STATES,
+    apply_policy_to_payload,
+    validate_policy_values,
+)
 from crud import (
+    build_decision_intelligence_dashboard,
     count_scans_for_org_since,
+    create_decision_note,
     create_scan,
     create_scan_note,
     create_usage_log,
     get_api_key_by_hash,
+    get_org_risk_policy,
     get_organization_by_id,
     get_scan_for_org,
+    list_decision_notes_for_scan,
+    list_org_policy_audits,
     list_scans_for_org,
     month_start_utc,
+    prior_outcome_hint_for_families,
     serialize_scan_detail,
     serialize_scan_summary,
     touch_api_key_last_used,
+    update_finding_decision_status,
+    update_org_risk_policy,
+    update_scan_decision_state,
 )
 from db import get_db
 from email_delivery import (
@@ -430,6 +447,119 @@ class ScanNoteRequest(BaseModel):
             return None
         stripped = value.strip()
         return stripped[:120] if stripped else None
+
+
+class PolicyUpdateRequest(BaseModel):
+    policy: dict[str, str] = Field(default_factory=dict)
+    note: str | None = None
+
+    @field_validator("policy")
+    @classmethod
+    def validate_policy(cls, value: dict[str, str]) -> dict[str, str]:
+        return validate_policy_values(value or {})
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:4000] if stripped else None
+
+
+class ScanDecisionUpdateRequest(BaseModel):
+    state: str = Field(...)
+    reason_code: str | None = None
+    note: str | None = None
+
+    @field_validator("state")
+    @classmethod
+    def validate_state(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized not in SCAN_DECISION_STATES:
+            raise ValueError("unsupported scan decision state")
+        return normalized
+
+    @field_validator("reason_code")
+    @classmethod
+    def validate_reason_code(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().lower()
+        if normalized not in DECISION_REASON_CODES:
+            raise ValueError("unsupported reason_code")
+        return normalized
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:4000] if stripped else None
+
+
+class FindingDecisionUpdateRequest(BaseModel):
+    status: str = Field(...)
+    reason_code: str | None = None
+    note: str | None = None
+
+    @field_validator("status")
+    @classmethod
+    def validate_status(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized not in FINDING_DECISION_STATUSES:
+            raise ValueError("unsupported finding decision status")
+        return normalized
+
+    @field_validator("reason_code")
+    @classmethod
+    def validate_reason_code(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().lower()
+        if normalized not in DECISION_REASON_CODES:
+            raise ValueError("unsupported reason_code")
+        return normalized
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:4000] if stripped else None
+
+
+class DecisionNoteRequest(BaseModel):
+    note: str = Field(...)
+    finding_id: str | None = None
+    reason_code: str | None = None
+
+    @field_validator("note")
+    @classmethod
+    def validate_note(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 1:
+            raise ValueError("note is required")
+        return value.strip()[:4000]
+
+    @field_validator("finding_id")
+    @classmethod
+    def validate_finding_id(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:120] if stripped else None
+
+    @field_validator("reason_code")
+    @classmethod
+    def validate_reason_code(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        normalized = value.strip().lower()
+        if normalized not in DECISION_REASON_CODES:
+            raise ValueError("unsupported reason_code")
+        return normalized
 
 
 class InternalWorkflowReasonRequest(BaseModel):
@@ -805,6 +935,11 @@ def _scan_snapshot_fields(payload: dict[str, Any]) -> dict[str, Any]:
             "severity": finding.get("severity"),
             "matched_text": finding.get("matched_text"),
             "contextual_emphasis": finding.get("contextual_emphasis"),
+            "policy_category": finding.get("policy_category"),
+            "policy_value": finding.get("policy_value"),
+            "policy_status": finding.get("policy_status"),
+            "policy_explanation": finding.get("policy_explanation"),
+            "decision_guidance": finding.get("decision_guidance", []),
         }
         for finding in findings[:5]
     ]
@@ -815,7 +950,15 @@ def _scan_snapshot_fields(payload: dict[str, Any]) -> dict[str, Any]:
         "clause_families_detected": families,
         "synthesis_patterns_triggered": list(meta.get("synthesis_patterns_triggered") or []),
         "context_profile_snapshot": meta.get("context_profile_used"),
+        "decision_intelligence_snapshot": meta.get("decision_intelligence"),
     }
+
+
+def _apply_org_decision_context(db: Session, org_id: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any]:
+    policy = get_org_risk_policy(db, org_id, create_defaults=True)
+    families = _derive_clause_families(payload.get("findings", []) or [])
+    prior_hint = prior_outcome_hint_for_families(db, org_id=org_id, families=families)
+    return apply_policy_to_payload(payload, policy, prior_outcome_hint=prior_hint)
 
 
 def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -889,6 +1032,10 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
         "context_confidence": raw_meta.get("context_confidence"),
         "context_limitations": raw_meta.get("context_limitations", []),
         "context_emphasis": raw_meta.get("context_emphasis", []),
+        "policy_profile_used": raw_meta.get("policy_profile_used"),
+        "policy_status_summary": raw_meta.get("policy_status_summary", {}),
+        "most_common_policy_breaches": raw_meta.get("most_common_policy_breaches", []),
+        "decision_intelligence": raw_meta.get("decision_intelligence"),
     }
 
     return {
@@ -1565,6 +1712,47 @@ def account_ai_explain(
     return response.model_dump(mode="json")
 
 
+@app.get("/account/policy")
+def account_policy_get(
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    policy = get_org_risk_policy(db, account_ctx.organization.id, create_defaults=True)
+    return {
+        "policy": policy,
+        "audit": list_org_policy_audits(db, account_ctx.organization.id),
+        "metadata": POLICY_METADATA,
+    }
+
+
+@app.put("/account/policy")
+def account_policy_update(
+    request: PolicyUpdateRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    policy = update_org_risk_policy(
+        db,
+        org_id=account_ctx.organization.id,
+        changed_by_user_id=account_ctx.user.id,
+        updates=request.policy,
+        note=request.note,
+    )
+    return {
+        "policy": policy,
+        "audit": list_org_policy_audits(db, account_ctx.organization.id),
+        "metadata": POLICY_METADATA,
+    }
+
+
+@app.get("/account/decision-intelligence")
+def account_decision_intelligence(
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    return build_decision_intelligence_dashboard(db, account_ctx.organization.id)
+
+
 @app.get("/account/scans")
 def account_scan_history(
     offset: int = 0,
@@ -1601,7 +1789,90 @@ def account_scan_detail(
     scan = get_scan_for_org(db, account_ctx.organization.id, scan_id)
     if scan is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
-    return serialize_scan_detail(scan)
+    detail = serialize_scan_detail(scan)
+    detail["decision_notes"] = list_decision_notes_for_scan(db, account_ctx.organization.id, scan_id)
+    return detail
+
+
+@app.patch("/account/scans/{scan_id}/decision")
+def account_scan_decision_update(
+    scan_id: uuid.UUID,
+    request: ScanDecisionUpdateRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        decision = update_scan_decision_state(
+            db,
+            org_id=account_ctx.organization.id,
+            scan_id=scan_id,
+            user_id=account_ctx.user.id,
+            state=request.state,
+            reason_code=request.reason_code,
+            note=request.note,
+        )
+    except ValueError as exc:
+        if str(exc) == "scan_not_found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"decision_state": {"state": decision.state, "reason_code": decision.reason_code, "note": decision.note}}
+
+
+@app.patch("/account/scans/{scan_id}/findings/{finding_id}/decision")
+def account_finding_decision_update(
+    scan_id: uuid.UUID,
+    finding_id: str,
+    request: FindingDecisionUpdateRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        decision = update_finding_decision_status(
+            db,
+            org_id=account_ctx.organization.id,
+            scan_id=scan_id,
+            finding_id=finding_id,
+            user_id=account_ctx.user.id,
+            finding_status=request.status,
+            reason_code=request.reason_code,
+            note=request.note,
+        )
+    except ValueError as exc:
+        if str(exc) == "scan_not_found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {
+        "finding_decision": {
+            "finding_id": decision.finding_id,
+            "status": decision.status,
+            "reason_code": decision.reason_code,
+            "note": decision.note,
+        }
+    }
+
+
+@app.post("/account/scans/{scan_id}/decision-notes")
+def account_decision_note_create(
+    scan_id: uuid.UUID,
+    request: DecisionNoteRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        create_decision_note(
+            db,
+            org_id=account_ctx.organization.id,
+            scan_id=scan_id,
+            user_id=account_ctx.user.id,
+            note=request.note,
+            finding_id=request.finding_id,
+            reason_code=request.reason_code,
+        )
+    except ValueError as exc:
+        if str(exc) == "scan_not_found":
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return {"decision_notes": list_decision_notes_for_scan(db, account_ctx.organization.id, scan_id)}
 
 
 @app.post("/account/scans/{scan_id}/notes")
@@ -1643,6 +1914,7 @@ def account_analyze_detailed(
     enforce_rate_limit(http_request)
 
     payload = _build_detailed_payload(request.text, _context_from_request(request))
+    _apply_org_decision_context(db, account_ctx.organization.id, payload)
     _persist_analysis(
         db=db,
         api_key_ctx=runtime_subject,
@@ -1685,6 +1957,7 @@ async def account_analyze_pdf(
             raise HTTPException(status_code=400, detail="No readable text found in PDF")
 
         payload = _build_detailed_payload(extraction.text)
+        _apply_org_decision_context(db, account_ctx.organization.id, payload)
         payload["extraction_method"] = extraction.extraction_method
         payload["confidence_hint"] = extraction.confidence_hint
         payload["source_type"] = "pdf"
@@ -1740,6 +2013,7 @@ async def account_analyze_image(
         text, confidence_hint = _extract_text_from_image(temp_path)
 
         payload = _build_detailed_payload(text)
+        _apply_org_decision_context(db, account_ctx.organization.id, payload)
         payload["extraction_method"] = "ocr"
         payload["confidence_hint"] = confidence_hint
         payload["source_type"] = "image"
@@ -1856,6 +2130,7 @@ def analyze_detailed(
     enforce_rate_limit(http_request)
 
     payload = _build_detailed_payload(request.text, _context_from_request(request))
+    _apply_org_decision_context(db, api_key_ctx.org_id, payload)
     _persist_analysis(
         db=db,
         api_key_ctx=api_key_ctx,
@@ -1900,6 +2175,7 @@ async def analyze_pdf(
             raise HTTPException(status_code=400, detail="No readable text found in PDF")
 
         payload = _build_detailed_payload(extraction.text)
+        _apply_org_decision_context(db, api_key_ctx.org_id, payload)
         payload["extraction_method"] = extraction.extraction_method
         payload["confidence_hint"] = extraction.confidence_hint
         payload["source_type"] = "pdf"
@@ -1958,6 +2234,7 @@ async def analyze_image(
         text, confidence_hint = _extract_text_from_image(temp_path)
 
         payload = _build_detailed_payload(text)
+        _apply_org_decision_context(db, api_key_ctx.org_id, payload)
         payload["extraction_method"] = "ocr"
         payload["confidence_hint"] = confidence_hint
         payload["source_type"] = "image"

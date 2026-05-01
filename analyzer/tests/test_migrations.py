@@ -59,6 +59,7 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "synthesis_patterns_triggered" in columns
     assert "context_profile_snapshot" in columns
     assert "report_export_state" in columns
+    assert "decision_intelligence_snapshot" in columns
 
     scan_note_columns = table_columns(DB_PATH, "scan_notes")
     assert "org_id" in scan_note_columns
@@ -66,6 +67,31 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "finding_rule_id" in scan_note_columns
     assert "note" in scan_note_columns
     assert "created_by_user_id" in scan_note_columns
+
+    policy_columns = table_columns(DB_PATH, "organization_risk_policies")
+    assert "org_id" in policy_columns
+    assert "policy_key" in policy_columns
+    assert "policy_value" in policy_columns
+
+    policy_audit_columns = table_columns(DB_PATH, "organization_risk_policy_audits")
+    assert "old_value" in policy_audit_columns
+    assert "new_value" in policy_audit_columns
+
+    scan_decision_columns = table_columns(DB_PATH, "scan_decision_states")
+    assert "state" in scan_decision_columns
+    assert "reason_code" in scan_decision_columns
+
+    finding_decision_columns = table_columns(DB_PATH, "finding_decision_statuses")
+    assert "finding_id" in finding_decision_columns
+    assert "status" in finding_decision_columns
+
+    decision_note_columns = table_columns(DB_PATH, "decision_notes")
+    assert "finding_id" in decision_note_columns
+    assert "reason_code" in decision_note_columns
+
+    decision_audit_columns = table_columns(DB_PATH, "decision_audit_logs")
+    assert "previous_state" in decision_audit_columns
+    assert "new_state" in decision_audit_columns
 
     org_columns = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns
@@ -143,7 +169,7 @@ def test_upgrade_head_on_fresh_db() -> None:
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "d4e5f6a7b8c9"
+        assert row[0] == "e5f6a7b8c9d0"
     finally:
         conn.close()
 
@@ -156,6 +182,7 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "scan_input_length" not in columns_after_downgrade
     assert "source_title" not in columns_after_downgrade
     assert "context_profile_snapshot" not in columns_after_downgrade
+    assert "decision_intelligence_snapshot" not in columns_after_downgrade
 
     org_columns_after_downgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" not in org_columns_after_downgrade
@@ -191,6 +218,19 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
             "SELECT name FROM sqlite_master WHERE type='table' AND name='scan_notes'"
         )
         assert cur.fetchone() is None
+        for table_name in (
+            "organization_risk_policies",
+            "organization_risk_policy_audits",
+            "scan_decision_states",
+            "finding_decision_statuses",
+            "decision_notes",
+            "decision_audit_logs",
+        ):
+            cur.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                (table_name,),
+            )
+            assert cur.fetchone() is None
     finally:
         conn.close()
 
@@ -200,6 +240,7 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "scan_input_length" in columns_after_reupgrade
     assert "source_title" in columns_after_reupgrade
     assert "context_profile_snapshot" in columns_after_reupgrade
+    assert "decision_intelligence_snapshot" in columns_after_reupgrade
 
     org_columns_after_reupgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns_after_reupgrade
@@ -213,3 +254,6 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "granted_plan" in owner_grant_columns_after_reupgrade
     scan_note_columns_after_reupgrade = table_columns(DB_PATH, "scan_notes")
     assert "scan_id" in scan_note_columns_after_reupgrade
+    assert "policy_key" in table_columns(DB_PATH, "organization_risk_policies")
+    assert "state" in table_columns(DB_PATH, "scan_decision_states")
+    assert "status" in table_columns(DB_PATH, "finding_decision_statuses")
