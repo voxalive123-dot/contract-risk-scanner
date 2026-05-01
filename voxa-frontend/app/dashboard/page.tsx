@@ -704,22 +704,40 @@ function lowSignalSummary() {
   return "No material automated risk signal was elevated in the reviewed text. This should be treated as a low-signal automated result, not as contract approval.";
 }
 
+function normalizeAIExplainSeverity(severity: string | undefined) {
+  const normalized = String(severity || "").trim().toUpperCase();
+  if (normalized === "LOW" || normalized === "MEDIUM" || normalized === "HIGH") return normalized;
+  if (normalized.includes("HIGH")) return "HIGH";
+  if (normalized.includes("MEDIUM")) return "MEDIUM";
+  return "LOW";
+}
+
+function optionalNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
 function buildAIExplainPayload(result: AnalyzeResult) {
   return {
     risk_score: result.risk_score,
-    severity: result.severity,
-    flags: result.flags,
+    severity: normalizeAIExplainSeverity(result.severity),
+    flags: result.flags ?? [],
     findings: (result.findings ?? []).map((finding) => ({
       rule_id: finding.rule_id,
       title: finding.title,
       category: finding.category,
-      severity: finding.severity,
+      severity: optionalNumber(finding.severity),
       rationale: finding.rationale,
       matched_text: finding.matched_text,
     })),
     meta: {
       confidence: result.meta?.confidence ?? result.confidence_hint ?? null,
-      top_risks: result.meta?.top_risks ?? [],
+      top_risks: (result.meta?.top_risks ?? []).map((risk) => ({
+        rule_id: risk.rule_id,
+        title: risk.title,
+        category: risk.category,
+        severity: optionalNumber(risk.severity),
+        weight: optionalNumber(risk.weight),
+      })),
       matched_rule_count: result.meta?.matched_rule_count ?? result.findings?.length ?? 0,
       suppressed_rule_count: result.meta?.suppressed_rule_count ?? 0,
       contradiction_count: result.meta?.contradiction_count ?? 0,
