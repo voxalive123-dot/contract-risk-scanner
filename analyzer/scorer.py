@@ -90,6 +90,7 @@ _RENEWAL_RULE_IDS = {
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
     "auto_renewal_notice_trap",
+    "auto_renewal_hidden_cancellation_burden",
 }
 
 _RENEWAL_PRICE_RULE_IDS = {
@@ -99,6 +100,7 @@ _RENEWAL_PRICE_RULE_IDS = {
 _VARIATION_RULE_IDS = {
     "unilateral_amendment_policy_reference",
     "unilateral_price_increase",
+    "unilateral_change_control_scope_terms",
 }
 
 _LIMITED_EXIT_RULE_IDS = {
@@ -110,12 +112,14 @@ _LIMITED_EXIT_RULE_IDS = {
     "no_termination_for_convenience_customer",
     "early_termination_fee",
     "minimum_commitment_lock_in",
+    "auto_renewal_hidden_cancellation_burden",
 }
 
 _PAYMENT_LEVERAGE_SIGNAL_RULE_IDS = {
     "payment_deadline_pressure",
     "service_suspension_right",
     "fee_acceleration_late_fee_exposure",
+    "payment_withholding_dispute_charge_leverage",
     "cross_payment_leverage_stack",
 }
 
@@ -123,6 +127,7 @@ _PAYMENT_SUPPORT_RULE_IDS = {
     "payment_deadline_pressure",
     "fee_acceleration_late_fee_exposure",
     "payment_collection_cost_shifting",
+    "payment_withholding_dispute_charge_leverage",
     "cross_payment_leverage_stack",
 }
 
@@ -136,6 +141,7 @@ _EXIT_PRESSURE_SIGNAL_RULE_IDS = {
     "no_termination_for_convenience_customer",
     "early_termination_fee",
     "minimum_commitment_lock_in",
+    "auto_renewal_hidden_cancellation_burden",
 }
 
 _CONTROL_RIGHT_RULE_IDS = {
@@ -148,7 +154,10 @@ _CONTROL_RIGHT_RULE_IDS = {
     "change_of_control_assignment",
     "broad_sublicensing_right",
     "subcontracting_without_consent",
+    "unilateral_change_control_scope_terms",
+    "weak_sla_service_remedy_suspension",
     "data_retention_deletion_asymmetry",
+    "data_transfer_anonymisation_processing",
 }
 
 _RENEWAL_EXIT_TRAP_RULE_IDS = {
@@ -156,6 +165,7 @@ _RENEWAL_EXIT_TRAP_RULE_IDS = {
     "renewal_notice_window_pressure",
     "renewal_long_commitment",
     "auto_renewal_notice_trap",
+    "auto_renewal_hidden_cancellation_burden",
 }
 
 _RENEWAL_ECONOMIC_CHANGE_RULE_IDS = {
@@ -215,6 +225,10 @@ _TOP_RISK_STRUCTURAL_RULE_IDS = {
     "sector_supplier_control_stack",
     "sector_data_secondary_use_risk",
     "sector_data_exit_residue_risk",
+    "cross_audit_data_confidentiality_exposure",
+    "cross_change_control_weak_remedies",
+    "cross_ip_asset_leakage",
+    "cross_force_majeure_continuity_lock_in",
 }
 
 _TOP_RISK_MATERIAL_DATA_RULE_IDS = {
@@ -222,6 +236,7 @@ _TOP_RISK_MATERIAL_DATA_RULE_IDS = {
     "sector_data_exit_residue_risk",
     "broad_customer_data_use",
     "data_retention_deletion_asymmetry",
+    "data_transfer_anonymisation_processing",
 }
 
 _TOP_RISK_THIN_SIGNAL_RULE_IDS = {
@@ -239,6 +254,11 @@ _TOP_RISK_CATEGORY_PRIORITY = {
     "control": 3,
     "amendment": 3,
     "licensing": 1,
+    "ip": 4,
+    "force_majeure": 3,
+    "audit": 3,
+    "survival": 3,
+    "restraint": 3,
 }
 
 
@@ -279,6 +299,8 @@ _DATA_TEXT_SIGNAL_PATTERNS: List[Tuple[str, str]] = [
     ("subprocessors", r"\bsubprocessors?\b"),
     ("data processing", r"\bdata\s+processing\b"),
     ("data export", r"\bdata\s+export\b"),
+    ("cross-border transfer", r"\bcross-?border\b|\bonward\s+transfer\b"),
+    ("anonymised data", r"\banonymi[sz]ed\s+data\b|\bde-?identified\s+data\b"),
 ]
 
 _PLAYBOOK_RULE_HINTS: Dict[str, set[str]] = {
@@ -311,6 +333,8 @@ _PLAYBOOK_RULE_HINTS: Dict[str, set[str]] = {
         "broad_sublicensing_right",
         "data_retention_deletion_asymmetry",
         "data_security_responsibility_imbalance",
+        "data_transfer_anonymisation_processing",
+        "confidentiality_survival_gap_or_imbalance",
         "termination_assistance_exit_dependency",
     },
 }
@@ -332,6 +356,49 @@ _SECTOR_DATA_EXIT_RULE_IDS = {
     "no_termination_for_convenience_customer",
     "early_termination_fee",
     "minimum_commitment_lock_in",
+    "auto_renewal_notice_trap",
+    "renewal_long_commitment",
+}
+
+_AUDIT_GOVERNANCE_RULE_IDS = {
+    "intrusive_audit_rights",
+    "audit_access_cost_confidentiality",
+}
+
+_CONFIDENTIALITY_WEAKNESS_RULE_IDS = {
+    "confidentiality_survival_gap_or_imbalance",
+    "survival_clause_risk_concentration",
+}
+
+_DATA_GOVERNANCE_RULE_IDS = {
+    "broad_customer_data_use",
+    "data_transfer_anonymisation_processing",
+    "data_retention_deletion_asymmetry",
+    "data_security_responsibility_imbalance",
+}
+
+_CHANGE_CONTROL_RULE_IDS = {
+    "unilateral_amendment_policy_reference",
+    "unilateral_change_control_scope_terms",
+    "unilateral_price_increase",
+}
+
+_WEAK_SERVICE_REMEDY_RULE_IDS = {
+    "service_credits_sole_remedy",
+    "exclusive_remedy_limitation",
+    "weak_sla_service_remedy_suspension",
+    "service_suspension_right",
+}
+
+_IP_ASSET_CONTROL_RULE_IDS = {
+    "ip_ownership_foreground_conflict",
+    "ip_broad_license_or_residuals",
+    "broad_sublicensing_right",
+}
+
+_FORCE_MAJEURE_WEAK_EXIT_RULE_IDS = {
+    "no_termination_for_convenience_customer",
+    "termination_assistance_exit_dependency",
     "auto_renewal_notice_trap",
     "renewal_long_commitment",
 }
@@ -1363,6 +1430,122 @@ def _build_cross_clause_findings(
                     "triggered_by": triggered_by,
                 }
             )
+
+    matched_audit = sorted(matched_rule_ids.intersection(_AUDIT_GOVERNANCE_RULE_IDS))
+    matched_data_governance = sorted(matched_rule_ids.intersection(_DATA_GOVERNANCE_RULE_IDS))
+    matched_confidentiality = sorted(matched_rule_ids.intersection(_CONFIDENTIALITY_WEAKNESS_RULE_IDS))
+    if matched_audit and matched_data_governance and matched_confidentiality:
+        triggered_by = list(dict.fromkeys(matched_audit + matched_data_governance + matched_confidentiality))
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        effect = 1 if len(triggered_by) <= 3 else 2
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_audit_data_confidentiality_exposure",
+                category="audit",
+                title="Audit access with data and confidentiality exposure",
+                severity=4,
+                weight=effect,
+                rationale="Broad audit access appears alongside data-governance and confidentiality-survival weaknesses, creating governance/data exposure that may require coordinated operational review.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_audit_data_confidentiality_exposure",
+                "effect": effect,
+                "reason": "Audit rights that reach data or systems become more significant when data-transfer, retention, or confidentiality-survival controls are also weak.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_change_control = sorted(matched_rule_ids.intersection(_CHANGE_CONTROL_RULE_IDS))
+    matched_weak_remedies = sorted(matched_rule_ids.intersection(_WEAK_SERVICE_REMEDY_RULE_IDS))
+    has_structural_change_remedy = (
+        "unilateral_change_control_scope_terms" in matched_change_control
+        or any(rid in matched_weak_remedies for rid in {"weak_sla_service_remedy_suspension", "service_credits_sole_remedy", "exclusive_remedy_limitation"})
+    )
+    if matched_change_control and matched_weak_remedies and has_structural_change_remedy:
+        triggered_by = list(dict.fromkeys(matched_change_control + matched_weak_remedies))
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        stronger = "unilateral_change_control_scope_terms" in matched_change_control and len(matched_weak_remedies) >= 2
+        effect = 2 if stronger else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_change_control_weak_remedies",
+                category="amendment",
+                title="Unilateral change control with weak remedies",
+                severity=4 if stronger else 3,
+                weight=effect,
+                rationale="Unilateral change-control language appears alongside weak service-level or remedy terms, which can create supplier control imbalance and reduce practical recourse.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_change_control_weak_remedies",
+                "effect": effect,
+                "reason": "Change rights become more commercially significant when the remedy package gives limited protection for degraded service, altered scope, or operational disruption.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_ip_controls = sorted(matched_rule_ids.intersection(_IP_ASSET_CONTROL_RULE_IDS))
+    if "ip_ownership_foreground_conflict" in matched_ip_controls and "ip_broad_license_or_residuals" in matched_ip_controls:
+        triggered_by = matched_ip_controls
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_ip_asset_leakage",
+                category="ip",
+                title="IP ownership and licence leakage stack",
+                severity=5,
+                weight=2,
+                rationale="Foreground ownership conflict appears together with broad licence, derivative, or residual-knowledge language, creating strategic asset-control risk without drawing enforceability conclusions.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_ip_asset_leakage",
+                "effect": 2,
+                "reason": "IP ownership conflict is more significant when licence scope or residual-knowledge rights also point toward possible asset leakage.",
+                "triggered_by": triggered_by,
+            }
+        )
+
+    matched_force_majeure = "force_majeure_broad_or_prolonged" in matched_rule_ids
+    matched_fm_weak_exit = sorted(matched_rule_ids.intersection(_FORCE_MAJEURE_WEAK_EXIT_RULE_IDS))
+    if matched_force_majeure and matched_fm_weak_exit:
+        triggered_by = list(dict.fromkeys(["force_majeure_broad_or_prolonged"] + matched_fm_weak_exit))
+        contributors = [by_rule_id[rid][0] for rid in triggered_by if rid in by_rule_id]
+        effect = 2 if len(matched_fm_weak_exit) >= 2 else 1
+        cross_findings.append(
+            _derived_finding(
+                rule_id="cross_force_majeure_continuity_lock_in",
+                category="force_majeure",
+                title="Force majeure suspension with weak exit",
+                severity=4,
+                weight=effect,
+                rationale="Broad or prolonged force majeure relief appears alongside constrained exit mechanics, creating continuity lock-in and performance-accountability exposure.",
+                triggered_by=triggered_by,
+                contributors=contributors,
+            )
+        )
+        cross_adjustments.append(
+            {
+                "type": "compound_risk",
+                "rule_id": "cross_force_majeure_continuity_lock_in",
+                "effect": effect,
+                "reason": "Force majeure suspension or relief carries more operational risk where termination or transition options are also constrained.",
+                "triggered_by": triggered_by,
+            }
+        )
 
     return cross_findings, cross_adjustments
 

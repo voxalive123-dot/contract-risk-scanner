@@ -4,10 +4,22 @@ This Agreement begins on the Effective Date and continues for an initial twelve-
 
 Either party may terminate this Agreement for convenience on thirty (30) days' written notice. Either party may terminate immediately for material breach if the other party fails to cure that breach within thirty (30) days after written notice.
 
-Fees are set out in the applicable Order Form and invoices are payable within thirty (30) days of receipt. No fee increase applies unless agreed in writing by both parties.
+Fees are set out in the applicable Order Form and invoices are payable within thirty (30) days of receipt. Invoice disputes may be raised within thirty (30) days, and undisputed amounts shall be paid when due. No fee increase applies unless agreed in writing by both parties.
 
-Each party's aggregate liability under this Agreement is limited to the fees paid in the twelve (12) months preceding the claim, except for fraud, wilful misconduct, confidentiality breach, and liabilities which cannot lawfully be limited.
+Each party's aggregate liability under this Agreement is limited to the fees paid in the twelve (12) months preceding the claim.
 
-Provider will use Customer Data only to provide the services and will return or delete Customer Data within thirty (30) days after termination, except to the extent retention is required by law.
+Confidentiality obligations survive for five (5) years after termination. Trade secrets remain protected for so long as they remain trade secrets, and each party must return or destroy confidential information on request.
+
+Provider will use Customer Data only to provide the services and will return or delete Customer Data within thirty (30) days after termination, except to the extent retention is required by law. Cross-border transfers are subject to applicable data protection law and standard contractual clauses.
+
+Customer owns the deliverables and foreground IP. Provider receives a licence to Customer materials solely to provide the services and has no right to use residual knowledge.
+
+Audits are limited to relevant records, not more than once per year, on reasonable notice during normal business hours, subject to confidentiality, and at Provider expense.
+
+Force majeure does not excuse payment obligations, and either party may terminate if the event continues for more than thirty (30) days.
+
+Service levels include a 99.9% uptime commitment with service credits in addition to other remedies.
 
 Neither party may assign this Agreement without prior written consent of the other party, such consent not to be unreasonably withheld.
+
+Manual validation note: this sample is intended to remain low risk and should avoid the Phase 12 hidden-cancellation, withholding, audit/data/confidentiality, IP, force majeure, weak SLA, liquidated damages, and restraint rules. Observed after Phase 12 calibration: LOW severity with only benign liability-cap structure expected.

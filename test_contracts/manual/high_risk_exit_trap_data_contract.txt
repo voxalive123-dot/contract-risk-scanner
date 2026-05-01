@@ -2,12 +2,26 @@ ENTERPRISE PLATFORM AGREEMENT
 
 Customer subscribes to Provider's hosted software platform, dashboard, API, and managed services for an initial term of twelve (12) months.
 
-The Agreement renews automatically for successive twelve (12) month periods unless Customer gives at least ninety (90) days' written notice before the renewal date. Customer may not terminate for convenience during the term.
+The Agreement renews automatically for successive twelve (12) month periods unless Customer gives at least ninety (90) days' written notice before the renewal date. Cancellation must be completed in the account portal before renewal, and failure to cancel results in automatic renewal with no refunds. Customer may not terminate for convenience during the term.
 
-Supplier may amend the fees for any renewal term by written notice and may update service policies from time to time without further consent. Payment is due within seven (7) days of invoice. Overdue amounts accrue interest at 1.5% per month and Supplier may suspend the hosted services for unpaid invoices after 7 days.
+Supplier may amend the fees for any renewal term by written notice and may change service levels, operational procedures, and material terms upon notice without Customer approval. Payment is due within seven (7) days of invoice. Customer may withhold any amounts pending acceptance, invoices are deemed accepted unless disputed within seven (7) days, overdue amounts accrue interest at 1.5% per month, and Supplier may suspend the hosted services for unpaid invoices after 7 days.
 
 If Customer terminates early, all remaining fees for the then-current term become immediately payable. Transition assistance will be provided at Provider's then-current rates and data migration is subject to additional fees in Supplier's sole discretion.
 
-Provider may use Customer Data for any purpose, may sublicense such rights without restriction, may use Usage Data and aggregated analytics for internal business purposes, and may retain Customer Data after termination for business purposes. Provider has no obligation to return or delete Customer Data after termination.
+Provider may use Customer Data for any purpose, may sublicense such rights without restriction, may transfer Customer Data to subprocessors without prior notice, may process Customer Data in any jurisdiction, may use anonymised and derived data for analytics and product development, and may retain Customer Data after termination for business purposes. Provider has no obligation to return or delete Customer Data after termination.
+
+Supplier may audit Customer systems, logs, data, and records at any time. Customer shall reimburse audit costs, and audit findings may be shared with affiliates and third parties. Confidentiality obligations end upon termination and no confidentiality obligations survive termination.
+
+Provider shall own all foreground IP, deliverables, work product, developments, and improvements. Customer grants Provider a perpetual, irrevocable, worldwide, royalty-free licence to Customer background IP, and Provider may use residual knowledge and derivative works.
+
+Force majeure includes pandemic, supply chain failure, supplier failure, and increased costs without liability. Force majeure excuses payment obligations, and termination is available only after one hundred twenty (120) days.
+
+Uptime is a target only and not a commitment. Service credits are at Provider's discretion and are Customer's sole and exclusive remedy for downtime.
+
+Liquidated damages of a fixed amount are payable for each day of delay, are capped at three months of fees, and are cumulative with other remedies.
+
+Customer shall not solicit Supplier employees or Customer prospects for twenty-four (24) months, and the restriction applies worldwide to Supplier affiliates and group companies.
 
 Supplier may subcontract without prior written consent and may assign this Agreement in connection with a change of control without additional approval.
+
+Manual validation note: this sample is intended to produce a high score with Phase 12 renewal, payment, audit/data/confidentiality, IP, change-control, force majeure, weak SLA, liquidated damages, and restraint findings plus conservative cross-family synthesis.

@@ -2,12 +2,16 @@ SUBSCRIPTION SERVICES AGREEMENT
 
 Provider grants Customer access to the hosted software platform, dashboard, API, and user accounts during the term.
 
-The Agreement renews automatically for successive twelve (12) month periods unless either party gives at least thirty (30) days' written notice of non-renewal before the end of the then-current term.
+The Agreement does not automatically renew. Any renewal must be agreed in writing by both parties before the end of the then-current term.
 
-Upon renewal, Provider may increase the fees for the renewal term by written notice. Invoices are due within ten (10) days of receipt, and Provider may suspend access to the services for non-payment until payment is received.
+Fees are stated in the Order Form and are payable within thirty (30) days of receipt. Invoices are deemed accepted unless disputed within seven (7) days, and overdue balances may include an administrative charge. Undisputed amounts remain payable when due.
 
-Service credits are Customer's sole and exclusive remedy for service level failures. Provider will provide transition assistance at Provider's then-current rates.
+Provider commits to 99.9% uptime with service credits in addition to other remedies for repeated service level failures.
 
-Provider may retain Customer Data after termination for internal business purposes and may use Usage Data and aggregated analytics to improve the services.
+Provider may transfer Customer Data to subprocessors without prior notice where needed to operate the hosted service, and may use anonymised analytics for product development. Provider will return or delete Customer Data on request except as required by law.
+
+Confidentiality obligations survive termination for twelve (12) months only.
 
 Provider's aggregate liability is limited to fees paid in the prior twelve (12) months.
+
+Manual validation note: this sample is intended to show medium commercial exposure from invoice mechanics, data-transfer/anonymisation rights, and confidentiality-survival imbalance without renewal lock-in, exit fees, IP ownership conflict, force majeure, liquidated damages, or restraint stacking. Observed after Phase 12 calibration: MEDIUM severity expected.
