@@ -49,7 +49,7 @@ export default function InsightsPage() {
               Contract Risk Intelligence Insights
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-              This section shares practical, non-legal-advice guidance on contract risk patterns, review discipline, and evidence-backed decision support for commercial users.
+              This section shares executive, non-legal-advice guidance on contract risk decision intelligence, cross-clause exposure, organisation memory, policy-aware review, and audit-ready governance records.
             </p>
           </div>
 
@@ -79,7 +79,7 @@ export default function InsightsPage() {
       <section className="mx-auto max-w-[1360px] px-6 pb-16 md:px-8">
         <div className="grid gap-8">
           <section className="rounded-[1.75rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
-            <Eyebrow>Featured insights</Eyebrow>
+            <Eyebrow>Latest decision intelligence</Eyebrow>
             <div className="mt-6 grid gap-5 xl:grid-cols-2">
               {featuredArticles.map((article) => (
                 <InsightCard key={article.slug} article={article} />

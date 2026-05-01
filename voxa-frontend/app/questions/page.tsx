@@ -16,6 +16,62 @@ type QuestionGroup = {
 
 const questionGroups: QuestionGroup[] = [
   {
+    eyebrow: "Decision intelligence",
+    title: "Contract risk decision support for commercial leaders.",
+    items: [
+      {
+        question: "What is Contract Risk Decision Intelligence?",
+        answer:
+          "Contract Risk Decision Intelligence is structured decision support for commercial contract review. It combines clause-level risk detection, cross-clause intelligence, context-aware framing, organisation memory, tolerance comparison, decision outcomes, and audit-ready records so leaders can decide what to accept, negotiate, escalate, or send for professional review.",
+      },
+      {
+        question: "How is VoxaRisk different from a basic contract scanner or generic AI tool?",
+        answer:
+          "A basic scanner usually flags isolated clauses. A generic AI tool may produce broad narrative without a governed review record. VoxaRisk is designed around evidence-backed findings, deterministic risk signals, cross-clause exposure, organisation-scoped scan history, policy/tolerance status, and decision memory. AI may help explain results, but it does not become the decision authority.",
+      },
+      {
+        question: "What is cross-clause intelligence?",
+        answer:
+          "Cross-clause intelligence identifies combinations where ordinary-looking terms create stronger exposure together. Examples include a low liability cap paired with broad indemnity, termination for convenience paired with no refund, broad data use paired with weak confidentiality, or upfront payment paired with supplier suspension rights.",
+      },
+      {
+        question: "Why does organisation memory matter in contract review?",
+        answer:
+          "Organisation memory means prior scans, recurring risk families, report snapshots, context, notes, and decisions can strengthen future review. Teams can reopen previous scans, see repeated exposure patterns, and avoid starting from zero each time similar supplier, customer, renewal, data, liability, or termination language appears.",
+      },
+      {
+        question: "What does policy/tolerance comparison mean?",
+        answer:
+          "Policy/tolerance comparison checks detected risks against the organisation's configured positions where available. Broad indemnity, unlimited liability, auto-renewal, unilateral price increases, governing law/forum mismatch, and data-use permissions can be framed as outside tolerance, conflicting with policy, within configured policy, or policy unknown.",
+      },
+      {
+        question: "Can VoxaRisk show whether a risk exceeds our internal tolerance?",
+        answer:
+          "Yes, where the relevant policy or tolerance has been configured and the finding maps to that risk family. VoxaRisk can indicate that a risk appears outside tolerance or conflicts with configured policy. If no policy is configured, it should say policy unknown rather than invent a rule. Findings and evidence remain visible either way.",
+      },
+      {
+        question: "What are decision outcomes such as accepted, negotiated, escalated, or rejected?",
+        answer:
+          "Decision outcomes record what happened after a scan. A contract can be marked pending, accepted, negotiated, escalated, rejected, or sent for legal review. Individual findings can be unresolved, accepted, redlined, waived, escalated, or ignored. These statuses support governance and consistency; they are not legal approval.",
+      },
+      {
+        question: "How does VoxaRisk support audit-ready contract review records?",
+        answer:
+          "VoxaRisk can preserve the evidence behind findings, the context profile used, policy/tolerance comparison, decision posture, notes, timestamps, and decision history. That creates a clearer audit trail for internal governance, escalation, and future review while keeping the boundary clear: VoxaRisk supports review records, not legal advice.",
+      },
+      {
+        question: "Does VoxaRisk provide legal advice?",
+        answer:
+          "No. VoxaRisk provides contract risk intelligence and decision support. It does not provide legal advice, legal opinions, solicitor services, guaranteed compliance, universal jurisdiction conclusions, or final contract approval. Users remain responsible for judgement, negotiation, escalation, and professional review where needed.",
+      },
+      {
+        question: "How can executives use VoxaRisk before signing important contracts?",
+        answer:
+          "Executives can use VoxaRisk to identify hidden exposure, inspect evidence, review cross-clause combinations, compare risks against internal tolerance, see whether similar issues have appeared before, record the decision outcome, and decide whether a contract should be accepted, negotiated, escalated, rejected, or sent for legal review before signature.",
+      },
+    ],
+  },
+  {
     eyebrow: "What VoxaRisk is for",
     title: "A disciplined first-pass risk intelligence layer.",
     items: [
@@ -243,14 +299,14 @@ export default function QuestionsPage() {
                 Understanding VoxaRisk Intelligence
               </h1>
               <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-                VoxaRisk is built to support disciplined contract review. This page explains what the platform does, what it does not do, and how to use its output with the right commercial judgment.
+                VoxaRisk is built to support disciplined contract risk decision intelligence. This page explains cross-clause analysis, organisation memory, policy tolerance comparison, decision outcomes, audit-ready records, and the non-legal-advice boundary.
               </p>
 
               <div className="mt-7 flex flex-wrap gap-3">
                 {[
-                  "Risk signals before escalation",
-                  "Clear product boundaries",
-                  "Subscription clarity before commitment",
+                  "Cross-clause intelligence",
+                  "Organisation memory",
+                  "Policy-aware review records",
                 ].map((item) => (
                   <span
                     key={item}

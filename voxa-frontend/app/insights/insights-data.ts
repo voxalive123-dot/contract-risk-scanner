@@ -17,6 +17,216 @@ export type InsightArticle = {
   }>;
 };
 
+export const contractRiskDecisionIntelligenceBeyondClauseDetectionArticle: InsightArticle = {
+  slug: "contract-risk-decision-intelligence-beyond-clause-detection",
+  category: "Decision intelligence",
+  collection: "featured",
+  title: "Contract Risk Decision Intelligence: Why Contract Review Must Move Beyond Clause Detection",
+  seoTitle: "Contract Risk Decision Intelligence Beyond Clause Detection | VoxaRisk",
+  metaDescription: "Executive guidance on contract risk decision intelligence, cross-clause interpretation, organisation memory, tolerance comparison, decision history, and audit-ready review records.",
+  readingTime: "8 min read",
+  summary:
+    "Contract review is moving beyond isolated clause detection. Executive teams need contract risk decision intelligence that connects exposure, context, tolerance, decision history, and audit-ready review records.",
+  sections: [
+    {
+      heading: "Clause detection is no longer enough",
+      paragraphs: [
+        "Clause detection is a useful starting point, but it is not the same as contract risk decision intelligence. A scanner can tell a team that an indemnity, renewal right, liability cap, or termination provision exists without explaining whether it changes the commercial decision.",
+        "Commercial leaders need a review process that turns contract text into management posture: whether the agreement creates hidden exposure, whether that exposure is acceptable for the organisation, and whether the decision has been documented well enough for future governance.",
+      ],
+    },
+    {
+      heading: "Risk appears across the contract",
+      paragraphs: [
+        "Many important risks emerge from clause interaction. A liability cap can look protective until a broad indemnity sits outside it. A termination right can look standard until it is paired with no refund for prepaid sums. Broad data-use rights may become more sensitive when confidentiality survival is weak.",
+        "Cross-clause interpretation helps reviewers understand how several terms work together to shift leverage, cash-flow, operational continuity, or governance risk. That is a different discipline from marking isolated clauses as present or absent.",
+      ],
+    },
+    {
+      heading: "Memory and tolerance turn review into governance",
+      paragraphs: [
+        "Organisation memory turns each review into part of a wider record. Previous scans, recurring risk families, report snapshots, context profiles, notes, and decision outcomes help teams avoid starting from zero every time a similar contract appears.",
+        "Policy-aware review then compares findings against internal tolerance. A broad indemnity, unlimited liability position, auto-renewal term, data-use permission, or forum mismatch can be framed as outside tolerance, conflicting with policy, within configured tolerance, or policy unknown.",
+      ],
+    },
+    {
+      heading: "Decision history creates audit value",
+      paragraphs: [
+        "The most important part of contract review may be what happens after the finding. Was the risk accepted, negotiated, escalated, rejected, or sent for legal review? Was a finding redlined, waived, ignored, or accepted with awareness? Capturing that outcome creates a decision audit trail rather than a loose set of comments.",
+        "Use VoxaRisk to support structured contract risk review and escalation discipline. VoxaRisk provides decision support and contract risk intelligence; it does not provide legal advice, legal opinions, solicitor services, guaranteed compliance, or final contract approval.",
+      ],
+    },
+  ],
+};
+
+export const crossClauseIntelligenceHiddenContractExposureArticle: InsightArticle = {
+  slug: "cross-clause-intelligence-hidden-contract-exposure",
+  category: "Cross-clause intelligence",
+  collection: "featured",
+  title: "Cross-Clause Intelligence: How Hidden Contract Exposure Appears Between Clauses",
+  seoTitle: "Cross-Clause Contract Risk and Hidden Exposure | VoxaRisk",
+  metaDescription: "How cross-clause contract risk analysis helps commercial teams identify hidden exposure created by clause combinations such as liability caps, indemnities, termination rights, data use, confidentiality, payment, and suspension.",
+  readingTime: "7 min read",
+  summary:
+    "Hidden contract exposure often appears between clauses. Cross-clause intelligence helps teams identify combinations that can create stronger commercial risk than any single clause suggests on its own.",
+  sections: [
+    {
+      heading: "The risk is often between clauses",
+      paragraphs: [
+        "Commercial contract risk management cannot rely only on isolated clause labels. A clause may appear ordinary on its own while another clause changes its practical effect. The exposure sits in the relationship between provisions, not in a single heading.",
+        "Cross-clause contract risk analysis asks whether one clause weakens another protection, whether a remedy is hollow because another term removes recovery, or whether a payment obligation becomes more exposed because suspension rights are broad.",
+      ],
+    },
+    {
+      heading: "Four clause combinations that deserve attention",
+      paragraphs: [
+        "A low liability cap can look protective until broad indemnity obligations, third-party indemnities, uncapped indemnities, or carve-outs sit outside it. A termination-for-convenience clause can look standard until one party can exit while retaining prepaid sums or denying refund rights.",
+        "Broad data-use rights become more sensitive where confidentiality obligations are weak, exceptions are broad, or survival periods are short. Upfront payment also deserves review where the supplier retains broad rights to suspend service for disputed, minor, or unresolved payment issues.",
+      ],
+    },
+    {
+      heading: "Why executives should care",
+      paragraphs: [
+        "These combinations affect practical economics. They can change downside exposure, cash-flow, leverage, service continuity, data governance, and trust. The issue is not merely whether a clause appears in the agreement, but whether several acceptable-looking terms combine into a stronger risk position.",
+        "For procurement teams, founders, operators, consultants, and commercial directors, cross-clause intelligence gives a clearer escalation route. It helps explain why an issue should be negotiated even when no single clause looks dramatic in isolation.",
+      ],
+    },
+    {
+      heading: "Using VoxaRisk responsibly",
+      paragraphs: [
+        "Cross-clause intelligence should focus negotiation and escalation, not produce overconfident legal conclusions. The right process is to inspect the evidence, consider the commercial context, compare the issue against tolerance, and decide whether the exposure is acceptable.",
+        "Use VoxaRisk to support structured contract risk review and escalation discipline. VoxaRisk provides decision support and clause risk analysis; it does not provide legal advice or predict legal outcomes in every jurisdiction.",
+      ],
+    },
+  ],
+};
+
+export const organisationMemoryContractReviewArticle: InsightArticle = {
+  slug: "organisation-memory-contract-review",
+  category: "Organisation memory",
+  collection: "featured",
+  title: "Organisation Memory in Contract Review: Why Every Scan Should Strengthen Future Decisions",
+  seoTitle: "Organisation Memory in Contract Review | VoxaRisk",
+  metaDescription: "Why contract review history, recurring risk families, report snapshots, notes, and decision records matter for contract risk governance and audit-ready commercial review.",
+  readingTime: "7 min read",
+  summary:
+    "Every contract review should improve the next one. Organisation memory helps teams preserve scan history, recurring risk families, report context, and decision records instead of starting from zero.",
+  sections: [
+    {
+      heading: "The cost of starting from zero",
+      paragraphs: [
+        "Many organisations review contracts as isolated events. A team identifies a risk, discusses it, negotiates or accepts it, and then loses the reasoning in email, informal notes, or individual memory. The next similar contract begins again with limited context.",
+        "That approach weakens consistency. Teams may escalate one broad indemnity but accept a similar one later, challenge one auto-renewal but miss another, or repeatedly approve supplier terms without seeing the same risk family appearing across multiple agreements.",
+      ],
+    },
+    {
+      heading: "Scan history becomes commercial memory",
+      paragraphs: [
+        "Organisation-scoped scan history creates a structured record of prior contract risk review. It can preserve contract titles, source labels, risk scores, severity, confidence, top findings, clause families detected, synthesis patterns, context snapshots, notes, and report state where available.",
+        "That history links contract review to governance rather than treating every scan as disposable. A prior scan can be reopened, compared, discussed, and used to understand how similar exposure has been handled before.",
+      ],
+    },
+    {
+      heading: "Recurring risk families reveal patterns",
+      paragraphs: [
+        "Risk families such as indemnity, liability, auto-renewal, jurisdiction, data use, termination, price variation, suspension, subcontracting, payment, and confidentiality can reappear across supplier paper, customer terms, renewals, and amendments.",
+        "Seeing those families over time helps leaders distinguish a one-off issue from a recurring commercial posture. A procurement leader may discover that suspension rights are repeatedly broad. A founder may see that liability carve-outs keep weakening negotiated caps.",
+      ],
+    },
+    {
+      heading: "Decision records matter as much as findings",
+      paragraphs: [
+        "A finding says what the platform detected. A decision record says what the organisation did with it. Accepted, negotiated, escalated, rejected, sent for legal review, redlined, waived, or ignored are very different management outcomes.",
+        "Use VoxaRisk to support structured contract risk review and escalation discipline. Organisation memory is not a legal outcome engine; it preserves structured review records so commercial teams can make more disciplined escalation and approval decisions.",
+      ],
+    },
+  ],
+};
+
+export const policyAwareContractReviewToleranceArticle: InsightArticle = {
+  slug: "policy-aware-contract-review-tolerance",
+  category: "Policy and tolerance",
+  collection: "featured",
+  title: "Policy-Aware Contract Review: Comparing Risk Against Organisational Tolerance",
+  seoTitle: "Policy-Aware Contract Review and Risk Tolerance | VoxaRisk",
+  metaDescription: "How contract risk policy and tolerance comparison help commercial teams understand whether findings are outside tolerance, within configured policy, or policy unknown.",
+  readingTime: "7 min read",
+  summary:
+    "A finding is more useful when it is compared with organisational tolerance. Policy-aware contract review helps teams see whether risk exceeds policy, conflicts with usual practice, sits within tolerance, or remains policy unknown.",
+  sections: [
+    {
+      heading: "Risk is not identical for every organisation",
+      paragraphs: [
+        "The same clause can create different management decisions in different organisations. A customer may reject broad supplier suspension rights. A supplier may focus more heavily on uncapped indemnity, unlimited liability, and customer-driven service credits. A data-heavy business may treat AI training rights as a major governance issue.",
+        "This is why contract risk policy matters. A generic flag can show that a term deserves attention, but policy-aware review can explain whether that term sits outside the organisation's stated tolerance or whether the policy position is still unknown.",
+      ],
+    },
+    {
+      heading: "What policy and tolerance comparison means",
+      paragraphs: [
+        "A tolerance layer maps detected risk families to configured organisational positions. Broad indemnity may be allowed only if capped or mutual. Unlimited liability may always escalate. Auto-renewal may require notice. Data use may prohibit AI training or onward sharing.",
+        "The comparison does not remove the finding and does not rewrite the evidence. It adds management interpretation: outside tolerance, conflicts with configured policy, within configured policy, or no policy configured for this risk family.",
+      ],
+    },
+    {
+      heading: "Common policy categories",
+      paragraphs: [
+        "A first-pass policy layer can cover high-value commercial categories such as unlimited liability, broad indemnity, auto-renewal, unilateral price increase, governing law and forum mismatch, and data-use permissions. These categories affect downside exposure, control, renewals, dispute posture, and trust.",
+        "For example, a data-use policy may be strict, moderate, flexible, no AI training, no onward sharing, or unknown. A broad indemnity policy may require escalation, negotiation, a cap, mutuality, or further review. The point is to create a repeatable organisational posture, not to claim every contract has the same legal effect everywhere.",
+      ],
+    },
+    {
+      heading: "Why this improves escalation discipline",
+      paragraphs: [
+        "Policy-aware contract review helps teams avoid treating all red flags equally. Some findings require legal review, some need negotiation, some need a commercial exception, and some may be acceptable if documented. Tolerance comparison makes that distinction visible.",
+        "Use VoxaRisk to support structured contract risk review and escalation discipline. Policy comparison is decision support, not legal advice, legal interpretation, or a guarantee that a clause is enforceable or acceptable in all contexts.",
+      ],
+    },
+  ],
+};
+
+export const fromContractScannerToDecisionSystemArticle: InsightArticle = {
+  slug: "from-contract-scanner-to-decision-system",
+  category: "Decision systems",
+  collection: "featured",
+  title: "From Contract Scanner to Decision System: The Future of Commercial Contract Review",
+  seoTitle: "From Contract Scanner to Contract Decision Intelligence System | VoxaRisk",
+  metaDescription: "Why commercial contract review is moving from generic scanners to decision systems with outcome memory, audit trails, executive reporting, and privacy-governed future intelligence.",
+  readingTime: "8 min read",
+  summary:
+    "Commercial contract review should not end at detection. Decision outcomes, finding statuses, audit trails, and organisation-scoped intelligence turn scanning into a governed decision system.",
+  sections: [
+    {
+      heading: "Why generic scanners are not enough",
+      paragraphs: [
+        "A basic contract scanner can identify clauses and produce a list of issues. That is helpful, but it does not fully support the management decision that follows. Commercial leaders still need to know whether the issue is outside policy, whether similar risks were escalated before, what would make the risk acceptable, and how the decision should be recorded.",
+        "The future of commercial contract review is not more noise. It is a decision system that connects detection, evidence, context, tolerance, outcome memory, and governance records without pretending to replace legal advice.",
+      ],
+    },
+    {
+      heading: "Decision outcomes create learning",
+      paragraphs: [
+        "At scan level, a contract may be pending, accepted, negotiated, escalated, rejected, or sent for legal review. At finding level, an issue may be unresolved, accepted, redlined, waived, escalated, or ignored. These outcomes record what happened after the risk was identified.",
+        "If a company repeatedly escalates broad indemnity, accepts low-value auto-renewal with notice, or redlines data-use rights involving AI training, future reviews can reflect that pattern as decision posture rather than rediscovering it from scratch.",
+      ],
+    },
+    {
+      heading: "Audit trails support executive reporting",
+      paragraphs: [
+        "Audit-ready contract review records show the evidence, context, policy status, decision notes, timestamps, and open issues behind a commercial decision. This does not make the software a legal authority. It makes the review process more transparent and repeatable.",
+        "Executive reporting can then focus on practical questions: which risk families are recurring, which findings remain unresolved, which contracts are open for decision, where policy breaches appear most often, and where escalation is being used consistently.",
+      ],
+    },
+    {
+      heading: "Privacy-governed future intelligence",
+      paragraphs: [
+        "Decision intelligence must be built with governance boundaries. Organisation-scoped intelligence is different from cross-customer analytics. Contract text should not become uncontrolled training material, and aggregate insight should not be marketed as live capability unless the privacy model genuinely supports it.",
+        "Use VoxaRisk to support structured contract risk review and escalation discipline. VoxaRisk provides commercial contract governance support, not legal advice, final approval, guaranteed compliance, or universal jurisdiction conclusions.",
+      ],
+    },
+  ],
+};
+
 export const firstInsightArticle: InsightArticle = {
   slug: "contract-risk-intelligence-not-legal-advice",
   category: "Product boundary",
@@ -1156,6 +1366,11 @@ export const forceMajeureChangeControlSlaRemedyRiskArticle: InsightArticle = {
 };
 
 export const insightArticles: InsightArticle[] = [
+  contractRiskDecisionIntelligenceBeyondClauseDetectionArticle,
+  crossClauseIntelligenceHiddenContractExposureArticle,
+  organisationMemoryContractReviewArticle,
+  policyAwareContractReviewToleranceArticle,
+  fromContractScannerToDecisionSystemArticle,
   contractRiskDecisionIntelligenceVsClmArticle,
   firstInsightArticle,
   secondInsightArticle,
