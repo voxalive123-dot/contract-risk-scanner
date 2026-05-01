@@ -1696,6 +1696,7 @@ def account_ai_explain(
     enforce_ai_plan_access(db=db, api_key_ctx=runtime_subject)
 
     if not openai_api_configured():
+        logger.warning("AI explain disabled on account route: OPENAI_API_KEY not configured")
         return {
             "status": "disabled",
             "reason": "openai_api_key_not_configured",
@@ -1703,7 +1704,8 @@ def account_ai_explain(
 
     try:
         response = generate_ai_explanation(request)
-    except AIProviderError:
+    except AIProviderError as exc:
+        logger.warning("AI explain provider unavailable on account route: %s", str(exc))
         return {
             "status": "unavailable",
             "reason": "ai_provider_error",
@@ -2043,6 +2045,7 @@ def ai_explain(
     enforce_ai_plan_access(db=db, api_key_ctx=api_key_ctx)
 
     if not openai_api_configured():
+        logger.warning("AI explain disabled on API key route: OPENAI_API_KEY not configured")
         return {
             "status": "disabled",
             "reason": "openai_api_key_not_configured",
@@ -2050,7 +2053,8 @@ def ai_explain(
 
     try:
         response = generate_ai_explanation(request)
-    except AIProviderError:
+    except AIProviderError as exc:
+        logger.warning("AI explain provider unavailable on API key route: %s", str(exc))
         return {
             "status": "unavailable",
             "reason": "ai_provider_error",

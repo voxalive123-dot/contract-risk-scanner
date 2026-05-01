@@ -107,11 +107,18 @@ type AIReviewSummary = {
   boundary_notice?: string;
 };
 
-type AIExplainResponse = {
+type AIExplainResponse = AIReviewSummary & {
   status?: "available" | "disabled" | "unavailable";
   model?: string;
   reason?: string;
   ai_summary?: AIReviewSummary;
+  summary?: AIReviewSummary;
+  ai_review?: AIReviewSummary;
+  review_notes?: AIReviewSummary;
+  data?: {
+    ai_summary?: AIReviewSummary;
+    summary?: AIReviewSummary;
+  };
 };
 
 type DashboardAccountContext = {
@@ -788,6 +795,40 @@ function extractCustomerError(raw: string) {
   return raw;
 }
 
+function normalizeAIExplainResponse(payload: AIExplainResponse | null): AIExplainResponse | null {
+  if (!payload) return null;
+
+  const summary =
+    payload.ai_summary ??
+    payload.summary ??
+    payload.ai_review ??
+    payload.review_notes ??
+    payload.data?.ai_summary ??
+    payload.data?.summary;
+
+  const directSummary =
+    !summary && (payload.overview || payload.risk_posture_summary)
+      ? {
+          overview: payload.overview,
+          risk_posture_summary: payload.risk_posture_summary,
+          negotiation_focus: payload.negotiation_focus,
+          evidence_notes: payload.evidence_notes,
+          uncertainty_notes: payload.uncertainty_notes,
+          boundary_notice: payload.boundary_notice,
+        }
+      : null;
+
+  const aiSummary = summary ?? directSummary;
+
+  if (!aiSummary) return payload;
+
+  return {
+    ...payload,
+    status: "available",
+    ai_summary: aiSummary,
+  };
+}
+
 export default function DashboardPage() {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [accountContext, setAccountContext] = useState<DashboardAccountContext | null>(null);
@@ -1080,7 +1121,7 @@ export default function DashboardPage() {
         return;
       }
 
-      const aiPayload = payload as AIExplainResponse | null;
+      const aiPayload = normalizeAIExplainResponse(payload as AIExplainResponse | null);
 
       if (aiPayload?.status === "available" && aiPayload.ai_summary) {
         setAIReview(aiPayload);
