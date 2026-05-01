@@ -91,10 +91,13 @@ from internal_ops import (
     InternalOpsConfigError,
     InternalOpsForbiddenError,
     create_internal_access_grant,
+    generate_internal_user_reset_link,
     get_internal_organization_detail,
     list_internal_access_grants,
+    lookup_internal_user_control,
     list_internal_organizations,
     revoke_internal_access_grant,
+    revoke_internal_user_pending_invites,
     require_internal_admin,
 )
 from internal_workflows import (
@@ -598,6 +601,26 @@ class InternalOrganizationOverrideRequest(InternalWorkflowReasonRequest):
         if not isinstance(value, int) or value <= 0:
             raise ValueError("plan_limit must be positive")
         return value
+
+
+
+class InternalUserControlActionRequest(BaseModel):
+    email: str = Field(...)
+    reason: str = Field(...)
+
+    @field_validator("email")
+    @classmethod
+    def validate_email(cls, value: str) -> str:
+        if not isinstance(value, str) or "@" not in value or not value.strip():
+            raise ValueError("valid email is required")
+        return value.strip().lower()
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 8:
+            raise ValueError("a clear operator reason is required")
+        return value.strip()
 
 
 class InternalAccessGrantCreateRequest(BaseModel):
@@ -1386,6 +1409,53 @@ def account_password_reset_complete(
         "token_type": "bearer",
         "account": serialize_account_context(context),
     }
+
+@app.get("/internal/ops/user-control")
+def internal_ops_user_control_lookup(
+    email: str,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return lookup_internal_user_control(db, email=email)
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/user-control/reset-link")
+def internal_ops_user_control_reset_link(
+    request: InternalUserControlActionRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return generate_internal_user_reset_link(
+            db,
+            actor=_internal_ctx,
+            email=request.email,
+            reason=request.reason,
+        )
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/user-control/revoke-invites")
+def internal_ops_user_control_revoke_invites(
+    request: InternalUserControlActionRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return revoke_internal_user_pending_invites(
+            db,
+            actor=_internal_ctx,
+            email=request.email,
+            reason=request.reason,
+        )
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @app.get("/internal/ops/organizations")
 def internal_ops_organizations(
     _internal_ctx=Depends(get_internal_admin_ctx),

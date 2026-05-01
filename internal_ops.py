@@ -10,12 +10,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from account_auth import AccountContext
-from account_provisioning import ProvisionedAccount, provision_customer_account
+from account_provisioning import ProvisionedAccount, provision_customer_account, request_password_reset
 from crud import month_start_utc
 from entitlement_diagnostics import build_entitlement_diagnostics
 from entitlement_spine import resolve_entitlement_for_org
 from models import (
     AIUsageMeter,
+    AccountPasswordToken,
     BillingCustomerReference,
     InternalOperatorAction,
     Membership,
@@ -360,6 +361,204 @@ def revoke_internal_access_grant(
         "grant": _owner_grant_snapshot(db, row),
     }
 
+
+
+def _password_token_snapshot(token: AccountPasswordToken) -> dict[str, Any]:
+    now = datetime.now(timezone.utc)
+    expires_at = token.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+
+    if token.used_at is not None:
+        token_status = "used"
+    elif expires_at < now:
+        token_status = "expired"
+    else:
+        token_status = "active"
+
+    return {
+        "id": str(token.id),
+        "purpose": token.purpose,
+        "status": token_status,
+        "expires_at": _serialize_dt(token.expires_at),
+        "used_at": _serialize_dt(token.used_at),
+        "created_at": _serialize_dt(token.created_at),
+    }
+
+
+def _user_membership_detail(db: Session, membership: Membership) -> dict[str, Any]:
+    org = db.get(Organization, membership.org_id)
+    return {
+        "id": str(membership.id),
+        "user_id": str(membership.user_id),
+        "org_id": str(membership.org_id),
+        "organization_name": org.name if org else None,
+        "role": membership.role,
+        "status": membership.status,
+        "created_at": _serialize_dt(membership.created_at),
+    }
+
+
+def lookup_internal_user_control(db: Session, *, email: str) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        raise OwnerGrantError("Email is required")
+
+    user = _single_user_by_email(db, normalized_email)
+
+    invites = list(
+        db.execute(
+            select(OrganizationInvite)
+            .where(func.lower(OrganizationInvite.invited_email) == normalized_email)
+            .order_by(OrganizationInvite.created_at.desc())
+            .limit(20)
+        )
+        .scalars()
+        .all()
+    )
+
+    if user is None:
+        available_actions: list[str] = []
+        if any(invite.status == "pending" for invite in invites):
+            available_actions.append("revoke_pending_invites")
+        return {
+            "found": False,
+            "email": normalized_email,
+            "user": None,
+            "memberships": [],
+            "invites": [_invite_snapshot(invite) for invite in invites],
+            "password_tokens": [],
+            "available_actions": available_actions,
+        }
+
+    memberships = list(
+        db.execute(
+            select(Membership)
+            .where(Membership.user_id == user.id)
+            .order_by(Membership.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+    tokens = list(
+        db.execute(
+            select(AccountPasswordToken)
+            .where(AccountPasswordToken.user_id == user.id)
+            .order_by(AccountPasswordToken.created_at.desc())
+            .limit(10)
+        )
+        .scalars()
+        .all()
+    )
+
+    available_actions: list[str] = []
+    if any(membership.status == "active" for membership in memberships):
+        available_actions.append("generate_reset_link")
+    if any(invite.status == "pending" for invite in invites):
+        available_actions.append("revoke_pending_invites")
+
+    return {
+        "found": True,
+        "email": normalized_email,
+        "user": _account_snapshot(user),
+        "memberships": [_user_membership_detail(db, membership) for membership in memberships],
+        "invites": [_invite_snapshot(invite) for invite in invites],
+        "password_tokens": [_password_token_snapshot(token) for token in tokens],
+        "available_actions": available_actions,
+    }
+
+
+def generate_internal_user_reset_link(
+    db: Session,
+    *,
+    actor: AccountContext,
+    email: str,
+    reason: str,
+) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        raise OwnerGrantError("Email is required")
+    if not reason or len(reason.strip()) < 8:
+        raise OwnerGrantError("A clear operator reason is required")
+
+    token = request_password_reset(db, email=normalized_email)
+    if not token:
+        raise OwnerGrantError("No active member account found for this email")
+
+    user = _single_user_by_email(db, normalized_email)
+    org_id = user.org_id if user else None
+    action = InternalOperatorAction(
+        actor_user_id=actor.user.id,
+        org_id=org_id,
+        target_type="user",
+        target_id=str(user.id) if user else normalized_email,
+        action_type="user_password_reset_link_generated",
+        reason=reason.strip(),
+        before_json=None,
+        after_json='{"reset_path":"/reset-password?token=<redacted>"}',
+    )
+    db.add(action)
+    db.flush()
+
+    return {
+        "status": "reset_link_generated",
+        "email": normalized_email,
+        "reset_path": f"/reset-password?token={token}",
+        "token_ttl_hours": 2,
+        "action": _operator_action_snapshot(action),
+    }
+
+
+def revoke_internal_user_pending_invites(
+    db: Session,
+    *,
+    actor: AccountContext,
+    email: str,
+    reason: str,
+) -> dict[str, Any]:
+    normalized_email = email.strip().lower()
+    if not normalized_email:
+        raise OwnerGrantError("Email is required")
+    if not reason or len(reason.strip()) < 8:
+        raise OwnerGrantError("A clear operator reason is required")
+
+    invites = list(
+        db.execute(
+            select(OrganizationInvite)
+            .where(
+                func.lower(OrganizationInvite.invited_email) == normalized_email,
+                OrganizationInvite.status == "pending",
+            )
+            .order_by(OrganizationInvite.created_at.desc())
+        )
+        .scalars()
+        .all()
+    )
+
+    actions: list[dict[str, Any]] = []
+    for invite in invites:
+        before = _invite_snapshot(invite)
+        invite.status = "cancelled"
+        action = InternalOperatorAction(
+            actor_user_id=actor.user.id,
+            org_id=invite.org_id,
+            target_type="organization_invite",
+            target_id=str(invite.id),
+            action_type="user_pending_invite_cancelled",
+            reason=reason.strip(),
+            before_json=str(before),
+            after_json='{"status":"cancelled"}',
+        )
+        db.add(action)
+        db.flush()
+        actions.append(_operator_action_snapshot(action))
+
+    return {
+        "status": "pending_invites_revoked",
+        "email": normalized_email,
+        "revoked_count": len(invites),
+        "actions": actions,
+    }
 
 def _current_month_scan_count(db: Session, *, org_id: uuid.UUID | None = None) -> int:
     month_start = month_start_utc()
