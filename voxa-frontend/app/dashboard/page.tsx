@@ -74,6 +74,8 @@ type ScanHistoryItem = {
   source_title?: string | null;
   source_type?: string | null;
   risk_score: number;
+  normalized_score?: number | null;
+  meta?: { normalized_score?: number | null } | null;
   severity?: "LOW" | "MEDIUM" | "HIGH" | string | null;
   confidence?: number;
   top_findings?: Finding[];
@@ -739,6 +741,23 @@ function normalizeAIExplainSeverity(severity: string | undefined) {
 
 function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
+}
+
+const SCAN_HISTORY_MAX_RISK_SCORE = 200;
+
+function clampExposureScore(value: number) {
+  return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function scanHistoryExposureScore(scan: ScanHistoryItem) {
+  const explicit = optionalNumber(scan.normalized_score) ?? optionalNumber(scan.meta?.normalized_score);
+  if (explicit !== undefined) return clampExposureScore(explicit);
+
+  const rawScore = optionalNumber(scan.risk_score);
+  if (rawScore === undefined) return null;
+
+  const calculated = (rawScore / SCAN_HISTORY_MAX_RISK_SCORE) * 100;
+  return clampExposureScore(calculated);
 }
 
 function buildAIExplainPayload(result: AnalyzeResult) {
@@ -1731,6 +1750,7 @@ export default function DashboardPage() {
                     scan.severity === "HIGH" || scan.severity === "MEDIUM" || scan.severity === "LOW"
                       ? scan.severity
                       : "LOW";
+                  const exposureScore = scanHistoryExposureScore(scan);
                   return (
                     <button
                       key={scan.id}
@@ -1748,7 +1768,7 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${severityBadgeClass(severity)}`}>
-                          {severity} · {scan.risk_score}
+                          {severity} {"\u00b7"} {exposureScore === null ? "Exposure unavailable" : `Exposure ${exposureScore}`}
                         </span>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
