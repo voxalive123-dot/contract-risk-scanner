@@ -1023,7 +1023,14 @@ export default function DashboardPage() {
   }
 
   async function generateAIReviewNotes() {
-    if (!result || !accountContext?.entitlement.ai_review_notes_allowed) return;
+    if (!result) return;
+
+    if (!accountContext?.entitlement.ai_review_notes_allowed) {
+      setAIReview(null);
+      setAIState("denied");
+      setAIMessage("AI explanation is available on eligible plans.");
+      return;
+    }
 
     setAIState("loading");
     setAIMessage(null);
@@ -1042,7 +1049,7 @@ export default function DashboardPage() {
       if (response.status === 403) {
         setAIReview(null);
         setAIState("denied");
-        setAIMessage("AI Review Notes are available on eligible paid plans.");
+        setAIMessage("AI explanation is available on eligible plans.");
         return;
       }
 
@@ -1050,7 +1057,7 @@ export default function DashboardPage() {
         setAIReview(null);
         setAIState("unavailable");
         setAIMessage(
-          "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
+          "AI explanation could not be generated. Core VoxaRisk analysis remains complete.",
         );
         return;
       }
@@ -1066,13 +1073,13 @@ export default function DashboardPage() {
       setAIReview(null);
       setAIState(aiPayload?.status === "disabled" ? "disabled" : "unavailable");
       setAIMessage(
-        "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
+        "AI explanation could not be generated. Core VoxaRisk analysis remains complete.",
       );
     } catch {
       setAIReview(null);
       setAIState("unavailable");
       setAIMessage(
-        "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
+        "AI explanation could not be generated. Core VoxaRisk analysis remains complete.",
       );
     }
   }
@@ -2071,8 +2078,7 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                {canUseAI && (
-                  <div className="rounded-3xl border border-[#d7c3a0] bg-[#fcf7ee] p-6 shadow-[0_10px_22px_rgba(80,60,30,0.05)]">
+                <div className="rounded-3xl border border-[#d7c3a0] bg-[#fcf7ee] p-6 shadow-[0_10px_22px_rgba(80,60,30,0.05)]">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
@@ -2089,22 +2095,26 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={generateAIReviewNotes}
-                        disabled={aiState === "loading"}
+                        disabled={aiState === "loading" || !canUseAI}
                         className="rounded-2xl border border-[#cdb78d] bg-[#fffaf0] px-5 py-3 text-sm font-semibold text-neutral-900 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {aiState === "loading"
                           ? "Generating evidence-grounded AI notes..."
-                          : "Generate AI Review Notes"}
+                          : canUseAI
+                            ? "Generate AI Review Notes"
+                            : "AI explanation available on eligible plans"}
                       </button>
                     </div>
 
-                    {(aiState === "disabled" ||
+                    {(!canUseAI ||
+                      aiState === "disabled" ||
                       aiState === "unavailable" ||
                       aiState === "denied" ||
-                      aiState === "error") &&
-                      aiMessage && (
+                      aiState === "error") && (
+                        aiMessage || !canUseAI
+                      ) && (
                         <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4 text-sm leading-6 text-neutral-700">
-                          {aiMessage}
+                          {aiMessage ?? "AI explanation is available on eligible plans."}
                         </div>
                       )}
 
@@ -2196,7 +2206,6 @@ export default function DashboardPage() {
                       </div>
                     )}
                   </div>
-                )}
               </div>
 
               <section className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] md:p-8">

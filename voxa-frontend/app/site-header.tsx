@@ -17,6 +17,15 @@ function navClass(isActive: boolean) {
   return isActive ? ACTIVE_CLASS : LINK_CLASS;
 }
 
+function NavDivider() {
+  return (
+    <span
+      aria-hidden="true"
+      className="mx-2 hidden h-5 w-px bg-gradient-to-b from-transparent via-neutral-400/30 to-transparent md:block"
+    />
+  );
+}
+
 export default function SiteHeader({
   activeItem,
   authMode = "auto",
@@ -58,7 +67,7 @@ export default function SiteHeader({
   }, [authMode]);
 
   const signedIn = authMode === "auto" ? autoSignedIn : authMode === "authenticated";
-  const accountLabel = signedIn ? "Account" : "Sign in";
+  const accountLabel = "Account";
   const accountHref = signedIn ? "/account" : "/signin";
   const accountIsActive = signedIn && activeItem === "account";
   const accountClass = accountIsActive
@@ -92,20 +101,25 @@ export default function SiteHeader({
 
         <nav className="flex flex-wrap items-center gap-3 text-sm text-neutral-700 md:justify-end">
           <Link href="/" className={navClass(activeItem === "product")}>
-            Product
+            Overview
           </Link>
+          <NavDivider />
           <Link href="/#workflow" className={LINK_CLASS}>
             Workflow
           </Link>
+          <NavDivider />
           <Link href="/pricing" className={navClass(activeItem === "pricing")}>
             Pricing
           </Link>
+          <NavDivider />
           <Link href="/insights" className={navClass(activeItem === "insights")}>
             Insights
           </Link>
+          <NavDivider />
           <Link href="/dashboard" className={navClass(activeItem === "dashboard")}>
-            Dashboard
+            Workspace
           </Link>
+          <NavDivider />
           <Link href={accountHref} className={accountClass}>
             {accountLabel}
           </Link>

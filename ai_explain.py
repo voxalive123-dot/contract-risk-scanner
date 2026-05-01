@@ -169,6 +169,7 @@ def _build_messages(
         "You must augment deterministic findings only. "
         "Do not change, recalculate, reinterpret, or override risk_score, severity, flags, findings, top_risks, or confidence. "
         "Do not invent risks, clauses, or evidence. "
+        "For evidence_excerpt, copy exact matched_text from the supplied finding where available. "
         "Do not provide legal advice, legal opinion, contract approval, or any guarantee of safety. "
         "Use only the supplied deterministic findings and matched evidence. "
         "If evidence is limited, findings are sparse, or confidence is weak, say so plainly. "
@@ -274,10 +275,8 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
 
         excerpt = (note.evidence_excerpt or "").strip()
         deterministic_excerpt = (deterministic_finding.matched_text or "").strip()
-        if not excerpt:
+        if deterministic_excerpt:
             excerpt = deterministic_excerpt
-        if excerpt and deterministic_excerpt and excerpt not in deterministic_excerpt and deterministic_excerpt not in excerpt:
-            raise AIProviderError("Provider evidence note was not anchored to deterministic excerpt")
 
         validated_notes.append(
             AIEvidenceNote(
