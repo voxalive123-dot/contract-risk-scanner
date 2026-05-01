@@ -128,6 +128,11 @@ type NormalizedAIExplainResponse = Omit<AIExplainResponse, "ai_summary"> & {
   ai_summary: AIReviewSummary;
 };
 
+type AIRawReviewSection = {
+  heading: string;
+  items: string[];
+};
+
 type DashboardAccountContext = {
   user: { email: string };
   organization: { id: string; name: string };
@@ -813,6 +818,44 @@ function coerceAIReviewSummary(value?: AIReviewSummary | string | null): AIRevie
 
 function hasAISectionText(value?: string | null) {
   return Boolean(value?.trim());
+}
+
+function splitAIRawText(rawText?: string | null) {
+  return (rawText ?? "")
+    .split(/\n+|(?<=[.!?])\s+(?=[A-Z])/)
+    .map((item) => item.replace(/^[-*\d.)\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function formatAIRawReviewSections(rawText?: string | null): AIRawReviewSection[] {
+  const items = splitAIRawText(rawText);
+  if (!items.length) return [];
+
+  const boundaryTerms = ["not legal advice", "legal opinion", "contract approval", "guarantee"];
+  const boundaryItems = items.filter((item) => boundaryTerms.some((term) => item.toLowerCase().includes(term)));
+  const contentItems = items.filter((item) => !boundaryItems.includes(item));
+
+  const sections: AIRawReviewSection[] = [];
+  sections.push({ heading: "Executive overview", items: contentItems.slice(0, 2) });
+
+  const keyRiskDrivers = contentItems.slice(2, 5);
+  if (keyRiskDrivers.length) {
+    sections.push({ heading: "Key risk drivers", items: keyRiskDrivers });
+  }
+
+  const suggestedReviewFocus = contentItems.slice(5, 8);
+  if (suggestedReviewFocus.length) {
+    sections.push({ heading: "Suggested review focus", items: suggestedReviewFocus });
+  }
+
+  sections.push({
+    heading: "Boundary note",
+    items: boundaryItems.length
+      ? boundaryItems
+      : ["AI Review Notes explain deterministic VoxaRisk findings only. They do not change the score, severity, findings, or decision posture, and they are not legal advice."],
+  });
+
+  return sections.filter((section) => section.items.length > 0);
 }
 
 function normalizeAIExplainResponse(payload: AIExplainResponse | null): NormalizedAIExplainResponse | AIExplainResponse | null {
@@ -2204,9 +2247,28 @@ export default function DashboardPage() {
                             <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
                               AI review
                             </div>
-                            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-neutral-700">
-                              {aiReview.ai_summary.raw_text}
-                            </p>
+                            <div className="mt-4 grid gap-4 md:grid-cols-2">
+                              {formatAIRawReviewSections(aiReview.ai_summary.raw_text).map((section) => (
+                                <section
+                                  key={section.heading}
+                                  className="rounded-2xl border border-[#e3d4bb] bg-[#fcf7ee] p-4"
+                                >
+                                  <h4 className="text-sm font-semibold text-neutral-950">{section.heading}</h4>
+                                  {section.items.length === 1 ? (
+                                    <p className="mt-2 text-sm leading-6 text-neutral-700">{section.items[0]}</p>
+                                  ) : (
+                                    <ul className="mt-2 space-y-2 text-sm leading-6 text-neutral-700">
+                                      {section.items.map((item) => (
+                                        <li key={item} className="flex gap-2">
+                                          <span className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-full bg-[#8f7245]" />
+                                          <span>{item}</span>
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  )}
+                                </section>
+                              ))}
+                            </div>
                           </div>
                         )}
 
