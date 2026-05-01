@@ -233,7 +233,7 @@ def test_invalid_invite_email_fails_safely(team_client):
     assert response.status_code == 400
 
 
-def test_duplicate_pending_invite_fails_safely(team_client):
+def test_duplicate_pending_invite_returns_deterministic_reason(team_client):
     client, session_factory = team_client
     owner = create_account(session_factory, role="owner")
 
@@ -241,8 +241,61 @@ def test_duplicate_pending_invite_fails_safely(team_client):
     second = create_invite(client, owner["token"], email="duplicate@example.test")
 
     assert first.status_code == 200
-    assert second.status_code == 400
-    assert second.json()["detail"] == "A pending invite already exists for this email"
+    assert second.status_code == 409
+    assert second.json()["detail"]["error"] == "invite_already_pending"
+    with session_factory() as db:
+        invites = list(db.execute(select(OrganizationInvite)).scalars().all())
+        assert len(invites) == 1
+        assert invites[0].status == "pending"
+
+
+def test_expired_pending_invite_can_be_reissued(team_client):
+    client, session_factory = team_client
+    owner = create_account(session_factory, role="owner")
+    invited_email = "reissue@example.test"
+
+    first = create_invite(client, owner["token"], email=invited_email)
+    assert first.status_code == 200
+    old_token = first.json()["invite_token"]
+    with session_factory() as db:
+        row = db.execute(select(OrganizationInvite)).scalars().one()
+        row.expires_at = utcnow() - timedelta(minutes=1)
+        db.commit()
+
+    second = create_invite(client, owner["token"], email=invited_email)
+
+    assert second.status_code == 200
+    body = second.json()
+    assert body["status"] == "invite_reissued"
+    assert body["invite_token"] != old_token
+    assert "/team/accept?token=" in body["accept_url"]
+    with session_factory() as db:
+        invites = list(db.execute(select(OrganizationInvite)).scalars().all())
+        assert len(invites) == 2
+        assert sorted(invite.status for invite in invites) == ["expired", "pending"]
+
+
+def test_active_member_cannot_be_reinvited(team_client):
+    client, session_factory = team_client
+    owner = create_account(session_factory, role="owner")
+
+    response = create_invite(client, owner["token"], email=owner["email"], role="member")
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["error"] == "account_already_active_member"
+
+
+def test_invalid_invite_creation_input_fails_safely(team_client):
+    client, session_factory = team_client
+    owner = create_account(session_factory, role="owner")
+
+    invalid_email = create_invite(client, owner["token"], email="not-an-email", role="member")
+    invalid_role = create_invite(client, owner["token"], email="role@example.test", role="superadmin")
+
+    assert invalid_email.status_code == 400
+    assert invalid_email.json()["detail"]["error"] == "invalid_invite_email"
+    assert invalid_role.status_code == 400
+    assert invalid_role.json()["detail"]["error"] == "invalid_invite_role"
 
 
 def test_existing_active_membership_blocks_invite_acceptance(team_client):

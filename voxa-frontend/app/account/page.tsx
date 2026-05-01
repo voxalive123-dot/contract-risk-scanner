@@ -26,6 +26,29 @@ type TeamResponse = {
   pending_invites: Array<{ id: string; email: string; role: string; status: string; expires_at: string | null }>;
 };
 
+function inviteFailureMessage(payload: { detail?: unknown; error?: string } | null) {
+  const detail = payload?.detail;
+  const error = typeof payload?.error === "string"
+    ? payload.error
+    : typeof detail === "object" && detail && "error" in detail && typeof detail.error === "string"
+      ? detail.error
+      : "";
+
+  if (error === "account_already_active_member") {
+    return "This account is already an active member of your organisation.";
+  }
+  if (error === "invite_already_pending") {
+    return "An invite is already pending for this email. Use the existing invite or wait until it expires before reissuing.";
+  }
+  if (error === "invalid_invite_email") {
+    return "Enter a valid email address before creating an invite.";
+  }
+  if (error === "invalid_invite_role") {
+    return "Choose a supported account role before creating an invite.";
+  }
+  return "Team invite could not be created for this account role or email.";
+}
+
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">
@@ -94,13 +117,17 @@ export default function AccountPage() {
       });
       const payload = await response.json().catch(() => null);
       if (!response.ok || typeof payload?.accept_url !== "string") {
-        setInviteMessage("Team invite could not be created for this account role or email.");
+        setInviteMessage(inviteFailureMessage(payload));
         return;
       }
 
       setInviteEmail("");
       setInviteRole("member");
-      setInviteMessage(`Invite created. Controlled acceptance link: ${payload.accept_url}`);
+      setInviteMessage(
+        payload.status === "invite_reissued"
+          ? `Expired invite reissued successfully. Controlled acceptance link: ${payload.accept_url}`
+          : `Invite created. Controlled acceptance link: ${payload.accept_url}`,
+      );
       await loadTeam();
     } catch (error) {
       setInviteMessage(`Team invite could not be created. ${String(error)}`);

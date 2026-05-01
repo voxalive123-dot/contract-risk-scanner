@@ -25,7 +25,9 @@ DEFAULT_INVITE_ACCEPT_BASE_URL = "http://localhost:3000/team/accept"
 
 
 class TeamInviteError(Exception):
-    pass
+    def __init__(self, message: str, *, reason: str = "team_invite_error"):
+        super().__init__(message)
+        self.reason = reason
 
 
 class TeamInvitePermissionError(TeamInviteError):
@@ -41,6 +43,7 @@ class TeamInviteResult:
     invite: OrganizationInvite
     raw_token: str
     accept_url: str
+    status: str = "invite_created"
 
 
 @dataclass(frozen=True)
@@ -64,14 +67,14 @@ def _new_raw_token() -> str:
 def normalize_email(email: str) -> str:
     normalized = email.strip().lower()
     if not normalized or "@" not in normalized:
-        raise TeamInviteError("Valid invited email is required")
+        raise TeamInviteError("Valid invited email is required", reason="invalid_invite_email")
     return normalized
 
 
 def normalize_role(role: str) -> str:
     normalized = role.strip().lower()
     if normalized not in ALLOWED_ROLES:
-        raise TeamInviteError("Unsupported membership role")
+        raise TeamInviteError("Unsupported membership role", reason="invalid_invite_role")
     return normalized
 
 
@@ -103,6 +106,28 @@ def _existing_pending_invite(db: Session, *, org_id, email: str) -> Organization
     return db.execute(stmt).scalars().first()
 
 
+def _invite_is_expired(invite: OrganizationInvite, *, now: datetime | None = None) -> bool:
+    expires_at = invite.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    return expires_at <= (now or utcnow())
+
+
+def _active_membership_for_email(db: Session, *, org_id, email: str) -> Membership | None:
+    stmt = (
+        select(Membership)
+        .join(User, Membership.user_id == User.id)
+        .where(
+            Membership.org_id == org_id,
+            Membership.status == "active",
+            User.is_active.is_(True),
+            func.lower(User.email) == email,
+        )
+        .limit(1)
+    )
+    return db.execute(stmt).scalars().first()
+
+
 def create_team_invite(
     db: Session,
     *,
@@ -115,9 +140,24 @@ def create_team_invite(
     normalized_role = normalize_role(role)
     require_team_invite_permission(context, normalized_role)
 
+    if _active_membership_for_email(db, org_id=context.organization.id, email=email):
+        raise TeamInviteError(
+            "Account is already an active member of this organisation",
+            reason="account_already_active_member",
+        )
+
+    invite_status = "invite_created"
     existing = _existing_pending_invite(db, org_id=context.organization.id, email=email)
     if existing:
-        raise TeamInviteError("A pending invite already exists for this email")
+        if not _invite_is_expired(existing):
+            raise TeamInviteError(
+                "A pending invite already exists for this email",
+                reason="invite_already_pending",
+            )
+        existing.status = "expired"
+        db.add(existing)
+        db.flush()
+        invite_status = "invite_reissued"
 
     raw_token = _new_raw_token()
     invite = OrganizationInvite(
@@ -136,6 +176,7 @@ def create_team_invite(
         invite=invite,
         raw_token=raw_token,
         accept_url=build_accept_url(raw_token, base_url=accept_base_url),
+        status=invite_status,
     )
 
 
@@ -173,10 +214,7 @@ def accept_team_invite(
     if invite is None or invite.status != "pending" or invite.accepted_at is not None:
         raise TeamInviteTokenError("Invite token is invalid or already used")
 
-    expires_at = invite.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
-    if expires_at < utcnow():
+    if _invite_is_expired(invite):
         invite.status = "expired"
         db.add(invite)
         db.commit()

@@ -1603,13 +1603,17 @@ def account_team_invite_create(
             detail="Account role cannot create this team invite",
         ) from exc
     except TeamInviteError as exc:
+        error_status = status.HTTP_409_CONFLICT if exc.reason in {
+            "account_already_active_member",
+            "invite_already_pending",
+        } else status.HTTP_400_BAD_REQUEST
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=str(exc),
+            status_code=error_status,
+            detail={"error": exc.reason, "message": str(exc)},
         ) from exc
 
     return {
-        "status": "invite_created",
+        "status": result.status,
         "invite": {
             "id": str(result.invite.id),
             "email": result.invite.invited_email,
