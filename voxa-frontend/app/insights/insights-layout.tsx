@@ -44,7 +44,10 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
     <InsightsShell activeItem="insights">
       <section className="mx-auto max-w-[1100px] px-6 py-10 md:px-8">
         <div className="rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10">
-          <Eyebrow>{article.category}</Eyebrow>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+            <Eyebrow>{article.category}</Eyebrow>
+            {article.readingTime ? <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{article.readingTime}</span> : null}
+          </div>
           <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.08] tracking-[-0.05em] text-neutral-950 md:text-5xl">
             {article.title}
           </h1>
@@ -88,6 +91,19 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
                 Back to Insights
               </Link>
             </div>
+            {article.relatedLinks?.length ? (
+              <div className="mt-5 flex flex-wrap gap-3">
+                {article.relatedLinks.map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    className="rounded-xl border border-[#d8c49e] bg-[#fffdf8] px-4 py-2 text-sm font-semibold text-neutral-800 transition hover:bg-[#f3e4c6]"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
             <p className="mt-5 text-sm leading-7 text-neutral-700">
               VoxaRisk supports contract risk intelligence and review discipline. It does not provide legal advice, legal opinions, solicitor services, or contract approval.
             </p>

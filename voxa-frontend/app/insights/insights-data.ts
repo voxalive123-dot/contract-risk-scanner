@@ -3,7 +3,14 @@ export type InsightArticle = {
   category: string;
   collection: "featured" | "fundamentals" | "ai" | "preparation";
   title: string;
+  seoTitle?: string;
+  metaDescription?: string;
+  readingTime?: string;
   summary: string;
+  relatedLinks?: Array<{
+    label: string;
+    href: string;
+  }>;
   sections: Array<{
     heading: string;
     paragraphs: string[];
@@ -639,9 +646,524 @@ export const prepareContractArticle: InsightArticle = {
   ],
 };
 
+
+export const contractRiskDecisionIntelligenceVsClmArticle: InsightArticle = {
+  slug: "contract-risk-decision-intelligence-vs-clm",
+  category: "Contract Risk Intelligence",
+  collection: "featured",
+  title: "Contract Risk Decision Intelligence vs CLM: Why VoxaRisk Is Different from Icertis, Ironclad and DocuSign",
+  summary:
+    "Large CLM platforms help organisations manage the contract lifecycle. VoxaRisk focuses on the decision moment before commitment: what risk exists, why it matters, what should be reviewed first, and whether the issue should be accepted, negotiated, escalated, or paused.",
+  sections: [
+    {
+      heading: "Contract software is moving fast",
+      paragraphs: [
+        "Contract software is moving fast. Large platforms such as Icertis, Ironclad, and DocuSign are shaping the enterprise market for contract lifecycle management, agreement workflows, AI contract review, and contract intelligence.",
+        "They are serious platforms. Icertis is known for enterprise contract intelligence and large-scale CLM. Ironclad is recognised for modern contracting workflows and legal-business collaboration. DocuSign has enormous brand recognition from e-signature and is expanding into Intelligent Agreement Management.",
+        "But this is exactly why the distinction matters.",
+        "VoxaRisk is not trying to be another heavy CLM platform.",
+        "VoxaRisk is being built for a sharper problem:",
+        "What should this organisation do about contract risk before it signs, escalates, negotiates, or accepts the exposure?",
+        "That is the difference between ordinary contract scanning and contract risk decision intelligence.",
+      ],
+    },
+    {
+      heading: "The problem with contract review tools",
+      paragraphs: [
+        "Many contract tools answer a basic question:",
+        "What clauses are in this contract?",
+        "Better tools answer:",
+        "Which clauses may create risk?",
+        "But commercial teams often need something more practical:",
+        "What does this risk mean for our decision, and what should we focus on first?",
+        "That is where many businesses still struggle.",
+        "A contract does not become dangerous only because risky wording exists. It becomes dangerous when a team accepts that wording without understanding:",
+        "- the commercial consequence;",
+        "- the negotiation priority;",
+        "- the business context;",
+        "- the organisation's tolerance;",
+        "- the previous pattern of accepted or escalated risks;",
+        "- the evidence behind the finding;",
+        "- whether legal, commercial, or senior review is needed.",
+        "This is the gap VoxaRisk is designed to address.",
+      ],
+    },
+    {
+      heading: "Icertis, Ironclad and DocuSign: powerful, but built for a different centre of gravity",
+      paragraphs: [
+        "Icertis is strongest where large organisations need contract lifecycle infrastructure: contract repositories, obligation tracking, governance, enterprise workflows, large-scale contract intelligence, and integration into complex business systems.",
+        "That is valuable for mature organisations managing large contract estates.",
+        "But many businesses do not start with that problem. They start with a simpler and more urgent question:",
+        "We have a contract in front of us. What can hurt us, what should we challenge, and what should we escalate before approval?",
+        "That is VoxaRisk's lane.",
+        "Ironclad is strong in modern contract lifecycle management, workflow automation, legal-business collaboration, playbooks, and AI-assisted contract operations.",
+        "That is useful when a company wants to manage contracting as a repeatable operational workflow.",
+        "VoxaRisk is different. It focuses on the risk decision moment before the workflow becomes unstoppable.",
+        "The danger in contract review is not always lack of workflow. Often, the danger is that the business is already eager to sign. The deal has momentum. The supplier or customer is waiting. The commercial team wants speed. Nobody wants to slow the process.",
+        "VoxaRisk is designed to interrupt that pressure with structured risk visibility.",
+        "DocuSign has enormous brand recognition through e-signature and is expanding into AI-powered agreement workflows, agreement data, and CLM.",
+        "DocuSign is powerful where the goal is to move agreements through preparation, review, signing, storage, and management.",
+        "VoxaRisk focuses on the checkpoint before that:",
+        "Before you sign, understand the risk you may be accepting.",
+        "That is not the same as e-signature. It is not the same as full CLM. It is a pre-signature intelligence layer.",
+      ],
+    },
+    {
+      heading: "Why VoxaRisk is different",
+      paragraphs: [
+        "VoxaRisk's unique position is not that it is bigger than the major platforms. It is not. The uniqueness is that VoxaRisk is focused on contract risk decision intelligence.",
+        "That means VoxaRisk is being shaped around five decision layers.",
+        "- Context: Is the user a buyer, supplier, SaaS provider, agency, consultant, employer, contractor, or another commercial role?",
+        "- Tolerance: What risks does this organisation usually accept, reject, negotiate, or escalate?",
+        "- History: Have similar risks appeared before, and what happened after previous reviews?",
+        "- Decision path: Should the user accept, negotiate, escalate, pause, or reject the risk?",
+        "- Outcome memory: What happened after previous decisions, and what pattern is forming over time?",
+        "A scanner says:",
+        "This clause may be risky.",
+        "A risk intelligence tool says:",
+        "This clause creates liability exposure because the indemnity is broad and not clearly capped.",
+        "A decision intelligence platform says:",
+        "For your organisation, this risk exceeds your usual tolerance. Similar risks were escalated before. Recommended posture: negotiate or escalate before approval.",
+        "That is the future direction of VoxaRisk.",
+      ],
+    },
+    {
+      heading: "The real customer benefit",
+      paragraphs: [
+        "The practical benefit is simple:",
+        "VoxaRisk helps customers slow down at the exact moment where bad contract decisions usually happen.",
+        "Not slow down forever. Slow down enough to ask better questions.",
+        "Customers benefit because VoxaRisk is designed to help them:",
+        "- identify risk-bearing clauses;",
+        "- understand why those clauses matter;",
+        "- see the evidence in the contract text;",
+        "- prioritise what to redline first;",
+        "- understand the business consequence if ignored;",
+        "- produce executive-ready reports;",
+        "- support internal escalation;",
+        "- avoid treating every clause as equally important;",
+        "- keep the boundary clear between software-assisted review and legal advice.",
+        "This is especially useful for founders, SMEs, operators, consultants, agencies, commercial teams, and smaller organisations that may not need a full CLM implementation but still need disciplined contract review.",
+      ],
+    },
+    {
+      heading: "Why a focused platform can be better for some users",
+      paragraphs: [
+        "Large CLM platforms can be powerful. But power often comes with implementation weight.",
+        "A business may need:",
+        "- system configuration;",
+        "- onboarding;",
+        "- workflow setup;",
+        "- internal process mapping;",
+        "- procurement approval;",
+        "- integrations;",
+        "- training;",
+        "- repository migration;",
+        "- legal operations maturity.",
+        "Some organisations need that. Many do not.",
+        "Many users simply need to know:",
+        "Is this contract exposing us to something serious before we sign or send it onward?",
+        "For those users, VoxaRisk can be more direct.",
+        "The goal is not to replace full CLM. The goal is to provide a focused contract risk checkpoint before the user commits to a risky agreement.",
+      ],
+    },
+    {
+      heading: "VoxaRisk's strongest position",
+      paragraphs: [
+        "The strongest position for VoxaRisk is:",
+        "VoxaRisk is the independent contract risk decision intelligence layer before negotiation, escalation, approval, or signature.",
+        "That makes the product different from the large CLM platforms.",
+        "- Enterprise CLM: Manage the full contract lifecycle.",
+        "- E-signature / agreement management: Move agreements through execution and management.",
+        "- Workflow contracting platform: Coordinate drafting, approval, negotiation, and storage.",
+        "- VoxaRisk: Help users understand, prioritise, and act on contract risk before commitment.",
+        "This distinction matters because the highest-risk moment is often not after the contract is stored. It is before signature, when the team is under pressure to approve.",
+      ],
+    },
+    {
+      heading: "What VoxaRisk does not claim",
+      paragraphs: [
+        "VoxaRisk does not need to pretend to be a law firm. It should not claim to replace lawyers. It should not guarantee that a contract is safe, enforceable, compliant, or commercially suitable.",
+        "The correct role is more disciplined:",
+        "VoxaRisk supports commercial review by identifying risk signals, evidence, priorities, consequences, and escalation points. It is decision-support, not legal advice.",
+        "That boundary is not a weakness. It is part of trust.",
+        "Customers do not need another overconfident AI tool. They need a system that helps them see risk clearly, act carefully, and escalate when appropriate.",
+      ],
+    },
+    {
+      heading: "The future: from contract scanner to decision intelligence",
+      paragraphs: [
+        "The long-term opportunity is not just scanning contracts.",
+        "The opportunity is to build a platform that remembers:",
+        "- previous scans;",
+        "- recurring clause risks;",
+        "- accepted risks;",
+        "- negotiated risks;",
+        "- escalated risks;",
+        "- rejected contracts;",
+        "- report exports;",
+        "- user notes;",
+        "- decision outcomes;",
+        "- sector-specific patterns;",
+        "- organisation-specific risk tolerance.",
+        "That is where VoxaRisk can become more valuable over time.",
+        "A one-off scanner starts from zero every time. A decision intelligence platform learns from the organisation's review history and helps users make more consistent decisions.",
+        "That is the future VoxaRisk is aiming toward.",
+      ],
+    },
+    {
+      heading: "The customer outcome",
+      paragraphs: [
+        "The real customer benefit is not AI reads your contract.",
+        "The real benefit is:",
+        "You make better contract decisions before risk becomes locked in.",
+        "That means:",
+        "- fewer blind approvals;",
+        "- clearer negotiation priorities;",
+        "- better internal escalation;",
+        "- better commercial discipline;",
+        "- better review records;",
+        "- stronger evidence for decision-making;",
+        "- less reliance on guesswork;",
+        "- more consistent risk handling over time.",
+        "For many teams, that is exactly the missing layer between we received a contract and we are ready to sign.",
+      ],
+    },
+    {
+      heading: "Final view",
+      paragraphs: [
+        "Icertis, Ironclad, and DocuSign are powerful platforms. They are important players in contract lifecycle management, agreement management, and AI-enabled contracting.",
+        "VoxaRisk's opportunity is different.",
+        "It is not to become a smaller copy of those platforms. It is to become the focused risk checkpoint that helps users answer:",
+        "What should we do about this contract risk, based on evidence, context, tolerance, history, and consequence?",
+        "That is contract risk decision intelligence.",
+        "And that is where VoxaRisk can become uniquely valuable.",
+      ],
+    },
+    {
+      heading: "Suggested call to action",
+      paragraphs: [
+        "Before you sign, understand the risk.",
+        "Use VoxaRisk to identify contract exposure, prioritise negotiation, and produce an executive-ready review report before approval pressure takes over.",
+      ],
+    },
+  ],
+};
+
+
+export const autoRenewalClauseRiskArticle: InsightArticle = {
+  slug: "auto-renewal-clause-risk",
+  category: "Contract Risk Intelligence",
+  collection: "fundamentals",
+  title: "Auto-Renewal Clause Risk: The Hidden Contract Trap That Locks Businesses Into Bad Deals",
+  seoTitle: "Auto-Renewal Clause Risk | VoxaRisk Insights",
+  metaDescription: "Learn how auto-renewal clause risk, notice windows, and contract renewal traps can lock businesses into avoidable exposure.",
+  readingTime: "6 min read",
+  summary:
+    "Auto-renewal clauses can turn an ordinary agreement into a renewal trap. Learn how notice windows, cancellation mechanics, price changes, and weak exit rights create contract risk before anyone notices the deadline.",
+  relatedLinks: [
+    { label: "Scan a contract", href: "/dashboard" },
+    { label: "View pricing", href: "/pricing" },
+    { label: "Back to Insights", href: "/insights" },
+    { label: "VoxaRisk home", href: "/" },
+  ],
+  sections: [
+    {
+      heading: "Auto-renewal risk is rarely about one sentence",
+      paragraphs: [
+        "An auto-renewal clause can look harmless. It may be only a short sentence saying that the contract continues for another period unless notice is given before a deadline. In a busy commercial review, that sentence can feel administrative rather than strategic.",
+        "The risk is that renewal wording often controls the moment when the business loses optionality. A missed cancellation notice window can turn a supplier arrangement, software subscription, service agreement, or customer contract into another fixed term before the team has actively decided whether the deal still works.",
+        "That is why auto-renewal clause risk belongs in first-pass contract risk intelligence. The issue is not merely that the contract renews. The issue is whether the renewal structure gives the business enough time, information, and practical freedom to decide before commitment continues.",
+      ],
+    },
+    {
+      heading: "The hidden mechanics behind a renewal trap",
+      paragraphs: [
+        "A contract renewal trap usually forms through several connected mechanics. The automatic renewal contract clause creates continuity by default. The cancellation notice window controls how early the business must act. The renewal term controls the length of the new commitment. The cancellation method controls whether notice is practically easy or operationally awkward.",
+        "A clause may require notice thirty, sixty, or ninety days before the renewal date. That deadline can arrive before budget owners have reviewed performance, before procurement has benchmarked alternatives, or before the commercial sponsor has decided whether the service still earns its place. If the contract renews for another twelve months, the missed date can become expensive very quickly.",
+        "Some clauses add procedural burden. Cancellation may have to be submitted through a portal, on a prescribed form, through a named contact, or by a specific notice method. These details matter because a business may believe it has decided to cancel while still failing to satisfy the contract's required mechanics.",
+      ],
+    },
+    {
+      heading: "Why renewal risk becomes a decision problem",
+      paragraphs: [
+        "Auto-renewal risk is ultimately a decision problem. The business needs to decide whether to accept another term, renegotiate the economics, test the market, escalate dissatisfaction, or exit before the deadline. If that decision is not made in time, the contract decides for the business.",
+        "The highest-risk cases are usually not clean renewal clauses in isolation. They are combinations: automatic renewal plus a short notice window; automatic renewal plus price increases; automatic renewal plus no termination for convenience; automatic renewal plus non-refundable fees; automatic renewal plus transition dependency. Each additional layer reduces practical leverage.",
+        "This is where contract risk intelligence is different from a simple contract risk scanner. A scanner may identify the phrase automatically renews. Decision intelligence asks what that wording does to the business decision. Does it create avoidable continuation risk. Does it compress negotiation time. Does it require escalation before approval. Does the organisation have a process to track the deadline.",
+      ],
+    },
+    {
+      heading: "What commercial teams should inspect first",
+      paragraphs: [
+        "A disciplined review should inspect the renewal trigger, the notice deadline, the permitted notice method, the renewal term, any renewal price change, and any restriction on early exit. It should also check whether the customer can terminate for convenience or whether the contract can only be exited for cause after breach.",
+        "The most important question is practical: will the organisation realistically remember, decide, approve, and serve notice before the deadline. If the answer is uncertain, the contract is already carrying operational risk.",
+        "Commercial teams should also look for hidden cancellation burden. A clause that says notice must be sent in writing is different from one that requires portal cancellation, a support ticket, or a prescribed form. The harder the process, the more likely the contract renews by inertia rather than active choice.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk supports the renewal decision",
+      paragraphs: [
+        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. Its role is to help users identify renewal-risk signals, inspect the evidence, and decide whether the clause should be accepted, negotiated, escalated, or tracked operationally.",
+        "For auto-renewal clauses, VoxaRisk is designed to surface automatic renewal wording, cancellation notice windows, renewal lock-in, hidden cancellation burden, price-change exposure, and weak exit mechanics. The value is not just finding a clause. The value is showing why it matters before approval pressure turns the renewal structure into a future cost problem.",
+        "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
+      ],
+    },
+  ],
+};
+
+export const paymentDelayLateFeesContractRiskArticle: InsightArticle = {
+  slug: "payment-delay-late-fees-contract-risk",
+  category: "Contract Review",
+  collection: "fundamentals",
+  title: "Payment Delay, Late Fees, and Withholding Rights: How Contract Cash-Flow Risk Gets Buried in Small Print",
+  seoTitle: "Payment Delay and Late Fees Contract Risk | VoxaRisk Insights",
+  metaDescription: "Understand payment delay clauses, late fees, disputed invoice mechanics, and withholding rights that create cash-flow risk.",
+  readingTime: "6 min read",
+  summary:
+    "Payment risk is often buried in invoice timing, withholding rights, dispute windows, late interest, administrative charges, and suspension leverage. These clauses can change cash-flow pressure long before a dispute becomes formal.",
+  relatedLinks: [
+    { label: "Scan a contract", href: "/dashboard" },
+    { label: "View pricing", href: "/pricing" },
+    { label: "Back to Insights", href: "/insights" },
+    { label: "VoxaRisk home", href: "/" },
+  ],
+  sections: [
+    {
+      heading: "Payment clauses shape leverage before anyone calls it a dispute",
+      paragraphs: [
+        "Payment clauses are easy to treat as operational housekeeping. They sit near invoices, tax, purchase orders, and billing contacts. Yet small changes in payment wording can materially alter cash-flow risk, bargaining pressure, and the practical cost of disagreement.",
+        "A payment delay clause may extend the time before cash arrives. A late fees contract provision may increase the cost of delay. A disputed invoice clause may shorten the window for challenge. Payment withholding rights may let one party slow or suspend payment while acceptance, approval, set-off, or upstream funding remains unresolved.",
+        "Individually, each term may look manageable. Together, they can create a commercial pressure stack that matters as much as a headline liability clause.",
+      ],
+    },
+    {
+      heading: "Where cash-flow risk hides",
+      paragraphs: [
+        "The first signal is timing. Net 60, net 90, and longer cycles can be commercially significant, especially for suppliers, agencies, consultants, and smaller businesses carrying delivery costs before revenue arrives. Short payment deadlines can also create pressure for customers if they compress internal approval and dispute handling.",
+        "The second signal is conditionality. Wording such as payment upon acceptance, payment subject to approval, pay when paid, or payment conditional on customer satisfaction can move ordinary billing into a more subjective zone. The party owed money may have delivered work, but cash still depends on a separate gate.",
+        "The third signal is the dispute process. A clause that deems invoices accepted unless disputed within seven days can be risky for teams with slow internal routing. If the business misses the window, the contract may treat the invoice as accepted even where operational concerns exist.",
+      ],
+    },
+    {
+      heading: "Late fees and administrative charges are not just accounting details",
+      paragraphs: [
+        "Late interest, administrative charges, collection costs, and fee acceleration can convert a payment issue into broader financial exposure. A clause may apply monthly interest, collection agency fees, legal recovery costs, or immediate acceleration of remaining amounts after default.",
+        "These terms matter because they change the cost of delay and the leverage around disagreement. A customer may feel forced to pay first and argue later. A supplier may face delayed cash while still absorbing delivery costs. Either way, the clause affects commercial behaviour before formal escalation begins.",
+        "Payment risk becomes sharper when combined with service suspension rights. If the provider can suspend access for non-payment, withhold data, or stop services without meaningful notice or cure, billing pressure can become operational pressure too.",
+      ],
+    },
+    {
+      heading: "The decision question commercial teams should ask",
+      paragraphs: [
+        "The core question is not whether the payment clause is familiar. The question is whether the payment mechanics support a fair and workable review process. Can invoices be checked in time. Are undisputed amounts payable while disputed amounts are resolved. Are late fees proportionate. Are administrative charges clear. Is suspension tied to genuine overdue undisputed amounts, with notice and cure.",
+        "Commercial contract risk increases where the answer is unclear. It also increases where payment wording combines with renewal lock-in, non-refundable fees, weak remedies, or limited termination flexibility. In those cases, payment terms become part of a wider leverage structure rather than a standalone billing clause.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk helps prioritise payment review",
+      paragraphs: [
+        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps teams identify payment delay, late fee, invoice dispute, withholding, collection-cost, and suspension-linked risk signals so reviewers can see where cash-flow exposure is being created.",
+        "That supports better contract risk assessment. Instead of treating every invoice clause as routine, the reviewer can focus on the terms that affect payment timing, negotiation posture, escalation need, and operational continuity.",
+        "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
+      ],
+    },
+  ],
+};
+
+export const auditRightsDataAccessContractRiskArticle: InsightArticle = {
+  slug: "audit-rights-data-access-contract-risk",
+  category: "Contract Risk Intelligence",
+  collection: "fundamentals",
+  title: "Audit Rights and Data Access Clauses: Why Operational Risk Often Looks Like Compliance Language",
+  seoTitle: "Audit Rights and Data Access Contract Risk | VoxaRisk Insights",
+  metaDescription: "Audit rights, data access, confidentiality, and processing clauses can create operational and governance risk. Learn what to review.",
+  readingTime: "7 min read",
+  summary:
+    "Audit rights can look like compliance boilerplate while granting broad premises, systems, records, data, cost-shifting, and disclosure rights. The risk is operational, confidentiality, and governance exposure.",
+  relatedLinks: [
+    { label: "Scan a contract", href: "/dashboard" },
+    { label: "View pricing", href: "/pricing" },
+    { label: "Back to Insights", href: "/insights" },
+    { label: "VoxaRisk home", href: "/" },
+  ],
+  sections: [
+    {
+      heading: "Audit language can be more intrusive than it looks",
+      paragraphs: [
+        "Audit rights often appear in contracts as compliance wording. They may be framed as a way to verify usage, confirm charges, inspect controls, validate security, or support regulatory obligations. That framing can make the clause feel routine.",
+        "The commercial issue is that an audit rights clause can grant access to premises, systems, logs, records, personnel, customer data, confidential information, security controls, and operational processes. It may also allow frequent audits, short notice, third-party auditors, cost shifting, or broad sharing of audit outputs.",
+        "That means contract audit risk is not just about whether an audit can occur. It is about the burden, scope, frequency, data access, confidentiality protection, and governance controls around the audit.",
+      ],
+    },
+    {
+      heading: "When compliance wording becomes operational exposure",
+      paragraphs: [
+        "A balanced audit clause usually has structure. It gives reasonable notice, limits frequency, confines access to relevant records, protects confidential information, uses normal business hours, and assigns audit costs fairly. It may also restrict auditor conflicts and require outputs to remain confidential.",
+        "A higher-risk clause often lacks those controls. It may allow audit at any time, access to systems or premises on short notice, inspection of logs or data, repeated audits in the same year, or customer-funded audits even where no material issue is found.",
+        "The operational burden can be substantial. Teams may need to provide staff, collect records, explain systems, manage data access, supervise third parties, and handle remediation pressure. If the clause is broad, the audit can become a governance event rather than a simple verification step.",
+      ],
+    },
+    {
+      heading: "Data access raises a second layer of risk",
+      paragraphs: [
+        "A data access clause can widen audit exposure. If auditors can inspect personal data, customer data, security logs, usage information, or confidential commercial records, the organisation must consider confidentiality risk, data processing contract risk, and internal control obligations.",
+        "The problem is not that audits are always inappropriate. In many relationships, audit rights are legitimate. The problem is unmanaged breadth. If the clause does not explain what data can be accessed, who can access it, how it will be protected, where it can be transferred, and whether outputs can be shared, the business may accept avoidable governance exposure.",
+        "This becomes more sensitive where the contract also contains weak confidentiality survival, broad onward transfer rights, broad data use rights, or limited post-termination deletion obligations. Audit access and data processing terms should not be reviewed in isolation.",
+      ],
+    },
+    {
+      heading: "What to review before approving audit rights",
+      paragraphs: [
+        "Commercial reviewers should ask a practical sequence of questions. What can be audited. How much notice is required. How often can audits occur. Who can conduct them. Are third-party auditors bound by confidentiality. Are audits limited to relevant records. Who pays. Can audit outputs be disclosed. Does access include systems, premises, logs, customer data, or personal data.",
+        "A clause that answers those questions clearly may be workable. A clause that leaves them open can create operational uncertainty. It may also generate internal friction because legal, security, finance, compliance, and operations teams each see different consequences in the same wording.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk supports audit and data-access review",
+      paragraphs: [
+        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps identify broad audit access, excessive audit frequency, premises or data access, cost shifting, confidentiality weakness, onward transfer, retention, anonymisation, and security-obligation signals.",
+        "The point is disciplined prioritisation. If audit language is narrow and controlled, it may be routine. If audit rights combine with broad data access and weak confidentiality protection, the contract deserves more careful review before approval momentum builds.",
+        "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
+      ],
+    },
+  ],
+};
+
+export const ipOwnershipBroadLicenceResidualKnowledgeArticle: InsightArticle = {
+  slug: "ip-ownership-broad-licence-residual-knowledge",
+  category: "Contract Review",
+  collection: "fundamentals",
+  title: "IP Ownership, Broad Licences, and Residual Knowledge: The Contract Clauses That Can Shift Asset Control",
+  seoTitle: "IP Ownership and Broad Licence Contract Risk | VoxaRisk Insights",
+  metaDescription: "Foreground IP, background IP rights, broad licence clauses, and residual knowledge wording can shift asset control. Learn what to review.",
+  readingTime: "7 min read",
+  summary:
+    "IP clauses can quietly shift control over deliverables, background materials, derivative works, improvements, and residual knowledge. These terms deserve early review before strategic value moves unintentionally.",
+  relatedLinks: [
+    { label: "Scan a contract", href: "/dashboard" },
+    { label: "View pricing", href: "/pricing" },
+    { label: "Back to Insights", href: "/insights" },
+    { label: "VoxaRisk home", href: "/" },
+  ],
+  sections: [
+    {
+      heading: "IP risk often hides inside familiar project wording",
+      paragraphs: [
+        "Intellectual property clauses can look technical, but the commercial stakes are direct. An IP ownership clause may decide who controls deliverables, foreground IP, background IP, improvements, derivatives, templates, software, data outputs, creative work, documentation, methods, and know-how developed during a relationship.",
+        "For many businesses, those assets are not side issues. They may be the product, the operating method, the client deliverable, the implementation knowledge, or the competitive advantage behind the deal.",
+        "That is why intellectual property contract risk should be reviewed early. Once a contract is signed, a broad assignment, broad licence clause, or residual knowledge clause may be difficult to unwind commercially even if the parties later disagree about what they intended.",
+      ],
+    },
+    {
+      heading: "Foreground IP and background IP need separate treatment",
+      paragraphs: [
+        "Foreground IP usually refers to new intellectual property created under the contract. Background IP usually refers to intellectual property a party already owned before the engagement. The distinction matters because a fair position for one category may be inappropriate for the other.",
+        "For example, a customer may expect to own bespoke deliverables it paid for. A supplier may need to retain its pre-existing tools, know-how, platform, templates, or reusable components. A balanced contract often separates these positions: ownership of deliverables may transfer, while background IP remains owned by the original party subject to a limited licence for the project.",
+        "Risk increases when the drafting collapses those categories. If one party owns all developments, improvements, work product, derivatives, or materials without clear boundaries, the contract may shift more asset control than the commercial team expected.",
+      ],
+    },
+    {
+      heading: "Broad licences can be as important as ownership",
+      paragraphs: [
+        "A party does not always need ownership to gain substantial control. A perpetual, irrevocable, worldwide, royalty-free licence with rights to sublicense, modify, commercialise, or create derivative works can be commercially powerful.",
+        "That may be appropriate in some transactions. But it should be a conscious decision, not a hidden consequence of standard wording. Broad licence rights can affect product strategy, exclusivity assumptions, customer data use, future monetisation, supplier reuse, and competitive positioning.",
+        "Reviewers should ask what is licensed, for what purpose, for how long, to whom, whether sublicensing is allowed, whether derivatives are allowed, whether the licence survives termination, and whether confidential information or data is indirectly swept into the grant.",
+      ],
+    },
+    {
+      heading: "Residual knowledge clauses deserve careful escalation",
+      paragraphs: [
+        "Residual knowledge clauses often say that a party may use ideas, know-how, concepts, techniques, or information retained in unaided memory. These clauses are sometimes presented as practical protection for people who naturally learn from their work.",
+        "The risk is that residual wording can blur the boundary between general skill and protected commercial information. If paired with broad licence rights, derivative-work rights, weak confidentiality survival, or broad data use, residual knowledge can become part of a strategic asset leakage pattern.",
+        "That does not mean every residual clause is unacceptable. It does mean the business should understand the consequence, the safeguards, and whether the clause is appropriate for the type of information being shared.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk supports IP clause review",
+      paragraphs: [
+        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps surface foreground IP conflict, background IP rights, broad licence language, sublicensing, derivative works, residual knowledge, and ownership-conflict signals so teams can prioritise review before signing.",
+        "For IP-heavy contracts, the decision is rarely just accept or reject. The better question is what should be clarified, narrowed, escalated, or negotiated before strategic asset control shifts by default.",
+        "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
+      ],
+    },
+  ],
+};
+
+export const forceMajeureChangeControlSlaRemedyRiskArticle: InsightArticle = {
+  slug: "force-majeure-change-control-sla-remedy-risk",
+  category: "Contract Risk Intelligence",
+  collection: "fundamentals",
+  title: "Force Majeure, Change Control, SLAs, and Remedies: How Contract Control Risk Builds Before a Dispute",
+  seoTitle: "Force Majeure, Change Control, SLA and Remedy Risk | VoxaRisk Insights",
+  metaDescription: "Force majeure, change control, weak SLAs, remedies, liquidated damages, non-compete and non-solicit clauses can stack control risk.",
+  readingTime: "7 min read",
+  summary:
+    "Control risk builds when force majeure relief, unilateral change rights, weak SLAs, exclusive remedies, liquidated damages, and restraint clauses combine before a dispute exists.",
+  relatedLinks: [
+    { label: "Scan a contract", href: "/dashboard" },
+    { label: "View pricing", href: "/pricing" },
+    { label: "Back to Insights", href: "/insights" },
+    { label: "VoxaRisk home", href: "/" },
+  ],
+  sections: [
+    {
+      heading: "Control risk is created before the dispute",
+      paragraphs: [
+        "Some contract risks do not sit neatly in one clause. They build across the control architecture of the agreement. A force majeure clause may excuse performance. A change control clause may allow service or scope changes. A service level agreement may set weak commitments. A remedy clause may limit recovery. A liquidated damages clause may create fixed exposure. A non-compete or non-solicitation clause may restrict future commercial movement.",
+        "By the time a dispute occurs, these clauses may already have shaped the practical choices available to the business. The problem is not only what happens in court or arbitration. The problem is what leverage, continuity, and optionality the contract gives each side while the relationship is under pressure.",
+      ],
+    },
+    {
+      heading: "Force majeure can become more than emergency wording",
+      paragraphs: [
+        "A force majeure clause is often treated as exceptional-event boilerplate. In balanced form, it can sensibly address events beyond a party's control while preserving mitigation duties, payment obligations, notice requirements, and termination rights after a reasonable period.",
+        "Risk increases when force majeure wording is broad enough to include economic hardship, supply chain disruption, increased costs, supplier failure, pandemic effects, labour shortages, or market conditions without sufficient controls. It increases further if payment obligations are excused or if termination is delayed for a prolonged suspension period.",
+        "A force majeure clause risk review should ask whether the affected party must mitigate, whether payment obligations continue, when the other party can terminate, and whether prolonged non-performance leaves the business locked into an unusable arrangement.",
+      ],
+    },
+    {
+      heading: "Change control can shift commercial power",
+      paragraphs: [
+        "Change control sounds orderly, but the drafting matters. A structured change control clause requires written approval, defines scope, states pricing impact, and gives both sides a clear process before changes take effect.",
+        "A higher-risk clause lets one party modify services, service levels, operational procedures, pricing, policies, or material terms on notice or at its discretion. That can create forecasting risk because the deal approved at signature may not be the deal delivered later.",
+        "The commercial concern is especially sharp where unilateral change rights sit beside weak termination rights. If the customer cannot exit easily, a change-control right can become a supplier control mechanism rather than a neutral operational process.",
+      ],
+    },
+    {
+      heading: "Weak SLAs and exclusive remedies reduce practical recourse",
+      paragraphs: [
+        "Service level agreement risk often appears where uptime targets are described as objectives only, service credits are discretionary, credits are the sole and exclusive remedy, cure periods are long, or suspension rights are broad. These clauses may not look dramatic, but they decide what the customer can do when service quality matters.",
+        "A weak remedy may be acceptable for low-value, low-dependency services. It is more concerning where the service is operationally important, customer-facing, revenue-critical, or difficult to replace.",
+        "Liquidated damages clauses add another dimension. Fixed damages, caps, cumulative remedies, or penalty-sensitive wording can create direct financial exposure or remedy uncertainty. These clauses may require legal review where relevant, especially when the amount is material or the drafting tries to do too much.",
+      ],
+    },
+    {
+      heading: "Restrictive covenants can extend control beyond the contract",
+      paragraphs: [
+        "Non-compete and non-solicitation clauses can extend contract control beyond the immediate service relationship. A non-compete contract risk may involve geography, duration, customer scope, employee restrictions, affiliates, group companies, or market segments. A non-solicitation clause may restrict hiring, customer contact, or business development.",
+        "These restraints are often jurisdiction-sensitive and enforceability-sensitive. The right review posture is careful escalation where relevant, not overconfident conclusions. Commercial teams should understand the practical restriction before approving a clause that may affect future hiring, customer strategy, or market access.",
+      ],
+    },
+    {
+      heading: "How VoxaRisk helps identify control stacks",
+      paragraphs: [
+        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps teams identify force majeure, unilateral change control, weak SLA, exclusive remedy, suspension, liquidated damages, non-compete, and non-solicitation risk signals before the contract becomes a live operational problem.",
+        "The value is in seeing the stack. One clause may be manageable. Several control-shifting clauses together may justify negotiation, internal escalation, or a more cautious approval posture.",
+        "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
+      ],
+    },
+  ],
+};
+
 export const insightArticles: InsightArticle[] = [
+  contractRiskDecisionIntelligenceVsClmArticle,
   firstInsightArticle,
   secondInsightArticle,
+  autoRenewalClauseRiskArticle,
+  paymentDelayLateFeesContractRiskArticle,
+  auditRightsDataAccessContractRiskArticle,
+  ipOwnershipBroadLicenceResidualKnowledgeArticle,
+  forceMajeureChangeControlSlaRemedyRiskArticle,
   liabilityCapsArticle,
   consequentialLossArticle,
   indemnityClausesArticle,

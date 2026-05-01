@@ -15,7 +15,10 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 function InsightCard({ article }: { article: InsightArticle }) {
   return (
     <article className="rounded-[1.25rem] border border-[#e0d1b7] bg-[#fbf3e5] p-6">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">{article.category}</div>
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+        <span>{article.category}</span>
+        {article.readingTime ? <span className="tracking-[0.18em] text-neutral-500">{article.readingTime}</span> : null}
+      </div>
       <h3 className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">{article.title}</h3>
       <p className="mt-4 text-sm leading-7 text-neutral-700">{article.summary}</p>
       <div className="mt-6">
