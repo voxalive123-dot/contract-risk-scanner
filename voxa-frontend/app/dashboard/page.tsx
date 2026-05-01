@@ -22,6 +22,11 @@ type Finding = {
   matched_location?: string | null;
   context_note?: string | null;
   contextual_emphasis?: string | null;
+  policy_category?: string | null;
+  policy_value?: string | null;
+  policy_status?: string | null;
+  policy_explanation?: string | null;
+  decision_guidance?: string[];
 };
 
 type TopRisk = {
@@ -76,6 +81,8 @@ type ScanHistoryItem = {
   synthesis_patterns_triggered?: string[];
   report_export_state?: string | null;
   context_profile_snapshot?: Record<string, unknown> | null;
+  decision_state?: ScanDecisionState;
+  finding_decisions?: FindingDecisionState[];
   notes?: Array<{ id: string; note: string; finding_rule_id?: string | null }>;
 };
 
@@ -123,6 +130,49 @@ type DashboardAccountContext = {
 };
 
 type AuthState = "loading" | "authenticated" | "unauthenticated";
+
+type ScanDecisionValue =
+  | "pending"
+  | "accepted"
+  | "negotiated"
+  | "escalated"
+  | "rejected"
+  | "sent_for_legal_review";
+
+type FindingDecisionValue = "unresolved" | "accepted" | "redlined" | "waived" | "escalated" | "ignored";
+
+type ScanDecisionState = {
+  state?: ScanDecisionValue | string | null;
+  reason_code?: string | null;
+  note?: string | null;
+  updated_at?: string | null;
+};
+
+type FindingDecisionState = {
+  finding_id?: string | null;
+  status?: FindingDecisionValue | string | null;
+  reason_code?: string | null;
+  note?: string | null;
+  updated_at?: string | null;
+};
+
+const SCAN_DECISION_OPTIONS: Array<{ value: ScanDecisionValue; label: string }> = [
+  { value: "pending", label: "Pending" },
+  { value: "accepted", label: "Accepted" },
+  { value: "negotiated", label: "Negotiated" },
+  { value: "escalated", label: "Escalated" },
+  { value: "rejected", label: "Rejected" },
+  { value: "sent_for_legal_review", label: "Sent for legal review" },
+];
+
+const FINDING_DECISION_OPTIONS: Array<{ value: FindingDecisionValue; label: string }> = [
+  { value: "unresolved", label: "Unresolved" },
+  { value: "accepted", label: "Accepted" },
+  { value: "redlined", label: "Redlined" },
+  { value: "waived", label: "Waived" },
+  { value: "escalated", label: "Escalated" },
+  { value: "ignored", label: "Ignored" },
+];
 
 const DOCUMENT_TYPE_OPTIONS = [
   "Supplier Agreement",
@@ -570,6 +620,86 @@ function decisionConfidenceDriverLabel(
   }
 }
 
+
+function findingDecisionId(finding: Finding, index: number) {
+  return (finding.rule_id || `${finding.category || "finding"}-${index}`).slice(0, 120);
+}
+
+function policyIndicator(finding: Finding): { label: string; className: string; detail: string } | null {
+  const status = finding.policy_status;
+  if (!status) return null;
+
+  if (status === "exceeds_tolerance") {
+    return {
+      label: "Outside your organisation's tolerance",
+      className: "border-red-200 bg-red-50 text-red-700",
+      detail: finding.policy_explanation || "This finding appears outside the configured tolerance for this risk family.",
+    };
+  }
+
+  if (status === "conflicts_with_policy") {
+    return {
+      label: "Conflicts with configured policy",
+      className: "border-amber-200 bg-amber-50 text-amber-800",
+      detail: finding.policy_explanation || "This finding conflicts with the configured organisation policy.",
+    };
+  }
+
+  if (status === "within_tolerance") {
+    return {
+      label: "Within configured policy",
+      className: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      detail: finding.policy_explanation || "This finding appears within configured tolerance, but evidence should still be documented.",
+    };
+  }
+
+  if (status === "policy_unknown") {
+    return {
+      label: "No policy configured for this risk family",
+      className: "border-[#dccaa8] bg-[#fffaf0] text-[#6f552d]",
+      detail: finding.policy_explanation || "No organisation tolerance has been configured for this risk family.",
+    };
+  }
+
+  return null;
+}
+
+function findingDecisionLabel(value?: string | null) {
+  return FINDING_DECISION_OPTIONS.find((option) => option.value === value)?.label ?? "Unresolved";
+}
+
+function scanDecisionLabel(value?: string | null) {
+  return SCAN_DECISION_OPTIONS.find((option) => option.value === value)?.label ?? "Pending";
+}
+
+function acceptableGuidance(finding: Finding): string[] {
+  if (finding.decision_guidance?.length) return finding.decision_guidance;
+
+  const category = (finding.category || "").toLowerCase();
+  const text = `${finding.rule_id || ""} ${finding.title || ""}`.toLowerCase();
+
+  if (category === "liability" || text.includes("liability")) {
+    return ["Add or raise the liability cap", "Remove broad carve-outs", "Make the cap mutual"];
+  }
+  if (category === "indemnity" || text.includes("indemn")) {
+    return ["Narrow indemnity scope", "Cap indemnity exposure", "Make the indemnity mutual"];
+  }
+  if (category === "data" || text.includes("data")) {
+    return ["Remove AI training rights", "Restrict onward sharing", "Add confidentiality survival"];
+  }
+  if (category === "termination" || text.includes("termination") || text.includes("renewal")) {
+    return ["Add notice", "Add a cure period", "Add refund or credit rights", "Add transition support"];
+  }
+  if (category === "payment" || category === "service" || text.includes("suspension") || text.includes("payment")) {
+    return ["Limit suspension rights", "Add a disputed-sums carve-out", "Add restoration obligations"];
+  }
+  if (category === "jurisdiction" || text.includes("forum") || text.includes("governing")) {
+    return ["Align governing law and forum with operational reality", "Confirm enforcement cost and venue burden", "Escalate if forum leverage is asymmetric"];
+  }
+
+  return ["Narrow broad discretion", "Add objective triggers", "Document the commercial exception if accepted"];
+}
+
 function lowSignalSummary() {
   return "No material automated risk signal was elevated in the reviewed text. This should be treated as a low-signal automated result, not as contract approval.";
 }
@@ -665,21 +795,30 @@ export default function DashboardPage() {
   const [scanHistory, setScanHistory] = useState<ScanHistoryItem[]>([]);
   const [recurringFamilies, setRecurringFamilies] = useState<Array<{ family: string; count: number }>>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
+  const [activeScanId, setActiveScanId] = useState<string | null>(null);
+  const [scanDecision, setScanDecision] = useState<ScanDecisionState>({ state: "pending" });
+  const [findingDecisions, setFindingDecisions] = useState<Record<string, FindingDecisionState>>({});
+  const [decisionNotesOpen, setDecisionNotesOpen] = useState<Record<string, boolean>>({});
+  const [findingDecisionNotes, setFindingDecisionNotes] = useState<Record<string, string>>({});
+  const [decisionSavingKey, setDecisionSavingKey] = useState<string | null>(null);
+  const [decisionMessage, setDecisionMessage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const cameraInputRef = useRef<HTMLInputElement | null>(null);
   const previousTitleRef = useRef<string | null>(null);
 
-  async function loadScanHistory() {
+  async function loadScanHistory(): Promise<ScanHistoryResponse | null> {
     setHistoryLoading(true);
     try {
       const response = await fetch("/api/account/scans", { cache: "no-store" });
-      if (!response.ok) return;
+      if (!response.ok) return null;
       const payload: ScanHistoryResponse = await response.json();
       setScanHistory(payload.scans ?? []);
       setRecurringFamilies(payload.recurring_clause_families ?? []);
+      return payload;
     } catch {
       setScanHistory([]);
       setRecurringFamilies([]);
+      return null;
     } finally {
       setHistoryLoading(false);
     }
@@ -690,6 +829,15 @@ export default function DashboardPage() {
       const response = await fetch(`/api/account/scans/${encodeURIComponent(scanId)}`, { cache: "no-store" });
       if (!response.ok) return;
       const detail: ScanHistoryItem = await response.json();
+      const decisionMap = Object.fromEntries(
+        (detail.finding_decisions ?? [])
+          .filter((item) => item.finding_id)
+          .map((item) => [String(item.finding_id), item]),
+      );
+      setActiveScanId(detail.id);
+      setScanDecision(detail.decision_state ?? { state: "pending" });
+      setFindingDecisions(decisionMap);
+      setDecisionMessage(null);
       const severity =
         detail.severity === "HIGH" || detail.severity === "MEDIUM" || detail.severity === "LOW"
           ? detail.severity
@@ -768,6 +916,12 @@ export default function DashboardPage() {
     setResult(null);
     setReportGeneratedAt(null);
     setReportValidationMessage(null);
+    setActiveScanId(null);
+    setScanDecision({ state: "pending" });
+    setFindingDecisions({});
+    setDecisionNotesOpen({});
+    setFindingDecisionNotes({});
+    setDecisionMessage(null);
     resetAIReview();
   }
 
@@ -850,7 +1004,15 @@ export default function DashboardPage() {
       const data: AnalyzeResult = JSON.parse(raw);
       setResult(data);
       setReportGeneratedAt(new Date().toISOString());
-      void loadScanHistory();
+      setScanDecision({ state: "pending" });
+      setFindingDecisions({});
+      setDecisionMessage(null);
+      const history = await loadScanHistory();
+      const latestScan = history?.scans?.[0];
+      if (latestScan?.id) {
+        setActiveScanId(latestScan.id);
+        setScanDecision(latestScan.decision_state ?? { state: "pending" });
+      }
     } catch (error) {
       setErrorMessage(
         `Analysis could not be completed at this time. Review the source text or file and try again. ${String(error)}`,
@@ -912,6 +1074,74 @@ export default function DashboardPage() {
       setAIMessage(
         "AI Review Notes are temporarily unavailable. Your main VoxaRisk analysis and executive report remain available.",
       );
+    }
+  }
+
+  async function updateScanDecision(nextState: ScanDecisionValue, note?: string) {
+    if (!activeScanId) {
+      setDecisionMessage("Decision controls become available once the review is saved or reopened from history.");
+      return;
+    }
+
+    setDecisionSavingKey("scan");
+    setDecisionMessage(null);
+    try {
+      const response = await fetch(`/api/account/scans/${encodeURIComponent(activeScanId)}/decision`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ state: nextState, note }),
+      });
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setDecisionMessage("Scan decision could not be saved. The review remains available.");
+        return;
+      }
+      const nextDecision = payload?.decision_state ?? { state: nextState, note, updated_at: new Date().toISOString() };
+      setScanDecision(nextDecision);
+      setDecisionMessage("Scan decision saved.");
+      void loadScanHistory();
+    } catch {
+      setDecisionMessage("Scan decision could not be saved. The review remains available.");
+    } finally {
+      setDecisionSavingKey(null);
+    }
+  }
+
+  async function updateFindingDecision(findingId: string, nextStatus: FindingDecisionValue, note?: string) {
+    if (!activeScanId) {
+      setDecisionMessage("Finding decisions become available once the review is saved or reopened from history.");
+      return;
+    }
+
+    setDecisionSavingKey(findingId);
+    setDecisionMessage(null);
+    try {
+      const response = await fetch(
+        `/api/account/scans/${encodeURIComponent(activeScanId)}/findings/${encodeURIComponent(findingId)}/decision`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: nextStatus, note }),
+        },
+      );
+      const payload = await response.json().catch(() => null);
+      if (!response.ok) {
+        setDecisionMessage("Finding decision could not be saved. The analysis remains visible.");
+        return;
+      }
+      const nextDecision = payload?.finding_decision ?? {
+        finding_id: findingId,
+        status: nextStatus,
+        note,
+        updated_at: new Date().toISOString(),
+      };
+      setFindingDecisions((current) => ({ ...current, [findingId]: nextDecision }));
+      setDecisionMessage("Finding decision saved.");
+      void loadScanHistory();
+    } catch {
+      setDecisionMessage("Finding decision could not be saved. The analysis remains visible.");
+    } finally {
+      setDecisionSavingKey(null);
     }
   }
 
@@ -1500,6 +1730,63 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
+                    <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                            Scan decision
+                          </div>
+                          <div className="mt-1 text-sm font-semibold text-neutral-950">
+                            {scanDecisionLabel(scanDecision.state)}
+                          </div>
+                        </div>
+                        <select
+                          value={(scanDecision.state as ScanDecisionValue) || "pending"}
+                          onChange={(event) => void updateScanDecision(event.target.value as ScanDecisionValue)}
+                          disabled={!activeScanId || decisionSavingKey === "scan"}
+                          className="rounded-xl border border-[#dccaa8] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 disabled:opacity-60"
+                        >
+                          {SCAN_DECISION_OPTIONS.map((option) => (
+                            <option key={option.value} value={option.value}>
+                              {option.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {[
+                          { label: "Accept scan", value: "accepted" as ScanDecisionValue },
+                          { label: "Escalate scan", value: "escalated" as ScanDecisionValue },
+                          { label: "Send for legal review", value: "sent_for_legal_review" as ScanDecisionValue },
+                        ].map((action) => (
+                          <button
+                            key={action.value}
+                            type="button"
+                            onClick={() => void updateScanDecision(action.value)}
+                            disabled={!activeScanId || decisionSavingKey === "scan"}
+                            className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+
+                      <div className="mt-3 text-xs leading-5 text-[#8f7245]">
+                        {scanDecision.updated_at
+                          ? `Last action: ${formatReportTimestamp(scanDecision.updated_at)}`
+                          : activeScanId
+                            ? "No scan-level decision recorded yet."
+                            : "Decision controls activate once the review is saved."}
+                      </div>
+                    </div>
+
+                    {decisionMessage && (
+                      <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffcf6] p-3 text-xs leading-5 text-neutral-700">
+                        {decisionMessage}
+                      </div>
+                    )}
+
                     <div className="mt-3 rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-3 xl:mt-auto">
                       <div className="text-xs uppercase tracking-wide text-[#8f7245]">
                         Product boundary
@@ -1600,9 +1887,17 @@ export default function DashboardPage() {
                   </div>
                   <div className="mt-4 space-y-4">
                     {findings.length ? (
-                      findings.map((finding, index) => (
+                      findings.map((finding, index) => {
+                        const findingId = findingDecisionId(finding, index);
+                        const decision = findingDecisions[findingId] ?? { finding_id: findingId, status: "unresolved" };
+                        const policy = policyIndicator(finding);
+                        const noteOpen = Boolean(decisionNotesOpen[findingId]);
+                        const noteDraft = findingDecisionNotes[findingId] ?? decision.note ?? "";
+                        const isTopRisk = index < 3;
+
+                        return (
                         <div
-                          key={`${finding.rule_id ?? "finding"}-${index}`}
+                          key={`${findingId}-${index}`}
                           className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1619,6 +1914,17 @@ export default function DashboardPage() {
                               {severityTone(finding.severity)} impact
                             </div>
                           </div>
+
+                          {policy && (
+                            <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                              <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${policy.className}`}>
+                                {policy.label}
+                              </div>
+                              <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                {policy.detail}
+                              </p>
+                            </div>
+                          )}
 
                           <div className="mt-4 grid gap-4 md:grid-cols-2">
                             <div>
@@ -1649,8 +1955,114 @@ export default function DashboardPage() {
                               </p>
                             </div>
                           )}
+
+                          {isTopRisk && (
+                            <details className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
+                              <summary className="cursor-pointer text-sm font-semibold text-neutral-950">
+                                What would make this acceptable
+                              </summary>
+                              <div className="mt-3 flex flex-wrap gap-2">
+                                {acceptableGuidance(finding).map((item) => (
+                                  <span key={item} className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-3 py-1.5 text-xs font-medium text-[#6f552d]">
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            </details>
+                          )}
+
+                          <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                              <div>
+                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                                  Decision status
+                                </div>
+                                <div className="mt-1 text-sm font-semibold text-neutral-950">
+                                  {findingDecisionLabel(decision.status)}
+                                </div>
+                              </div>
+                              <select
+                                value={(decision.status as FindingDecisionValue) || "unresolved"}
+                                onChange={(event) => void updateFindingDecision(findingId, event.target.value as FindingDecisionValue, noteDraft)}
+                                disabled={!activeScanId || decisionSavingKey === findingId}
+                                className="rounded-xl border border-[#dccaa8] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 disabled:opacity-60"
+                              >
+                                {FINDING_DECISION_OPTIONS.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {[
+                                { label: "Accept", value: "accepted" as FindingDecisionValue },
+                                { label: "Redline", value: "redlined" as FindingDecisionValue },
+                                { label: "Escalate", value: "escalated" as FindingDecisionValue },
+                                { label: "Waive", value: "waived" as FindingDecisionValue },
+                              ].map((action) => (
+                                <button
+                                  key={action.value}
+                                  type="button"
+                                  onClick={() => void updateFindingDecision(findingId, action.value, noteDraft)}
+                                  disabled={!activeScanId || decisionSavingKey === findingId}
+                                  className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                  {action.label}
+                                </button>
+                              ))}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => setDecisionNotesOpen((current) => ({ ...current, [findingId]: !noteOpen }))}
+                              className="mt-3 text-xs font-semibold text-[#765a2b] underline-offset-4 hover:underline"
+                            >
+                              {noteOpen ? "Hide decision note" : decision.note ? "Edit decision note" : "Add optional note"}
+                            </button>
+
+                            {noteOpen && (
+                              <div className="mt-3">
+                                <textarea
+                                  value={noteDraft}
+                                  onChange={(event) =>
+                                    setFindingDecisionNotes((current) => ({ ...current, [findingId]: event.target.value }))
+                                  }
+                                  rows={3}
+                                  placeholder="Add a short commercial rationale or exception note."
+                                  className="w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-3 text-sm leading-6 text-neutral-800 outline-none focus:border-[#b08d57]"
+                                />
+                                <div className="mt-2 flex justify-end">
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      void updateFindingDecision(
+                                        findingId,
+                                        (decision.status as FindingDecisionValue) || "unresolved",
+                                        noteDraft,
+                                      )
+                                    }
+                                    disabled={!activeScanId || decisionSavingKey === findingId}
+                                    className="rounded-full bg-[#11110f] px-4 py-2 text-xs font-semibold text-stone-100 transition hover:bg-[#1b1a17] disabled:cursor-not-allowed disabled:opacity-60"
+                                  >
+                                    Save note
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+
+                            <div className="mt-3 text-xs leading-5 text-[#8f7245]">
+                              {decision.updated_at
+                                ? `Last action: ${formatReportTimestamp(decision.updated_at)}`
+                                : activeScanId
+                                  ? "No finding-level outcome recorded yet."
+                                  : "Decision controls activate once the review is saved."}
+                            </div>
+                          </div>
                         </div>
-                      ))
+                        );
+                      })
                     ) : (
                       <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
                         No material automated risk signals were elevated into detailed findings for this review. This is a low-signal result, not a substitute for commercial or legal review.
