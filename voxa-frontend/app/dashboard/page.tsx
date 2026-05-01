@@ -743,26 +743,29 @@ function optionalNumber(value: unknown) {
   return typeof value === "number" && Number.isFinite(value) ? value : undefined;
 }
 
-const SCAN_HISTORY_MAX_RISK_SCORE = 200;
+const EXPOSURE_SCORE_MAX_RISK_SCORE = 200;
 
 function clampExposureScore(value: number) {
   return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function exposureScoreFromStoredRiskScore(value: number) {
+  return clampExposureScore((value / EXPOSURE_SCORE_MAX_RISK_SCORE) * 100);
 }
 
 function scanHistoryExposureScore(scan: ScanHistoryItem) {
   const explicit = optionalNumber(scan.normalized_score) ?? optionalNumber(scan.meta?.normalized_score);
   if (explicit !== undefined) return clampExposureScore(explicit);
 
-  const rawScore = optionalNumber(scan.risk_score);
-  if (rawScore === undefined) return null;
+  const storedScore = optionalNumber(scan.risk_score);
+  if (storedScore === undefined) return null;
 
-  const calculated = (rawScore / SCAN_HISTORY_MAX_RISK_SCORE) * 100;
-  return clampExposureScore(calculated);
+  return exposureScoreFromStoredRiskScore(storedScore);
 }
 
 function buildAIExplainPayload(result: AnalyzeResult) {
   return {
-    normalized_score: result.meta?.normalized_score ?? result.risk_score,
+    normalized_score: result.meta?.normalized_score ?? exposureScoreFromStoredRiskScore(result.risk_score),
     severity: normalizeAIExplainSeverity(result.severity),
     flags: result.flags ?? [],
     findings: (result.findings ?? []).map((finding) => ({
@@ -810,6 +813,8 @@ function readableSourceType(value?: string | null) {
   if (!value) return "Text";
   if (value === "file") return "File";
   if (value === "text") return "Text";
+  if (value === "pdf") return "PDF";
+  if (value === "image") return "Image";
   return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
@@ -818,6 +823,44 @@ function readableExtractionMethod(value?: string | null) {
   return value
     .replace(/_/g, " ")
     .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function titleCaseReviewLabel(value: string) {
+  return value
+    .replace(/_/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+function meaningfulScanTitle(value?: string | null) {
+  const title = (value ?? "").trim();
+  if (!title) return "";
+  const normalized = title.toLowerCase();
+  if (normalized.includes("untitled") || normalized === "stored contract risk review") return "";
+  return title;
+}
+
+function scanHistoryDisplayTitle(scan: ScanHistoryItem, severity: "LOW" | "MEDIUM" | "HIGH") {
+  const explicitTitle = meaningfulScanTitle(scan.source_title);
+  if (explicitTitle) return explicitTitle;
+
+  const contractType = typeof scan.context_profile_snapshot?.contract_type === "string"
+    ? scan.context_profile_snapshot.contract_type
+    : "";
+  if (contractType && contractType.toLowerCase() !== "unknown") {
+    return `${titleCaseReviewLabel(contractType)} review`;
+  }
+
+  if (scan.source_type && scan.source_type !== "unknown") {
+    return `${readableSourceType(scan.source_type)} review`;
+  }
+
+  if (scan.created_at) {
+    return `${titleCaseReviewLabel(severity.toLowerCase())}-risk review - ${new Date(scan.created_at).toLocaleDateString()}`;
+  }
+
+  return "Contract review";
 }
 
 function extractCustomerError(raw: string) {
@@ -1153,12 +1196,14 @@ export default function DashboardPage() {
         detail.severity === "HIGH" || detail.severity === "MEDIUM" || detail.severity === "LOW"
           ? detail.severity
           : "LOW";
+      const exposureScore = scanHistoryExposureScore(detail);
       setResult({
         risk_score: detail.risk_score,
         severity,
         flags: detail.clause_families_detected ?? [],
         findings: detail.top_findings ?? [],
         meta: {
+          normalized_score: exposureScore ?? detail.risk_score,
           confidence: detail.confidence ?? 0,
           matched_rule_count: detail.top_findings?.length ?? 0,
           top_risks: detail.top_findings ?? [],
@@ -1169,7 +1214,7 @@ export default function DashboardPage() {
         source_type: detail.source_type ?? "unknown",
       });
       setReportGeneratedAt(detail.created_at ?? new Date().toISOString());
-      setReportTitle(detail.source_title ?? "Stored contract risk review");
+      setReportTitle(scanHistoryDisplayTitle(detail, severity));
       resetAIReview();
     } catch {
       setErrorMessage("Stored review could not be reopened.");
@@ -1463,8 +1508,9 @@ export default function DashboardPage() {
     }
   }
 
-  const normalizedScore = result?.meta?.normalized_score ?? result?.risk_score ?? 0;
-  const rawRiskScore = result?.risk_score ?? 0;
+  const normalizedScore = result
+    ? result.meta?.normalized_score ?? exposureScoreFromStoredRiskScore(result.risk_score)
+    : 0;
   const aiReviewSections = useMemo(() => formatAIReviewSections(aiReview?.ai_summary), [aiReview?.ai_summary]);
   const findings = useMemo(() => result?.findings ?? [], [result?.findings]);
   const topRisks = useMemo(() => result?.meta?.top_risks ?? [], [result?.meta?.top_risks]);
@@ -1751,6 +1797,7 @@ export default function DashboardPage() {
                       ? scan.severity
                       : "LOW";
                   const exposureScore = scanHistoryExposureScore(scan);
+                  const displayTitle = scanHistoryDisplayTitle(scan, severity);
                   return (
                     <button
                       key={scan.id}
@@ -1761,7 +1808,7 @@ export default function DashboardPage() {
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="truncate text-sm font-semibold text-neutral-950">
-                            {scan.source_title || "Untitled scan"}
+                            {displayTitle}
                           </div>
                           <div className="mt-1 text-xs text-[#8f7245]">
                             {scan.created_at ? new Date(scan.created_at).toLocaleDateString() : "Date unavailable"} · {readableSourceType(scan.source_type)}
@@ -1960,9 +2007,6 @@ export default function DashboardPage() {
                         </div>
                         <div className="mt-2 text-2xl font-semibold text-neutral-950">
                           {normalizedScore}
-                        </div>
-                        <div className="mt-1 text-[11px] uppercase tracking-wide text-[#8f7245]">
-                          Raw risk score: {rawRiskScore}
                         </div>
                       </div>
                       <div
