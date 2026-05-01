@@ -297,6 +297,19 @@ def _stringify_provider_value(value: Any) -> str:
     return ""
 
 
+def _structured_summary_has_content(summary: AISummary) -> bool:
+    if summary.overview.strip() or summary.risk_posture_summary.strip():
+        return True
+    if any(item.strip() for item in summary.negotiation_focus):
+        return True
+    if any(
+        note.title.strip() or note.explanation.strip() or note.evidence_excerpt.strip()
+        for note in summary.evidence_notes
+    ):
+        return True
+    return False
+
+
 def _format_structured_summary(summary: AISummary) -> str:
     parts = [
         summary.overview,
@@ -348,6 +361,14 @@ def generate_ai_explanation(request: AIExplainRequest) -> AIExplainAvailableResp
     try:
         summary = AISummary.model_validate(provider_payload)
     except ValidationError:
+        logger.warning("AI provider output schema invalid; using plain-text fallback")
+        return AIExplainAvailableResponse(
+            status="available",
+            model=model,
+            ai_summary=_plain_text_summary_from_provider_output(provider_payload, uncertainty_notes),
+        )
+
+    if not _structured_summary_has_content(summary):
         logger.warning("AI provider output schema invalid; using plain-text fallback")
         return AIExplainAvailableResponse(
             status="available",

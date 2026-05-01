@@ -255,6 +255,35 @@ def test_malformed_but_usable_provider_output_becomes_ai_summary(ai_test_client,
     assert "AI provider output schema invalid; using plain-text fallback" in caplog.text
 
 
+def test_plain_text_provider_output_displays_as_ai_review(ai_test_client, monkeypatch):
+    client, session_factory = ai_test_client
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(
+        ai_explain,
+        "_call_openai_json",
+        lambda *args, **kwargs: "Executive review: focus on the termination and payment exposure before approval.",
+    )
+
+    response = client.post(
+        "/ai/explain",
+        headers={"X-API-Key": raw_key},
+        json=build_request(),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["status"] == "available"
+    assert body["source"] == "ai"
+    assert "Executive review: focus on the termination" in body["ai_summary"]
+    assert "not legal advice" in body["ai_summary"]
+
+
 def test_empty_provider_output_returns_unavailable(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
     raw_key = create_org_and_key(

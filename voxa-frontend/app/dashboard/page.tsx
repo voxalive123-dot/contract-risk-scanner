@@ -99,6 +99,7 @@ type AIReviewEvidenceNote = {
 };
 
 type AIReviewSummary = {
+  raw_text?: string;
   overview?: string;
   risk_posture_summary?: string;
   negotiation_focus?: string[];
@@ -805,9 +806,13 @@ function coerceAIReviewSummary(value?: AIReviewSummary | string | null): AIRevie
   if (!value) return null;
   if (typeof value === "string") {
     const trimmed = value.trim();
-    return trimmed ? { overview: trimmed } : null;
+    return trimmed ? { raw_text: trimmed } : null;
   }
   return value;
+}
+
+function hasAISectionText(value?: string | null) {
+  return Boolean(value?.trim());
 }
 
 function normalizeAIExplainResponse(payload: AIExplainResponse | null): NormalizedAIExplainResponse | AIExplainResponse | null {
@@ -2194,25 +2199,43 @@ export default function DashboardPage() {
 
                     {aiState === "available" && aiReview?.ai_summary && (
                       <div className="mt-6 space-y-5">
-                        <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                        {hasAISectionText(aiReview.ai_summary.raw_text) && (
                           <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
                             <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Overview
+                              AI review
                             </div>
-                            <p className="mt-3 text-sm leading-7 text-neutral-700">
-                              {aiReview.ai_summary.overview}
+                            <p className="mt-3 whitespace-pre-line text-sm leading-7 text-neutral-700">
+                              {aiReview.ai_summary.raw_text}
                             </p>
                           </div>
+                        )}
 
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
-                            <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                              Risk posture summary
-                            </div>
-                            <p className="mt-3 text-sm leading-7 text-neutral-700">
-                              {aiReview.ai_summary.risk_posture_summary}
-                            </p>
+                        {(hasAISectionText(aiReview.ai_summary.overview) ||
+                          hasAISectionText(aiReview.ai_summary.risk_posture_summary)) && (
+                          <div className="grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+                            {hasAISectionText(aiReview.ai_summary.overview) && (
+                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                                  Overview
+                                </div>
+                                <p className="mt-3 text-sm leading-7 text-neutral-700">
+                                  {aiReview.ai_summary.overview}
+                                </p>
+                              </div>
+                            )}
+
+                            {hasAISectionText(aiReview.ai_summary.risk_posture_summary) && (
+                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
+                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
+                                  Risk posture summary
+                                </div>
+                                <p className="mt-3 text-sm leading-7 text-neutral-700">
+                                  {aiReview.ai_summary.risk_posture_summary}
+                                </p>
+                              </div>
+                            )}
                           </div>
-                        </div>
+                        )}
 
                         {(aiReview.ai_summary.negotiation_focus ?? []).length > 0 && (
                           <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-5">
