@@ -85,7 +85,7 @@ export default function SiteHeader({
               VOXARISK
             </div>
             <div className="mt-2 text-[11px] font-bold uppercase tracking-[0.16em] text-[#7b5d2c]">
-              CONTRACT RISK INTELLIGENCE
+              DECISION INTELLIGENCE
             </div>
           </div>
         </Link>

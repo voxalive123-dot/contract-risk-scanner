@@ -710,10 +710,10 @@ export default function DashboardPage() {
         source_type: detail.source_type ?? "unknown",
       });
       setReportGeneratedAt(detail.created_at ?? new Date().toISOString());
-      setReportTitle(detail.source_title ?? "Stored contract review");
+      setReportTitle(detail.source_title ?? "Stored contract risk review");
       resetAIReview();
     } catch {
-      setErrorMessage("Stored scan could not be reopened.");
+      setErrorMessage("Stored review could not be reopened.");
     }
   }
 
@@ -1012,11 +1012,11 @@ export default function DashboardPage() {
   ];
   const canUseAI = accountContext?.entitlement.ai_review_notes_allowed ?? false;
   const reportBoundaryNotice =
-    "VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.";
+    "VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.";
 
   function handlePrintReport() {
     if (!result) {
-      setErrorMessage("Run a contract analysis first to generate a report.");
+      setErrorMessage("Run a contract risk review first to generate a report.");
       return;
     }
 
@@ -1077,7 +1077,7 @@ export default function DashboardPage() {
                 Sign in to open the VoxaRisk review workspace
               </h1>
               <p className="mx-auto mt-4 max-w-2xl text-sm leading-7 text-neutral-700">
-                Contract scanning, executive reporting, and export are available only inside a signed-in VoxaRisk account workspace.
+                Contract risk review, decision records, executive reporting, and export are available only inside a signed-in VoxaRisk account workspace.
               </p>
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link
@@ -1112,13 +1112,13 @@ export default function DashboardPage() {
           <div className="report-print-hidden mb-8 grid gap-5 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] px-6 py-5 shadow-[0_12px_28px_rgba(80,60,30,0.06)] lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)] lg:px-7">
             <div className="min-w-0">
               <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                Contract Risk Workspace
+                Contract Risk Decision Workspace
               </div>
               <h1 className="mt-2.5 text-[2rem] font-semibold tracking-tight text-neutral-950">
-                Executive review console
+                Decision intelligence console
               </h1>
               <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-700">
-                Paste contract text or upload a document to generate a structured risk review, negotiation focus, and executive report.
+                Paste contract text or upload a document to generate structured risk intelligence, tolerance-aware review posture, negotiation focus, and an executive record.
               </p>
             </div>
 
@@ -1170,9 +1170,9 @@ export default function DashboardPage() {
           <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-neutral-950">Previous scans</h2>
+                <h2 className="text-lg font-semibold text-neutral-950">Previous reviews</h2>
                 <p className="mt-1 text-sm text-[#8f7245]">
-                  Organisation-scoped history for this workspace. Stored snapshots keep evidence visible without cross-customer analytics.
+                  Organisation-scoped review history for this workspace. Stored snapshots keep evidence, recurring risk families, and decision context visible without cross-customer analytics.
                 </p>
               </div>
               <button
@@ -1188,12 +1188,12 @@ export default function DashboardPage() {
               <div className="space-y-3">
                 {historyLoading && (
                   <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
-                    Loading scan history...
+                    Loading review history...
                   </div>
                 )}
                 {!historyLoading && scanHistory.length === 0 && (
                   <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
-                    No previous scans stored for this organisation yet.
+                    No previous contract risk reviews stored for this organisation yet.
                   </div>
                 )}
                 {scanHistory.slice(0, 5).map((scan) => {
@@ -1256,9 +1256,9 @@ export default function DashboardPage() {
           <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
-                <h2 className="text-lg font-semibold text-neutral-950">Contract Input</h2>
+                <h2 className="text-lg font-semibold text-neutral-950">Contract input</h2>
                 <p className="mt-1 text-sm text-[#8f7245]">
-                  Paste contract text or upload a supported file for executive review.
+                  Paste contract text or upload a supported file for decision-ready commercial review.
                 </p>
               </div>
               <div className="text-xs text-neutral-500">Signed-in workspace only</div>
@@ -1335,7 +1335,7 @@ export default function DashboardPage() {
               <div className="mt-2 text-sm text-neutral-700">
                 {inputMode === "file"
                   ? `File mode active. ${uploadLabel}`
-                  : "Text mode active. Paste the contract or the clauses that need review."}
+                  : "Text mode active. Paste the contract or the clauses that need commercial risk review."}
               </div>
             </div>
 
@@ -1363,7 +1363,7 @@ export default function DashboardPage() {
 
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm text-[#8f7245]">
-                Use legible source text and review clause evidence before relying on the result.
+                Use legible source text and review clause evidence, policy status, and decision records before relying on the result.
               </div>
 
               <button
@@ -1589,7 +1589,7 @@ export default function DashboardPage() {
                     )
                   ) : (
                     <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
-                      No material automated risk signals were elevated into negotiation priorities for this scan. This remains a low-signal result, not a contract clearance outcome.
+                      No material automated risk signals were elevated into negotiation priorities for this review. This remains a low-signal result, not a contract clearance outcome.
                     </div>
                   )}
                 </div>
@@ -1653,7 +1653,7 @@ export default function DashboardPage() {
                       ))
                     ) : (
                       <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
-                        No material automated risk signals were elevated into detailed findings for this scan. This is a low-signal result, not a substitute for commercial or legal review.
+                        No material automated risk signals were elevated into detailed findings for this review. This is a low-signal result, not a substitute for commercial or legal review.
                       </div>
                     )}
                   </div>

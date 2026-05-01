@@ -8,7 +8,7 @@ export default function SiteFooter() {
           <div>
             <div className="font-semibold tracking-[-0.02em] text-neutral-950">VoxaRisk</div>
             <div className="mt-1 leading-6 md:whitespace-nowrap">
-              Automated contract risk intelligence for disciplined commercial review. Not legal advice, legal opinion, or contract approval.
+              Contract Risk Decision Intelligence for commercial governance. Not legal advice, legal opinion, or contract approval.
             </div>
           </div>
 

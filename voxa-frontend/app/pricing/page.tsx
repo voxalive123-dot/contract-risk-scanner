@@ -18,21 +18,21 @@ const plans: Plan[] = [
   {
     name: "Free",
     price: "£0",
-    annual: "For first-pass testing and basic exposure signal.",
-    description: "For validating whether a contract surfaces useful automated risk signals before deeper review.",
+    annual: "For first-pass review and basic exposure signal.",
+    description: "For validating whether a contract surfaces useful exposure signals before deeper commercial or professional review.",
     cta: "Start Free",
     href: "/dashboard",
-    features: ["Limited scans", "Summary score", "Basic decision signal", "Limited findings preview", "Upgrade for reports/export"],
+    features: ["Limited scans", "Summary score", "Basic review posture", "Limited findings preview", "Upgrade for reports/export"],
   },
   {
     name: "Business",
     price: "£39/month",
     annual: "£390/year",
-    description: "For teams running structured commercial review across recurring contract work.",
+    description: "For teams running policy-aware commercial review across recurring contract work.",
     cta: "Choose Business",
     href: "/dashboard",
     featured: true,
-    features: ["Full findings", "Executive summary", "Negotiation priorities", "Clause evidence", "Report/export", "Higher scan/report limits", "Recurring commercial review", "Prioritised review focus", "Team-oriented positioning", "AI Review Notes"],
+    features: ["Full findings and evidence", "Executive summary", "Negotiation and escalation priorities", "Clause evidence and risk families", "Report/export", "Higher scan/report limits", "Organisation-scoped review history", "Policy-aware review focus", "Decision and outcome memory", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Business monthly", href: "https://buy.stripe.com/eVq6oK3zJbJf36c9B83AY00" },
       { label: "Start Business annual", href: "https://buy.stripe.com/dRm5kGc6f3cJbCI3cK3AY01" },
@@ -42,10 +42,10 @@ const plans: Plan[] = [
     name: "Executive",
     price: "£99/month",
     annual: "£990/year",
-    description: "For leadership teams needing stronger reporting discipline and review cadence.",
+    description: "For leadership teams needing stronger reporting discipline, tolerance comparison, and decision records.",
     cta: "Choose Executive",
     href: "/dashboard",
-    features: ["Everything in Business", "Higher usage limits", "Executive reporting focus", "Leadership review cadence", "Stronger decision support", "AI Review Notes"],
+    features: ["Everything in Business", "Higher usage limits", "Executive governance reporting", "Leadership review cadence", "Tolerance and decision support", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Executive monthly", href: "https://buy.stripe.com/14A9AW7PZ6oVdKQfZw3AY02" },
       { label: "Start Executive annual", href: "https://buy.stripe.com/6oU9AWdaj7sZ8qw3cK3AY03" },
@@ -55,10 +55,10 @@ const plans: Plan[] = [
     name: "Enterprise",
     price: "£299/month",
     annual: "£2,990/year",
-    description: "For heavier review workflows, tailored limits, onboarding, or invoice-based access.",
+    description: "For heavier review workflows, tailored limits, onboarding, governance discussion, or invoice-based access.",
     cta: "Contact Enterprise",
     href: "mailto:enterprise@voxarisk.com?subject=VoxaRisk%20Enterprise",
-    features: ["Custom usage limits", "Governed deployment discussion", "Procurement/security review", "Commercial onboarding", "Enterprise terms", "AI Review Notes"],
+    features: ["Custom usage limits", "Governed deployment discussion", "Procurement/security review", "Commercial governance onboarding", "Enterprise terms", "AI Review Notes"],
     checkoutOptions: [
       { label: "Start Enterprise monthly", href: "https://buy.stripe.com/fZu14q5HRaFb22828G3AY04" },
       { label: "Start Enterprise annual", href: "https://buy.stripe.com/dRm4gCc6f9B7eOUbJg3AY05" },
@@ -67,9 +67,9 @@ const plans: Plan[] = [
 ];
 
 const upgradeReasons = [
-  { title: "Full reports", body: "Move beyond summary signal into clause evidence and executive-ready output." },
-  { title: "Review discipline", body: "Prioritise what to redline before approval momentum builds." },
-  { title: "Commercial repeatability", body: "Use the same structured method across recurring contract review." },
+  { title: "Full reports", body: "Move beyond summary signal into clause evidence, tolerance comparison, and executive-ready output." },
+  { title: "Review discipline", body: "Prioritise what to redline, escalate, accept, or document before approval momentum builds." },
+  { title: "Commercial repeatability", body: "Use the same structured method across recurring contract review, decision history, and audit-ready records." },
 ];
 
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -158,14 +158,14 @@ export default function PricingPage() {
           <div className="flex flex-col justify-center">
             <Eyebrow>Public pricing</Eyebrow>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.055em] text-neutral-950 md:text-5xl">
-              Pricing for disciplined contract risk intelligence.
+              Pricing for Contract Risk Decision Intelligence.
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
               Select the review level your contracts demand — from basic signal testing to executive-grade risk reports, negotiation priorities, and governed AI review notes.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              {["Evidence-backed findings", "Negotiation priority stack", "Report-ready executive output"].map((item) => (
+              {["Evidence-backed findings", "Tolerance comparison", "Audit-ready review records"].map((item) => (
                 <span key={item} className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-4 py-2 text-xs font-semibold text-neutral-950">
                   {item}
                 </span>
@@ -173,7 +173,7 @@ export default function PricingPage() {
             </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Open Dashboard</Link>
+              <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Analyse a contract</Link>
               <Link href="/" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">Back to Home</Link>
             </div>
           </div>
@@ -181,10 +181,10 @@ export default function PricingPage() {
           <aside className="flex h-full flex-col justify-center rounded-[1.5rem] border border-[#d8c49e] bg-[#fbf3e5] p-7 shadow-[0_16px_36px_rgba(75,55,25,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">Why teams upgrade</div>
             <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
-              Turn early signal into disciplined commercial action.
+              Turn contract risk signals into disciplined commercial decisions.
             </h2>
             <p className="mt-5 text-sm leading-7 text-neutral-700">
-              Paid tiers support full findings, clause evidence, negotiation focus, and report-ready output that can travel to decision-makers.
+              Paid tiers support full findings, clause evidence, policy-aware review, decision history, and report-ready output that can travel to decision-makers.
             </p>
           </aside>
         </div>
@@ -205,7 +205,7 @@ export default function PricingPage() {
             <div className="mb-5 px-2">
               <Eyebrow>Pricing</Eyebrow>
               <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-neutral-950">
-                Choose the review cadence that matches your risk exposure.
+                Choose the decision-intelligence level that matches your risk exposure.
               </h2>
             </div>
             <div className="grid gap-4 xl:grid-cols-4">
@@ -219,19 +219,19 @@ export default function PricingPage() {
         <section className="mt-6 rounded-[1.5rem] border border-[#d8c49e] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(75,55,25,0.06)]">
           <Eyebrow>Enterprise and team deployment</Eyebrow>
           <h2 className="mt-4 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
-            Enterprise is for governed organisation deployment.
+            Enterprise is for governed organisation risk memory and decision records.
           </h2>
           <p className="mt-5 max-w-[1040px] text-sm leading-7 text-neutral-700">
-            Enterprise is designed for firms, consultants, commercial teams, and organisations that need governed contract-risk review across more than one stakeholder. Access can be configured through controlled onboarding after subscription confirmation, including organisation-level usage expectations, billing review, and deployment requirements.
+            Enterprise is designed for firms, consultants, commercial teams, and organisations that need governed contract-risk review across more than one stakeholder. Access can be configured through controlled onboarding after subscription confirmation, including organisation-level usage expectations, policy posture, billing review, and deployment requirements.
           </p>
 
           <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             {[
               "Organisation-oriented access configuration",
-              "Higher-volume review workflows",
+              "Higher-volume decision workflows",
               "Controlled onboarding for firms and teams",
-              "Procurement, billing, or security review discussion",
-              "Suitable for solicitor firms, consultants, commercial teams, and internal review groups",
+              "Procurement, billing, policy, or security review discussion",
+              "Suitable for consultants, commercial teams, procurement teams, and internal review groups",
             ].map((item) => (
               <div
                 key={item}
@@ -246,7 +246,7 @@ export default function PricingPage() {
         <section className="mt-6 rounded-[1.25rem] border border-[#dccaad] bg-[#fffaf0] px-6 py-5 shadow-[0_10px_24px_rgba(75,55,25,0.05)]">
           <div className="max-w-[1180px] text-sm leading-7 text-neutral-700">
             <span className="font-semibold text-neutral-950">Plan logic:</span>{" "}
-            Free validates signal. Business is the default commercial plan. Executive and Enterprise support higher-volume leadership and governed deployment.
+            Free validates signal. Business is the default commercial plan. Executive and Enterprise support higher-volume leadership review, policy-aware governance, and controlled deployment.
           </div>
           <div className="mt-4">
             <Link
@@ -262,7 +262,7 @@ export default function PricingPage() {
           <div className="max-w-[980px]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8a6a34]">Decision boundary</div>
             <p className="mt-4 text-sm leading-7 text-neutral-700">
-              VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
+              VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
             </p>
           </div>
         </section>

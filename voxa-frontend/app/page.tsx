@@ -3,40 +3,81 @@ import Link from "next/link";
 import DesktopDisclosure from "./desktop-disclosure";
 import SiteHeader from "./site-header";
 import SiteFooter from "./site-footer";
+
 const trustPillars = [
   {
-    title: "Evidence-backed risk signals",
-    body: "Surface structural exposure, clause-level leverage, and matched evidence before approval momentum narrows the room to respond.",
+    title: "Cross-clause exposure analysis",
+    body: "Identify clause combinations where ordinary-looking terms create stronger hidden exposure when read together.",
   },
   {
-    title: "Prioritised review focus",
-    body: "Turn dense contract wording into a disciplined review order so teams know what deserves attention first.",
+    title: "Policy-aware review posture",
+    body: "Compare findings against organisation tolerance so teams can see what exceeds policy, conflicts with policy, or needs a documented exception.",
   },
   {
-    title: "Report-ready output",
-    body: "Convert detected issues into decision posture, negotiation priorities, clause evidence, and printable executive output.",
+    title: "Audit-ready decision record",
+    body: "Preserve review evidence, decision notes, escalation outcomes, and recurring risk families for future commercial governance.",
   },
 ];
 
 const bestFitGroups = [
-  "Founders and operators reviewing exposure before signature pressure builds",
-  "Commercial leaders prioritising negotiation focus and approval discipline",
-  "In-house teams triaging contract issues before deeper legal review",
-  "Business users needing structured review support without a raw rule dump",
+  "Founders and directors reviewing exposure before signature pressure builds",
+  "Procurement and commercial teams comparing risk against internal tolerance",
+  "Operators and consultants who need repeatable contract risk governance",
+  "In-house teams triaging escalation points before deeper professional review",
 ];
 
 const workflowSteps = [
   {
     title: "Detect",
-    body: "Scan contract text for clause structures that can shift cost, control, leverage, downside exposure, or dispute forum and governing-law risk.",
+    body: "Surface clause-level risk signals and linked evidence across liability, indemnity, data use, termination, payment, suspension, jurisdiction, and related risk families.",
   },
   {
-    title: "Prioritise",
-    body: "Rank exposure into a practical review order with confidence cues and clause-linked evidence.",
+    title: "Interpret",
+    body: "Apply cross-clause intelligence, commercial context, and organisation policy so risk is framed as decision-ready exposure rather than a raw clause list.",
   },
   {
-    title: "Decide",
-    body: "Use the output to focus negotiation, internal escalation, and professional review where appropriate.",
+    title: "Record",
+    body: "Capture whether issues were accepted, negotiated, escalated, rejected, or sent for legal review so future teams do not start from zero.",
+  },
+];
+
+const crossClauseExamples = [
+  "Low liability cap + broad indemnity",
+  "Termination for convenience + no refund",
+  "Broad data use + weak confidentiality",
+  "Upfront payment + suspension rights",
+];
+
+const intelligenceSections = [
+  {
+    eyebrow: "Cross-clause intelligence",
+    title: "Cross-clause intelligence for hidden commercial exposure",
+    body: "VoxaRisk does not only detect isolated clauses. It identifies combinations where ordinary-looking terms create stronger exposure together, helping teams spot hidden cap, refund, data, and continuity risk before approval.",
+  },
+  {
+    eyebrow: "Organisation memory",
+    title: "From one-off review to organisational memory",
+    body: "Each review can become part of the organisation's risk memory, helping teams retrieve previous reviews, see recurring risk families, and avoid starting from zero on every contract.",
+  },
+  {
+    eyebrow: "Tolerance and policy",
+    title: "See not only what is risky - see whether it exceeds your policy",
+    body: "VoxaRisk can compare findings against organisation policy and tolerance settings, then show whether a finding exceeds tolerance, conflicts with policy, sits within configured tolerance, or remains policy-unknown.",
+  },
+  {
+    eyebrow: "Decision memory",
+    title: "Capture the decision, not just the detection",
+    body: "Teams can record whether risks were accepted, negotiated, escalated, rejected, waived, redlined, or sent for legal review, creating an audit-ready history of commercial judgement.",
+  },
+  {
+    eyebrow: "Executive governance",
+    title: "Built for commercial governance, not casual document checking",
+    body: "VoxaRisk is designed for founders, directors, procurement teams, operators, consultants, and commercial reviewers who need structured risk intelligence before signing.",
+  },
+  {
+    eyebrow: "Review boundary",
+    title: "Decision support, not legal advice",
+    body: "VoxaRisk helps teams focus review, document decisions, identify escalation points, and support professional or legal review where needed. It does not provide legal advice, legal opinion, contract approval, or compliance certification.",
   },
 ];
 
@@ -58,16 +99,16 @@ export default function HomePage() {
       <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
         <div className="grid gap-8 rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
           <div className="flex min-h-[430px] flex-col justify-center">
-            <Eyebrow>Public overview</Eyebrow>
+            <Eyebrow>Contract risk governance</Eyebrow>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.055em] text-neutral-950 md:text-5xl">
-              Executive-grade contract risk intelligence for disciplined commercial review.
+              Contract Risk Decision Intelligence for Commercial Leaders
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-              VoxaRisk provides automated contract risk intelligence and decision-support observations for teams reviewing contract exposure, negotiation posture, and report-ready output before final approval decisions are made.
+              VoxaRisk helps organisations detect hidden contract exposure, compare risks against internal tolerance, preserve decision history, and turn contract review into a repeatable governance process.
             </p>
 
             <div className="mt-7 flex flex-wrap gap-3">
-              {["Evidence-backed risk signals", "Prioritised review focus", "Report-ready output"].map((item) => (
+              {["Cross-clause intelligence", "Organisation memory", "Policy-aware review", "Audit-ready records"].map((item) => (
                 <span key={item} className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-4 py-2 text-xs font-semibold text-neutral-950">
                   {item}
                 </span>
@@ -76,10 +117,13 @@ export default function HomePage() {
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
-                Open Dashboard
+                Analyse a contract
+              </Link>
+              <Link href="/dashboard" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">
+                View decision dashboard
               </Link>
               <Link href="/pricing" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">
-                View Pricing
+                Start contract risk review
               </Link>
             </div>
           </div>
@@ -90,14 +134,14 @@ export default function HomePage() {
                 Decision boundary
               </div>
               <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
-                Executive clarity without pretending to decide for you.
+                Executive contract risk intelligence without pretending to decide for you.
               </h2>
               <p className="mt-5 text-sm leading-7 text-neutral-700">
-                Use VoxaRisk to strengthen review discipline, surface evidence, and focus negotiation before approval pressure builds.
+                Use VoxaRisk to strengthen review posture, preserve evidence, compare against tolerance, and document the commercial decision path before approval pressure builds.
               </p>
             </div>
             <p className="mt-8 rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-5 text-sm leading-7 text-neutral-700">
-              VoxaRisk provides automated contract risk intelligence and decision-support observations. It does not provide legal advice, legal opinion, contract approval, or a guarantee of compliance. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
+              VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
             </p>
           </aside>
         </div>
@@ -107,9 +151,9 @@ export default function HomePage() {
         <div className="space-y-8">
           <DesktopDisclosure
             id="product"
-            eyebrow="Why VoxaRisk exists"
-            title="Structured contract risk intelligence for commercial review."
-            intro="VoxaRisk is designed for executive and commercial users who need a fast exposure view before a contract moves deeper into internal approval or external negotiation."
+            eyebrow="Decision intelligence engine"
+            title="Structured contract risk intelligence for commercial governance."
+            intro="VoxaRisk turns contract review into a governed decision process: detect risk, interpret clause interactions, compare against tolerance, preserve history, and record what happened next."
             defaultDesktopOpen
             className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
           >
@@ -129,9 +173,9 @@ export default function HomePage() {
 
           <DesktopDisclosure
             id="fit"
-            eyebrow="Decision discipline"
-            title="For commercial teams that need clarity before escalation."
-            intro="Use the platform to improve review discipline, strengthen approval consistency, and focus escalation only where the consequence warrants it."
+            eyebrow="Commercial governance"
+            title="For teams that need decision-ready review before escalation."
+            intro="Use the platform to improve approval consistency, identify escalation points, and keep a defensible record of contract risk decisions."
             className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
           >
             <div className="space-y-3">
@@ -145,21 +189,16 @@ export default function HomePage() {
         </div>
 
         <DesktopDisclosure
-          eyebrow="AI-assisted, evidence-governed"
-          title="AI, governed by evidence rather than guesswork."
-          intro="VoxaRisk uses deterministic risk detection first, then applies AI as a controlled explanation layer for eligible plans. The underlying score, severity, findings, and evidence remain engine-governed; AI does not override the score."
+          eyebrow="Clause interaction"
+          title="Cross-clause intelligence for hidden commercial exposure"
+          intro="Important exposure often sits between clauses rather than inside one clause. VoxaRisk identifies combinations where the practical risk is stronger than each term looks in isolation."
           className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            {[
-              "Deterministic findings",
-              "AI explanation",
-              "Evidence-backed notes",
-              "Legal boundary preserved",
-            ].map((item) => (
+            {crossClauseExamples.map((item) => (
               <div
                 key={item}
-                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-3 text-center text-[13px] font-medium leading-6 text-neutral-800 xl:whitespace-nowrap"
+                className="rounded-[1rem] border border-[#e0d1b7] bg-[#fbf3e5] px-4 py-4 text-center text-[13px] font-medium leading-6 text-neutral-800"
               >
                 {item}
               </div>
@@ -169,9 +208,9 @@ export default function HomePage() {
 
         <DesktopDisclosure
           id="workflow"
-          eyebrow="From Detection to Decision"
-          title="From Detection to Decision"
-          intro="The product turns clause-level signals into a disciplined commercial review sequence so teams can move from scan to decision with a clearer evidence trail."
+          eyebrow="From detection to decision record"
+          title="From contract signal to governed decision path"
+          intro="The product turns clause-level evidence, context, tolerance, and prior outcomes into a structured review sequence commercial teams can act on and audit later."
           className="mt-8 rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)]"
         >
           <div className="grid gap-8 lg:grid-cols-2 lg:items-stretch">
@@ -194,21 +233,21 @@ export default function HomePage() {
 
             <section className="flex h-full flex-col rounded-[1.15rem] border border-[#e0d1b7] bg-[#fcf6ec] p-6">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                What the report shows
+                What the review record supports
               </div>
               <div className="mt-5 flex flex-1 flex-col gap-4">
                 <div className="rounded-[1rem] border border-[#e0d1b7] bg-[#fffdf8] p-5">
                   <p className="text-sm leading-7 text-neutral-700">
-                    Use the report to read the decision signal, inspect the evidence, and escalate material exposure.
+                    Use the output to read the decision posture, inspect evidence, compare tolerance, document open issues, and escalate material exposure.
                   </p>
                 </div>
 
                 <div className="grid gap-3 md:grid-cols-2">
                   {[
-                    "Read the decision signal first",
                     "Inspect clause evidence",
+                    "Compare against tolerance",
                     "Prioritise redlines",
-                    "Escalate where consequence warrants",
+                    "Record the outcome",
                   ].map((item) => (
                     <div
                       key={item}
@@ -225,16 +264,16 @@ export default function HomePage() {
                       Escalation triggers
                     </div>
                     <p className="mt-3 text-sm leading-6 text-neutral-700">
-                      Escalate when the scan surfaces uncapped liability, broad indemnity, unilateral price movement, suspension rights, unusual jurisdiction, weak termination protection, or repeated high-priority findings across the same contract.
+                      Escalate when exposure exceeds tolerance, conflicts with policy, creates operational dependency, leaves unresolved evidence, or follows a risk family your organisation has previously escalated.
                     </p>
                   </div>
 
                   <div className="rounded-[1rem] border border-[#d2bd96] bg-[#fbf3e5] p-5">
                     <div className="text-[10px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                      Product boundaries
+                      Governance boundary
                     </div>
                     <p className="mt-3 text-sm leading-6 text-neutral-700">
-                      VoxaRisk supports disciplined review and evidence-led escalation. It does not replace commercial judgment, legal advice, or approval accountability.
+                      VoxaRisk supports commercial review, escalation discipline, and decision records. It does not replace legal advice, commercial judgement, or approval accountability.
                     </p>
                   </div>
                 </div>
@@ -242,6 +281,22 @@ export default function HomePage() {
             </section>
           </div>
         </DesktopDisclosure>
+
+        <section className="mt-8 grid gap-4 lg:grid-cols-2">
+          {intelligenceSections.map((section) => (
+            <article key={section.title} className="rounded-[1.5rem] border border-[#dfd0b6] bg-[#fffdf8] p-6 shadow-[0_16px_40px_rgba(75,55,25,0.07)]">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
+                {section.eyebrow}
+              </div>
+              <h2 className="mt-4 text-2xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
+                {section.title}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-neutral-700">
+                {section.body}
+              </p>
+            </article>
+          ))}
+        </section>
       </section>
     </main>
       <SiteFooter />
