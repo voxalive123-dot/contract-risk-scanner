@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
-import { InternalShell, Panel } from "../internal-ui";
+import { InternalBlockedState, InternalShell, Panel } from "../internal-ui";
 
 type UserProfile = {
   legal_identity?: { first_name?: string | null; last_name?: string | null };
@@ -20,11 +20,19 @@ type User = {
 };
 
 type UsersPayload = { users?: User[] };
+type BlockedReason = "signin" | "restricted" | null;
+
+function blockedReasonFromStatus(status: number): BlockedReason {
+  if (status === 401) return "signin";
+  if (status === 403) return "restricted";
+  return "signin";
+}
 
 export default function InternalUsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("Loading users...");
+  const [blockedReason, setBlockedReason] = useState<BlockedReason>(null);
   const [testerEmail, setTesterEmail] = useState("");
   const [testerPlan, setTesterPlan] = useState("executive");
   const [testerDays, setTesterDays] = useState("14");
@@ -32,27 +40,36 @@ export default function InternalUsersPage() {
   async function loadUsers(q = "") {
     const suffix = q ? `?search=${encodeURIComponent(q)}` : "";
     const response = await fetch(`/api/internal/ops/users${suffix}`, { cache: "no-store" });
-    if (!response.ok) throw new Error("users_unavailable");
+    if (!response.ok) {
+      const reason = blockedReasonFromStatus(response.status);
+      throw new Error(reason ?? "signin");
+    }
     const data: UsersPayload = await response.json();
     setUsers(data.users ?? []);
     setMessage("");
+    setBlockedReason(null);
   }
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/internal/ops/users", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("users_unavailable");
+        if (!response.ok) {
+          const reason = blockedReasonFromStatus(response.status);
+          throw new Error(reason ?? "signin");
+        }
         return response.json() as Promise<UsersPayload>;
       })
       .then((data) => {
         if (cancelled) return;
         setUsers(data.users ?? []);
         setMessage("");
+        setBlockedReason(null);
       })
-      .catch(() => {
+      .catch((error: Error) => {
         if (cancelled) return;
-        setMessage("Internal users are unavailable for this account.");
+        setBlockedReason(error.message === "restricted" ? "restricted" : "signin");
+        setMessage("");
       });
     return () => { cancelled = true; };
   }, []);
@@ -98,7 +115,8 @@ export default function InternalUsersPage() {
   return (
     <InternalShell eyebrow="User management" title="Users, identity, and access state.">
       {message && <div className="mt-6 rounded-xl border border-[#d8c49e] bg-[#fbf3e5] p-5 text-sm text-neutral-700">{message}</div>}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
+      {blockedReason && <InternalBlockedState reason={blockedReason} />}
+      {!blockedReason && <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
         <Panel title="User search">
           <div className="mt-5 flex gap-3">
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email" className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
@@ -120,7 +138,7 @@ export default function InternalUsersPage() {
             <p className="text-xs leading-6 text-neutral-600">Tester grants are labelled owner grants, expire through backend entitlement checks, and do not enter revenue metrics.</p>
           </form>
         </Panel>
-      </div>
+      </div>}
     </InternalShell>
   );
 }

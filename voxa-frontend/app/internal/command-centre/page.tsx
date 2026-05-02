@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { InternalShell, Metric, Panel } from "../internal-ui";
+import { InternalBlockedState, InternalShell, Metric, Panel } from "../internal-ui";
 
 type OrgOverview = { total_organizations: number; active_organizations: number };
 type Summary = {
@@ -15,25 +15,39 @@ type Summary = {
   revenue_summary: { amount_paid_minor_units: number; source: string; available: boolean; estimated: boolean };
 };
 
+type BlockedReason = "signin" | "restricted" | null;
+
+function blockedReasonFromStatus(status: number): BlockedReason {
+  if (status === 401) return "signin";
+  if (status === 403) return "restricted";
+  return "signin";
+}
+
 export default function CommandCentrePage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [message, setMessage] = useState("Loading command centre...");
+  const [blockedReason, setBlockedReason] = useState<BlockedReason>(null);
 
   useEffect(() => {
     let cancelled = false;
     fetch("/api/internal/ops/summary", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error("summary_unavailable");
+        if (!response.ok) {
+          const reason = blockedReasonFromStatus(response.status);
+          throw new Error(reason ?? "signin");
+        }
         return response.json() as Promise<Summary>;
       })
       .then((data) => {
         if (cancelled) return;
         setSummary(data);
         setMessage("");
+        setBlockedReason(null);
       })
-      .catch(() => {
+      .catch((error: Error) => {
         if (cancelled) return;
-        setMessage("Internal command centre is unavailable for this account.");
+        setBlockedReason(error.message === "restricted" ? "restricted" : "signin");
+        setMessage("");
       });
     return () => { cancelled = true; };
   }, []);
@@ -41,6 +55,7 @@ export default function CommandCentrePage() {
   return (
     <InternalShell eyebrow="Executive overview" title="Business control, not guesswork.">
       {message && <div className="mt-6 rounded-xl border border-[#d8c49e] bg-[#fbf3e5] p-5 text-sm text-neutral-700">{message}</div>}
+      {blockedReason && <InternalBlockedState reason={blockedReason} />}
       {summary !== null && (
         <div className="mt-8 space-y-6">
           <div className="grid gap-4 md:grid-cols-4 xl:grid-cols-6">
@@ -53,8 +68,8 @@ export default function CommandCentrePage() {
           </div>
           <div className="grid gap-6 lg:grid-cols-3">
             <Panel title="Recent users"><div className="mt-4 space-y-3">{summary.recent_users.map((user) => <div key={user.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{user.email}</div><div className="text-neutral-600">{user.organization_name ?? "No org"} / {user.account_status}</div></div>)}</div></Panel>
-            <Panel title="Recent scans"><div className="mt-4 space-y-3">{summary.recent_scans.map((scan) => <div key={scan.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{scan.request_id}</div><div className="text-neutral-600">Score {scan.risk_score} / {scan.created_at ?? "?"}</div></div>)}</div></Panel>
-            <Panel title="Recent actions"><div className="mt-4 space-y-3">{summary.recent_actions.map((action) => <div key={action.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{action.action_type}</div><div className="text-neutral-600">{action.target_type} / {action.created_at ?? "?"}</div></div>)}</div></Panel>
+            <Panel title="Recent scans"><div className="mt-4 space-y-3">{summary.recent_scans.map((scan) => <div key={scan.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{scan.request_id}</div><div className="text-neutral-600">Score {scan.risk_score} / {scan.created_at ?? "-"}</div></div>)}</div></Panel>
+            <Panel title="Recent actions"><div className="mt-4 space-y-3">{summary.recent_actions.map((action) => <div key={action.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{action.action_type}</div><div className="text-neutral-600">{action.target_type} / {action.created_at ?? "-"}</div></div>)}</div></Panel>
           </div>
         </div>
       )}

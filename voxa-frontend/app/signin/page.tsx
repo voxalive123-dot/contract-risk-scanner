@@ -7,6 +7,13 @@ import PasswordInput from "../password-input";
 import SiteHeader from "../site-header";
 import SiteFooter from "../site-footer";
 
+function safeNextPath(): string {
+  if (typeof window === "undefined") return "/account";
+  const next = new URLSearchParams(window.location.search).get("next") ?? "";
+  if (!next.startsWith("/") || next.startsWith("//")) return "/account";
+  return next;
+}
+
 function Eyebrow({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">
@@ -41,7 +48,7 @@ export default function SignInPage() {
         return;
       }
 
-      window.location.href = "/account";
+      window.location.href = safeNextPath();
     } catch (error) {
       setMessage(`Sign in could not be completed. ${String(error)}`);
     } finally {

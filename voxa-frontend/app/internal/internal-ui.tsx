@@ -7,3 +7,22 @@ export function InternalShell({ title, eyebrow, children }: { title: string; eye
 
 export function Metric({ label, value, detail }: { label: string; value: React.ReactNode; detail?: string }) { return <div className="rounded-xl border border-[#d8c49e] bg-[#fbf3e5] p-4"><div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8a6a34]">{label}</div><div className="mt-2 text-2xl font-semibold text-neutral-950">{value}</div>{detail && <div className="mt-2 text-xs leading-5 text-neutral-600">{detail}</div>}</div>; }
 export function Panel({ title, children }: { title: string; children: React.ReactNode }) { return <section className="rounded-[1.25rem] border border-[#d8c49e] bg-[#fbf3e5] p-6"><div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">{title}</div>{children}</section>; }
+
+
+export const OWNER_SIGNIN_HREF = "/signin?next=/internal/command-centre";
+
+export function InternalBlockedState({ reason }: { reason: "signin" | "restricted" }) {
+  const message = reason === "restricted"
+    ? "This area is restricted to VoxaRisk owner/internal staff."
+    : "Sign in with a VoxaRisk owner/internal account to open the command centre.";
+
+  return (
+    <section className="mt-6 rounded-[1.25rem] border border-[#d8c49e] bg-[#fbf3e5] p-6">
+      <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Access required</div>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-700">{message}</p>
+      <Link href={OWNER_SIGNIN_HREF} className="mt-5 inline-flex rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
+        Sign in as owner
+      </Link>
+    </section>
+  );
+}
