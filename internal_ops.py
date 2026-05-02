@@ -35,6 +35,9 @@ from models import (
 from platform_owner import (
     choose_canonical_platform_org,
     is_platform_like_org_name,
+    is_platform_owner_email,
+    owner_email,
+    platform_owner_emails,
     platform_owner_membership_statuses,
 )
 from account_dashboard import set_user_account_state
@@ -62,9 +65,8 @@ def _serialize_dt(value: Any) -> str | None:
     return value.isoformat() if value is not None else None
 
 
-def platform_owner_email() -> str | None:
-    raw = os.getenv("PLATFORM_OWNER_EMAIL", "").strip().lower()
-    return raw or None
+def platform_owner_email() -> str:
+    return owner_email()
 
 
 def _env_emails(name: str) -> set[str]:
@@ -73,10 +75,7 @@ def _env_emails(name: str) -> set[str]:
 
 
 def internal_staff_roles() -> dict[str, set[str]]:
-    owner_email = platform_owner_email()
-    owners = _env_emails("INTERNAL_OWNER_EMAILS")
-    if owner_email:
-        owners.add(owner_email)
+    owners = _env_emails("INTERNAL_OWNER_EMAILS") | platform_owner_emails()
     managers = _env_emails("INTERNAL_MANAGER_EMAILS") | _env_emails("INTERNAL_ADMIN_EMAILS")
     assistants = _env_emails("INTERNAL_ASSISTANT_EMAILS")
     return {"owner": owners, "manager": managers, "assistant": assistants}
@@ -90,7 +89,7 @@ def internal_admin_emails() -> set[str]:
 def internal_staff_role_for_context(context: AccountContext) -> str | None:
     email = context.user.email.strip().lower()
     roles = internal_staff_roles()
-    if email in roles["owner"]:
+    if is_platform_owner_email(email) or email in roles["owner"]:
         return "owner"
     if email in roles["manager"]:
         return "manager"
@@ -113,6 +112,10 @@ def require_internal_permission(context: AccountContext, allowed_roles: set[str]
     if role not in allowed_roles:
         raise InternalOpsForbiddenError("Internal staff role is not permitted for this action")
     return role
+
+
+def require_platform_owner_or_internal_admin(context: AccountContext) -> None:
+    require_internal_admin(context)
 
 
 def _current_subscription(db: Session, org_id: uuid.UUID) -> Subscription | None:

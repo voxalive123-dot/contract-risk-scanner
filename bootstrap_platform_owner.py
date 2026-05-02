@@ -9,7 +9,7 @@ from urllib.parse import urlencode
 
 from sqlalchemy import func, select
 
-from account_auth import hash_password
+from account_auth import PASSWORD_ALGORITHM, hash_password
 from account_provisioning import (
     AccountProvisioningError,
     SETUP_TTL_HOURS,
@@ -24,6 +24,7 @@ from platform_owner import (
     canonical_platform_org_name,
     choose_canonical_platform_org,
     owner_email,
+    platform_owner_emails,
 )
 
 DEFAULT_PLAN_LIMIT = 5
@@ -90,6 +91,16 @@ def _single_user_by_email(db, email: str) -> User | None:
     return users[0] if users else None
 
 
+def _password_hash_looks_valid(password_hash: str | None) -> bool:
+    if not password_hash:
+        return False
+    try:
+        algorithm, iterations_raw, salt_raw, digest_raw = password_hash.split("$", 3)
+        return algorithm == PASSWORD_ALGORITHM and int(iterations_raw) > 0 and bool(salt_raw) and bool(digest_raw)
+    except (TypeError, ValueError):
+        return False
+
+
 def _ensure_owner_user(db, *, org: Organization, email: str) -> User:
     user = _single_user_by_email(db, email)
     if user is None:
@@ -100,14 +111,17 @@ def _ensure_owner_user(db, *, org: Organization, email: str) -> User:
             role="owner",
             is_active=True,
         )
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-        return user
+    else:
+        user.org_id = org.id
+        user.role = "owner"
+        user.is_active = True
+        if not _password_hash_looks_valid(user.password_hash):
+            user.password_hash = hash_password(uuid.uuid4().hex)
 
-    user.org_id = org.id
-    user.role = "owner"
-    user.is_active = True
+    user.account_status = "active"
+    user.closure_requested_at = None
+    user.disabled_at = None
+    user.soft_deleted_at = None
     db.add(user)
     db.commit()
     db.refresh(user)
@@ -176,10 +190,17 @@ def bootstrap_platform_owner(
     password: str | None = None,
 ) -> dict:
     normalized_email = (email or owner_email()).strip().lower()
-    if normalized_email != owner_email():
-        raise AccountProvisioningError("Owner bootstrap email must match PLATFORM_OWNER_EMAIL")
+    if normalized_email not in platform_owner_emails():
+        raise AccountProvisioningError("Owner bootstrap email must match a configured platform owner email")
 
     org = resolve_owner_org(db, org_id=org_id, org_name=org_name)
+    existing_user = _single_user_by_email(db, normalized_email)
+    before = {
+        "user_exists": existing_user is not None,
+        "is_active": bool(existing_user.is_active) if existing_user else None,
+        "account_status": getattr(existing_user, "account_status", None) if existing_user else None,
+        "password_hash_valid": _password_hash_looks_valid(existing_user.password_hash) if existing_user else False,
+    }
     user = _ensure_owner_user(db, org=org, email=normalized_email)
     membership = _ensure_owner_membership(db, user=user, org=org)
     _enforce_single_owner_membership(db, membership=membership)
@@ -210,9 +231,24 @@ def bootstrap_platform_owner(
         "credential_status": credential_status,
         "setup_token": None if password is not None else setup_token,
         "setup_url": setup_url,
-        "signin_url": "/signin",
+        "signin_url": "/signin?next=/internal/command-centre",
+        "internal_command_centre_url": "/internal/command-centre",
         "internal_operations_url": "/internal/operations",
-        "authority_notice": "Owner bootstrap creates identity and active organisation membership only; entitlement remains resolver-backed.",
+        "diagnostics": {
+            "before": before,
+            "after": {
+                "user_exists": True,
+                "is_active": bool(user.is_active),
+                "account_status": user.account_status,
+                "disabled_at": None if user.disabled_at is None else user.disabled_at.isoformat(),
+                "closure_requested_at": None if user.closure_requested_at is None else user.closure_requested_at.isoformat(),
+                "soft_deleted_at": None if user.soft_deleted_at is None else user.soft_deleted_at.isoformat(),
+                "membership_status": membership.status,
+                "membership_role": membership.role,
+                "password_hash_valid": _password_hash_looks_valid(user.password_hash),
+            },
+        },
+        "authority_notice": "Owner repair creates or restores only the verified platform owner identity, canonical organisation, active owner membership, and setup credential flow.",
     }
 
 
@@ -230,6 +266,16 @@ def main() -> int:
         "--setup-base-url",
         default="http://localhost:3000/account/setup",
         help="Base URL for the password setup page",
+    )
+    parser.add_argument(
+        "--email",
+        default=None,
+        help="Verified platform owner email to repair. Defaults to PLATFORM_OWNER_EMAIL or admin.dashboard@voxarisk.com",
+    )
+    parser.add_argument(
+        "--repair",
+        action="store_true",
+        help="Explicitly run in repair mode. This is the default safe behavior and is accepted for operator clarity.",
     )
     parser.add_argument(
         "--prompt-password",
@@ -259,6 +305,7 @@ def main() -> int:
             org_id=args.org_id,
             org_name=args.org_name,
             setup_base_url=args.setup_base_url,
+            email=args.email,
             password=password,
         )
         print(json.dumps(payload, indent=2, sort_keys=True))

@@ -23,6 +23,14 @@ def owner_email() -> str:
     return _normalized(os.getenv("PLATFORM_OWNER_EMAIL", DEFAULT_OWNER_EMAIL)) or _normalized(DEFAULT_OWNER_EMAIL)
 
 
+def platform_owner_emails() -> set[str]:
+    emails = {_normalized(DEFAULT_OWNER_EMAIL)}
+    configured = _normalized(os.getenv("PLATFORM_OWNER_EMAIL"))
+    if configured:
+        emails.add(configured)
+    return emails
+
+
 def owner_org_name() -> str:
     raw = os.getenv("PLATFORM_OWNER_ORG_NAME", DEFAULT_OWNER_ORG_NAME).strip()
     return raw or DEFAULT_OWNER_ORG_NAME
@@ -37,7 +45,7 @@ def platform_org_name_aliases() -> set[str]:
 
 
 def is_platform_owner_email(email: str | None) -> bool:
-    return _normalized(email) == owner_email()
+    return _normalized(email) in platform_owner_emails()
 
 
 def is_platform_like_org_name(name: str | None) -> bool:
@@ -50,7 +58,7 @@ def _owner_membership_rows(db: Session, org: Organization) -> list[Membership]:
         .join(User, User.id == Membership.user_id)
         .where(
             Membership.org_id == org.id,
-            func.lower(User.email) == owner_email(),
+            func.lower(User.email).in_(platform_owner_emails()),
         )
     )
     return list(db.execute(stmt).scalars().all())
@@ -171,7 +179,7 @@ def is_platform_owner_account(
             Membership.org_id == canonical_org.id,
             Membership.role == "owner",
             Membership.status == "active",
-            func.lower(User.email) == owner_email(),
+            func.lower(User.email).in_(platform_owner_emails()),
         )
         .limit(1)
     )

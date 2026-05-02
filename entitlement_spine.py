@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from models import Organization, Subscription
 from owner_entitlement_grants import select_active_owner_grant
+from platform_owner import is_platform_owner_account
 from stripe_billing import DEFAULT_PLAN_LIMIT, DEFAULT_PLAN_NAME, PLAN_QUOTAS
 
 
@@ -26,6 +27,8 @@ SUBSCRIPTION_STATES = {
 }
 ENTITLEMENT_GRANTING_STATES = {"active", "trialing", "manual_override"}
 ORGANIZATION_OVERRIDE_STATES = {"restricted", "manual_override"}
+PLATFORM_OWNER_PLAN = "enterprise"
+PLATFORM_OWNER_SCAN_LIMIT = 1_000_000_000
 
 
 @dataclass(frozen=True)
@@ -130,6 +133,21 @@ def resolve_entitlement_for_org(
             ai_review_notes_allowed=False,
             fail_closed=True,
             reason="organization_missing",
+        )
+
+    if is_platform_owner_account(db, user_id=user_id, org_id=str(org.id)):
+        return EntitlementResolution(
+            organization_id=str(org.id),
+            source="platform_owner",
+            subscription_state="owner_bypass",
+            raw_subscription_state=None,
+            plan_name=PLATFORM_OWNER_PLAN,
+            effective_plan=PLATFORM_OWNER_PLAN,
+            monthly_scan_limit=PLATFORM_OWNER_SCAN_LIMIT,
+            paid_access=True,
+            ai_review_notes_allowed=True,
+            fail_closed=False,
+            reason="platform_owner_subscription_billing_quota_bypass",
         )
 
     organization_override = _organization_override_resolution(org)

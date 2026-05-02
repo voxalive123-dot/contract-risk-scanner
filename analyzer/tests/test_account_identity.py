@@ -259,6 +259,109 @@ def test_authenticated_starter_org_remains_non_premium(account_client):
     assert entitlement["ai_review_notes_allowed"] is False
 
 
+def test_platform_owner_bypasses_unpaid_subscription_for_account_internal_and_scans(account_client, monkeypatch):
+    client, session_factory = account_client
+    monkeypatch.delenv("PLATFORM_OWNER_EMAIL", raising=False)
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+    account = create_account(
+        session_factory,
+        plan_name="business",
+        subscription_status="unpaid",
+        email=DEFAULT_OWNER_EMAIL,
+        org_name=DEFAULT_OWNER_ORG_NAME,
+        role="owner",
+        plan_limit=1,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=7)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    account_me = client.get("/account/me", headers={"Authorization": f"Bearer {token}"})
+    account_summary = client.get("/account/summary", headers={"Authorization": f"Bearer {token}"})
+    internal_summary = client.get("/internal/ops/summary", headers={"Authorization": f"Bearer {token}"})
+    scan = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert account_me.status_code == 200
+    assert account_summary.status_code == 200
+    assert internal_summary.status_code == 200
+    assert scan.status_code == 200
+    entitlement = account_me.json()["entitlement"]
+    assert entitlement["source"] == "platform_owner"
+    assert entitlement["subscription_state"] == "owner_bypass"
+    assert entitlement["effective_plan"] == "enterprise"
+    assert entitlement["paid_access"] is True
+    assert entitlement["ai_review_notes_allowed"] is True
+    assert entitlement["monthly_scan_limit"] == 1_000_000_000
+
+
+def test_normal_unpaid_user_still_has_no_owner_bypass_and_hits_quota(account_client):
+    client, session_factory = account_client
+    account = create_account(
+        session_factory,
+        plan_name="business",
+        subscription_status="unpaid",
+        email="unpaid@example.test",
+        role="owner",
+        plan_limit=1,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=5)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    account_me = client.get("/account/me", headers={"Authorization": f"Bearer {token}"})
+    scan = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert account_me.status_code == 200
+    entitlement = account_me.json()["entitlement"]
+    assert entitlement["source"] == "subscription"
+    assert entitlement["subscription_state"] == "unpaid"
+    assert entitlement["paid_access"] is False
+    assert scan.status_code == 429
+    assert scan.json()["detail"]["error"] == "monthly_scan_quota_exceeded"
+
+
+@pytest.mark.parametrize(
+    ("env_name", "email"),
+    [
+        ("INTERNAL_MANAGER_EMAILS", "manager@voxarisk.com"),
+        ("INTERNAL_ASSISTANT_EMAILS", "assistant@voxarisk.com"),
+    ],
+)
+def test_manager_and_assistant_do_not_inherit_owner_subscription_bypass(account_client, monkeypatch, env_name, email):
+    client, session_factory = account_client
+    monkeypatch.setenv(env_name, email)
+    account = create_account(
+        session_factory,
+        plan_name="business",
+        subscription_status="unpaid",
+        email=email,
+        role="owner",
+        plan_limit=1,
+    )
+    create_scan_rows(session_factory, org_id=account["org_id"], count=5)
+    token = login(client, email=account["email"], password=account["password"]).json()["access_token"]
+
+    internal_summary = client.get("/internal/ops/summary", headers={"Authorization": f"Bearer {token}"})
+    account_me = client.get("/account/me", headers={"Authorization": f"Bearer {token}"})
+    scan = client.post(
+        "/account/analyze_detailed",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"text": "Either party may terminate this agreement without notice."},
+    )
+
+    assert internal_summary.status_code == 200
+    entitlement = account_me.json()["entitlement"]
+    assert entitlement["source"] != "platform_owner"
+    assert entitlement["paid_access"] is False
+    assert scan.status_code == 429
+
+
 def test_authenticated_paid_org_gets_premium_only_from_resolver_subscription(account_client):
     client, session_factory = account_client
     account = create_account(

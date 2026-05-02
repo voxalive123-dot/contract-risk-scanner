@@ -175,19 +175,24 @@ def test_internal_admin_access_allowed(internal_ops_client):
 
 
 
-def test_platform_owner_email_grants_internal_ops_without_admin_list(internal_ops_client):
+def test_platform_owner_email_grants_new_and_legacy_internal_ops_without_admin_list(internal_ops_client):
     client, session_factory, monkeypatch = internal_ops_client
-    owner = create_user_org(session_factory, email="admin.dashboard@voxarisk.com")
-    monkeypatch.setenv("PLATFORM_OWNER_EMAIL", "admin.dashboard@voxarisk.com")
+    owner = create_user_org(session_factory, email="admin.dashboard@voxarisk.com", org_name="VoxaRisk Platform")
+    monkeypatch.delenv("PLATFORM_OWNER_EMAIL", raising=False)
     monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
 
-    response = client.get(
+    command_centre = client.get(
+        "/internal/ops/summary",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+    legacy_ops = client.get(
         "/internal/ops/organizations",
         headers={"Authorization": f"Bearer {owner['token']}"},
     )
 
-    assert response.status_code == 200
-    assert response.json()["read_only"] is True
+    assert command_centre.status_code == 200
+    assert legacy_ops.status_code == 200
+    assert legacy_ops.json()["read_only"] is True
 
 
 def test_internal_ops_marks_canonical_and_legacy_platform_orgs(internal_ops_client):
@@ -256,18 +261,22 @@ def test_normal_customer_owner_denied_internal_ops(internal_ops_client):
     assert response.json()["detail"] == "Internal operations access denied: signed-in email is not configured as platform owner or internal admin"
 
 
-def test_internal_ops_requires_configuration(internal_ops_client):
+def test_default_owner_configuration_still_blocks_non_staff_internal_access(internal_ops_client):
     client, session_factory, monkeypatch = internal_ops_client
     admin = create_user_org(session_factory, email="internal@example.test")
     monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+    monkeypatch.delenv("INTERNAL_MANAGER_EMAILS", raising=False)
+    monkeypatch.delenv("INTERNAL_ASSISTANT_EMAILS", raising=False)
 
     response = client.get(
         "/internal/ops/organizations",
         headers={"Authorization": f"Bearer {admin['token']}"},
     )
 
-    assert response.status_code == 503
-    assert response.json()["detail"] == "Internal operations access is not configured"
+    assert response.status_code == 403
+    assert response.json()["detail"] == (
+        "Internal operations access denied: signed-in email is not configured as platform owner or internal admin"
+    )
 
 
 def test_organisations_and_entitlement_summaries_load(internal_ops_client):
