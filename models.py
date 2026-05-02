@@ -85,6 +85,10 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role: Mapped[str] = mapped_column(String(30), nullable=False, server_default="owner")
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, server_default="true")
+    account_status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="active")
+    closure_requested_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    disabled_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    soft_deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
@@ -644,6 +648,74 @@ class AIUsageMeter(Base):
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+
+
+
+class AccountProfile(Base):
+    __tablename__ = "account_profiles"
+    __table_args__ = (
+        UniqueConstraint("user_id", name="uq_account_profiles_user_id"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    org_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    legal_first_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    legal_last_name: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    business_company_name: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    role_title: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    country: Mapped[Optional[str]] = mapped_column(String(120), nullable=True)
+    business_email: Mapped[Optional[str]] = mapped_column(String(320), nullable=True)
+    website: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    address: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    business_category: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    display_name: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    workspace_name: Mapped[Optional[str]] = mapped_column(String(160), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
+    )
+
+
+class BillingInvoice(Base):
+    __tablename__ = "billing_invoices"
+    __table_args__ = (
+        UniqueConstraint("provider", "external_invoice_id", name="uq_billing_invoice_provider_external"),
+    )
+
+    id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
+    org_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("organizations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False, server_default="stripe")
+    external_invoice_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    external_customer_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    external_subscription_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    status: Mapped[str] = mapped_column(String(50), nullable=False, server_default="unknown")
+    amount_due: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    amount_paid: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    currency: Mapped[Optional[str]] = mapped_column(String(10), nullable=True)
+    hosted_invoice_url: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    invoice_pdf: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    invoice_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now()
     )
 
 

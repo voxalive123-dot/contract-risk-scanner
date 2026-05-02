@@ -185,7 +185,8 @@ def _active_membership_for_user(db: Session, user: User) -> Membership:
 
 
 def account_context_for_user(db: Session, user: User) -> AccountContext:
-    if not user.is_active:
+    account_status = getattr(user, "account_status", "active") or "active"
+    if not user.is_active or account_status in {"suspended", "disabled", "closure_requested", "soft_deleted"}:
         raise InvalidCredentialsError("Inactive user")
 
     membership = _active_membership_for_user(db, user)

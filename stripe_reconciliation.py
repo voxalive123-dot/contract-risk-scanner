@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import select
@@ -8,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from models import (
     BillingCustomerReference,
+    BillingInvoice,
     Organization,
     StripeWebhookEvent,
     Subscription,
@@ -112,6 +114,51 @@ def _upsert_billing_customer_reference(
     reference.external_customer_id = customer_id
     if context.get("billing_email"):
         reference.billing_email = context["billing_email"]
+
+
+def _stripe_timestamp(value: Any) -> datetime | None:
+    if value in (None, ""):
+        return None
+    try:
+        return datetime.fromtimestamp(int(value), tz=timezone.utc)
+    except (TypeError, ValueError, OSError):
+        return None
+
+
+def _upsert_invoice(
+    db: Session,
+    *,
+    org: Organization | None,
+    event_type: str,
+    payload_object: dict[str, Any],
+) -> BillingInvoice | None:
+    if not event_type.startswith("invoice."):
+        return None
+    invoice_id = str(payload_object.get("id") or "").strip()
+    if not invoice_id:
+        return None
+
+    stmt = (
+        select(BillingInvoice)
+        .where(BillingInvoice.provider == "stripe", BillingInvoice.external_invoice_id == invoice_id)
+        .limit(1)
+    )
+    invoice = db.execute(stmt).scalars().first()
+    if invoice is None:
+        invoice = BillingInvoice(provider="stripe", external_invoice_id=invoice_id)
+        db.add(invoice)
+
+    invoice.org_id = org.id if org else invoice.org_id
+    invoice.external_customer_id = str(payload_object.get("customer") or "") or None
+    invoice.external_subscription_id = str(payload_object.get("subscription") or "") or None
+    invoice.status = str(payload_object.get("status") or ("paid" if event_type == "invoice.paid" else "unknown"))
+    invoice.amount_due = payload_object.get("amount_due") if isinstance(payload_object.get("amount_due"), int) else None
+    invoice.amount_paid = payload_object.get("amount_paid") if isinstance(payload_object.get("amount_paid"), int) else None
+    invoice.currency = str(payload_object.get("currency") or "").lower() or None
+    invoice.hosted_invoice_url = str(payload_object.get("hosted_invoice_url") or "") or None
+    invoice.invoice_pdf = str(payload_object.get("invoice_pdf") or "") or None
+    invoice.invoice_date = _stripe_timestamp(payload_object.get("created"))
+    return invoice
 
 
 def _upsert_subscription(
@@ -262,6 +309,8 @@ def reconcile_stripe_event(
                     subscription_status=subscription_status,
                     source=event_type,
                 )
+
+    _upsert_invoice(db, org=org, event_type=event_type, payload_object=payload_object)
 
     event_row = StripeWebhookEvent(
         stripe_event_id=event_id,

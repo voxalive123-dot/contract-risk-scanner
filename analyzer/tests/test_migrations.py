@@ -93,6 +93,22 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "previous_state" in decision_audit_columns
     assert "new_state" in decision_audit_columns
 
+    user_columns = table_columns(DB_PATH, "users")
+    assert "account_status" in user_columns
+    assert "closure_requested_at" in user_columns
+    assert "disabled_at" in user_columns
+    assert "soft_deleted_at" in user_columns
+
+    account_profile_columns = table_columns(DB_PATH, "account_profiles")
+    assert "legal_first_name" in account_profile_columns
+    assert "business_company_name" in account_profile_columns
+    assert "display_name" in account_profile_columns
+
+    billing_invoice_columns = table_columns(DB_PATH, "billing_invoices")
+    assert "external_invoice_id" in billing_invoice_columns
+    assert "amount_paid" in billing_invoice_columns
+    assert "invoice_pdf" in billing_invoice_columns
+
     org_columns = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns
     assert "stripe_customer_id" in org_columns
@@ -169,7 +185,7 @@ def test_upgrade_head_on_fresh_db() -> None:
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "e5f6a7b8c9d0"
+        assert row[0] == "f6a7b8c9d0e1"
     finally:
         conn.close()
 
@@ -183,6 +199,9 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "source_title" not in columns_after_downgrade
     assert "context_profile_snapshot" not in columns_after_downgrade
     assert "decision_intelligence_snapshot" not in columns_after_downgrade
+
+    user_columns_after_downgrade = table_columns(DB_PATH, "users")
+    assert "account_status" not in user_columns_after_downgrade
 
     org_columns_after_downgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" not in org_columns_after_downgrade
@@ -215,6 +234,14 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
         )
         assert cur.fetchone() is None
         cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='account_profiles'"
+        )
+        assert cur.fetchone() is None
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='billing_invoices'"
+        )
+        assert cur.fetchone() is None
+        cur.execute(
             "SELECT name FROM sqlite_master WHERE type='table' AND name='scan_notes'"
         )
         assert cur.fetchone() is None
@@ -242,8 +269,16 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "context_profile_snapshot" in columns_after_reupgrade
     assert "decision_intelligence_snapshot" in columns_after_reupgrade
 
+    user_columns_after_reupgrade = table_columns(DB_PATH, "users")
+    assert "account_status" in user_columns_after_reupgrade
+
     org_columns_after_reupgrade = table_columns(DB_PATH, "organizations")
     assert "plan_status" in org_columns_after_reupgrade
+
+    account_profile_columns_after_reupgrade = table_columns(DB_PATH, "account_profiles")
+    assert "legal_first_name" in account_profile_columns_after_reupgrade
+    billing_invoice_columns_after_reupgrade = table_columns(DB_PATH, "billing_invoices")
+    assert "external_invoice_id" in billing_invoice_columns_after_reupgrade
 
     subscription_columns_after_reupgrade = table_columns(DB_PATH, "subscriptions")
     assert "status" in subscription_columns_after_reupgrade

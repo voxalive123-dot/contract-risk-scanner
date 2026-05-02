@@ -22,6 +22,15 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from account_dashboard import (
+    AccountDashboardError,
+    PasswordChangeError,
+    account_summary,
+    change_account_password,
+    request_account_closure,
+    serialize_profile,
+    update_account_profile,
+)
 from account_auth import (
     AccountConfigError,
     InvalidCredentialsError,
@@ -98,6 +107,12 @@ from internal_ops import (
     list_internal_organizations,
     revoke_internal_access_grant,
     revoke_internal_user_pending_invites,
+    get_internal_ops_summary,
+    internal_staff_snapshot,
+    list_internal_audit,
+    list_internal_users,
+    require_internal_permission,
+    run_internal_user_state_action,
     require_internal_admin,
 )
 from internal_workflows import (
@@ -111,7 +126,7 @@ from internal_workflows import (
     restrict_organization,
     workflow_view,
 )
-from models import StripeWebhookEvent
+from models import AccountProfile, StripeWebhookEvent, User
 from owner_entitlement_grants import OwnerGrantError
 from pdf_utils import PdfExtractionError, extract_text_from_pdf
 from platform_owner import is_platform_owner_account
@@ -432,6 +447,45 @@ class AccountBillingPortalRequest(BaseModel):
         return stripped
 
 
+class AccountProfileUpdateRequest(BaseModel):
+    legal_first_name: str | None = None
+    legal_last_name: str | None = None
+    business_company_name: str | None = None
+    role_title: str | None = None
+    country: str | None = None
+    business_email: str | None = None
+    website: str | None = None
+    address: str | None = None
+    business_category: str | None = None
+    display_name: str | None = None
+    workspace_name: str | None = None
+
+
+class AccountChangePasswordRequest(BaseModel):
+    current_password: str = Field(...)
+    new_password: str = Field(...)
+    confirm_password: str = Field(...)
+
+    @field_validator("new_password")
+    @classmethod
+    def validate_new_password(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value) < 12:
+            raise ValueError("new password must be at least 12 characters")
+        return value
+
+
+class AccountClosureRequest(BaseModel):
+    reason: str | None = None
+
+    @field_validator("reason")
+    @classmethod
+    def validate_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:4000] if stripped else None
+
+
 class ScanNoteRequest(BaseModel):
     note: str = Field(...)
     finding_rule_id: str | None = None
@@ -671,6 +725,29 @@ class InternalAccessGrantCreateRequest(BaseModel):
         return value.strip()
 
 
+class InternalTesterCreateRequest(InternalAccessGrantCreateRequest):
+    pass
+
+
+class InternalTesterRevokeRequest(BaseModel):
+    grant_id: str = Field(...)
+    reason: str = Field(...)
+
+    @field_validator("grant_id")
+    @classmethod
+    def validate_grant_id(cls, value: str) -> str:
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError("grant_id is required")
+        return value.strip()
+
+    @field_validator("reason")
+    @classmethod
+    def validate_revoke_reason(cls, value: str) -> str:
+        if not isinstance(value, str) or len(value.strip()) < 8:
+            raise ValueError("a clear revocation reason is required")
+        return value.strip()
+
+
 class TeamInviteCreateRequest(BaseModel):
     email: str = Field(...)
     role: str = Field(default="member")
@@ -810,6 +887,16 @@ def get_internal_admin_ctx(account_ctx=Depends(get_account_ctx)):
             detail="Internal operations access denied: signed-in email is not configured as platform owner or internal admin",
         ) from exc
     return account_ctx
+
+def enforce_internal_permission(account_ctx, allowed_roles: set[str]) -> str:
+    try:
+        return require_internal_permission(account_ctx, allowed_roles)
+    except InternalOpsForbiddenError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Internal staff role is not permitted for this action",
+        ) from exc
+
 
 # ==========================================================
 # HELPERS
@@ -1410,6 +1497,148 @@ def account_password_reset_complete(
         "account": serialize_account_context(context),
     }
 
+@app.get("/internal/ops/summary")
+def internal_ops_summary(
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return get_internal_ops_summary(db)
+
+
+@app.get("/internal/ops/users")
+def internal_ops_users(
+    search: str | None = None,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return list_internal_users(db, search=search)
+
+
+@app.post("/internal/ops/users/{user_id}/suspend")
+def internal_ops_user_suspend(
+    user_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
+    try:
+        return run_internal_user_state_action(db, actor=_internal_ctx, user_id=user_id, action="suspend", reason=request.reason)
+    except (InternalOpsError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/users/{user_id}/reactivate")
+def internal_ops_user_reactivate(
+    user_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
+    try:
+        return run_internal_user_state_action(db, actor=_internal_ctx, user_id=user_id, action="reactivate", reason=request.reason)
+    except (InternalOpsError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/users/{user_id}/disable")
+def internal_ops_user_disable(
+    user_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
+    try:
+        return run_internal_user_state_action(db, actor=_internal_ctx, user_id=user_id, action="disable", reason=request.reason)
+    except (InternalOpsError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/users/{user_id}/soft-delete")
+def internal_ops_user_soft_delete(
+    user_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner"})
+    try:
+        return run_internal_user_state_action(db, actor=_internal_ctx, user_id=user_id, action="soft_delete", reason=request.reason)
+    except (InternalOpsError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/users/{user_id}/reset-link")
+def internal_ops_user_reset_link_by_id(
+    user_id: str,
+    request: InternalWorkflowReasonRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
+    try:
+        user = db.get(User, uuid.UUID(str(user_id)))
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid user id") from exc
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    try:
+        return generate_internal_user_reset_link(db, actor=_internal_ctx, email=user.email, reason=request.reason)
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.get("/internal/ops/audit")
+def internal_ops_audit(
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    return list_internal_audit(db)
+
+
+@app.get("/internal/ops/staff")
+def internal_ops_staff(
+    _internal_ctx=Depends(get_internal_admin_ctx),
+):
+    return internal_staff_snapshot(_internal_ctx)
+
+
+@app.post("/internal/ops/testers/create")
+def internal_ops_testers_create(
+    request: InternalTesterCreateRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner"})
+    try:
+        return create_internal_access_grant(
+            db,
+            actor=_internal_ctx,
+            email=request.email,
+            granted_plan=request.granted_plan,
+            duration_days=request.duration_days,
+            reason=request.reason,
+            scan_quota_override=request.scan_quota_override,
+        )
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/internal/ops/testers/revoke")
+def internal_ops_testers_revoke(
+    request: InternalTesterRevokeRequest,
+    _internal_ctx=Depends(get_internal_admin_ctx),
+    db: Session = Depends(get_db),
+):
+    enforce_internal_permission(_internal_ctx, {"owner"})
+    try:
+        return revoke_internal_access_grant(db, actor=_internal_ctx, grant_id=request.grant_id, reason=request.reason)
+    except OwnerGrantError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
 @app.get("/internal/ops/user-control")
 def internal_ops_user_control_lookup(
     email: str,
@@ -1428,6 +1657,7 @@ def internal_ops_user_control_reset_link(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         return generate_internal_user_reset_link(
             db,
@@ -1445,6 +1675,7 @@ def internal_ops_user_control_revoke_invites(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         return revoke_internal_user_pending_invites(
             db,
@@ -1487,6 +1718,7 @@ def internal_ops_access_grants_create(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner"})
     try:
         return create_internal_access_grant(
             db,
@@ -1508,6 +1740,7 @@ def internal_ops_access_grants_revoke(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner"})
     try:
         return revoke_internal_access_grant(
             db,
@@ -1540,6 +1773,7 @@ def internal_ops_operator_note(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = create_operator_note(
             db,
@@ -1561,6 +1795,7 @@ def internal_ops_invite_cancel(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = cancel_pending_invite(
             db,
@@ -1582,6 +1817,7 @@ def internal_ops_org_restrict(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = restrict_organization(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
     except InternalWorkflowNotFoundError as exc:
@@ -1598,6 +1834,7 @@ def internal_ops_org_reactivate(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = reactivate_organization(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
     except InternalWorkflowNotFoundError as exc:
@@ -1614,6 +1851,7 @@ def internal_ops_org_manual_override(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = manual_override_organization(
             db,
@@ -1638,6 +1876,7 @@ def internal_ops_org_downgrade(
     _internal_ctx=Depends(get_internal_admin_ctx),
     db: Session = Depends(get_db),
 ):
+    enforce_internal_permission(_internal_ctx, {"owner", "manager"})
     try:
         action = downgrade_organization_to_starter(db, actor=_internal_ctx, org_id=org_id, reason=request.reason)
     except InternalWorkflowNotFoundError as exc:
@@ -1758,6 +1997,62 @@ def account_billing_portal(
 @app.get("/account/me")
 def account_me(account_ctx=Depends(get_account_ctx)):
     return serialize_account_context(account_ctx)
+
+
+@app.get("/account/summary")
+def account_dashboard_summary(
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    return account_summary(db, account_ctx)
+
+
+@app.get("/account/profile")
+def account_profile_get(
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    profile = db.execute(select(AccountProfile).where(AccountProfile.user_id == account_ctx.user.id).limit(1)).scalars().first()
+    return {"profile": serialize_profile(profile)}
+
+
+@app.put("/account/profile")
+def account_profile_update(
+    request: AccountProfileUpdateRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return {"profile": update_account_profile(db, account_ctx, request.model_dump())}
+    except AccountDashboardError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/account/change-password")
+def account_change_password(
+    request: AccountChangePasswordRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return change_account_password(
+            db,
+            account_ctx,
+            current_password=request.current_password,
+            new_password=request.new_password,
+            confirm_password=request.confirm_password,
+        )
+    except PasswordChangeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@app.post("/account/closure-request")
+def account_closure_request(
+    request: AccountClosureRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    return request_account_closure(db, account_ctx, reason=request.reason)
 
 
 @app.post("/account/ai/explain")

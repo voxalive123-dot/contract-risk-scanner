@@ -17,7 +17,9 @@ from entitlement_spine import resolve_entitlement_for_org
 from models import (
     AIUsageMeter,
     AccountPasswordToken,
+    AccountProfile,
     BillingCustomerReference,
+    BillingInvoice,
     InternalOperatorAction,
     Membership,
     MonitoringSignal,
@@ -35,6 +37,7 @@ from platform_owner import (
     is_platform_like_org_name,
     platform_owner_membership_statuses,
 )
+from account_dashboard import set_user_account_state
 from owner_entitlement_grants import (
     OwnerGrantError,
     create_owner_entitlement_grant,
@@ -64,21 +67,52 @@ def platform_owner_email() -> str | None:
     return raw or None
 
 
-def internal_admin_emails() -> set[str]:
-    raw = os.getenv("INTERNAL_ADMIN_EMAILS", "")
-    emails = {item.strip().lower() for item in raw.split(",") if item.strip()}
+def _env_emails(name: str) -> set[str]:
+    raw = os.getenv(name, "")
+    return {item.strip().lower() for item in raw.split(",") if item.strip()}
+
+
+def internal_staff_roles() -> dict[str, set[str]]:
     owner_email = platform_owner_email()
+    owners = _env_emails("INTERNAL_OWNER_EMAILS")
     if owner_email:
-        emails.add(owner_email)
-    return emails
+        owners.add(owner_email)
+    managers = _env_emails("INTERNAL_MANAGER_EMAILS") | _env_emails("INTERNAL_ADMIN_EMAILS")
+    assistants = _env_emails("INTERNAL_ASSISTANT_EMAILS")
+    return {"owner": owners, "manager": managers, "assistant": assistants}
+
+
+def internal_admin_emails() -> set[str]:
+    roles = internal_staff_roles()
+    return set().union(*roles.values())
+
+
+def internal_staff_role_for_context(context: AccountContext) -> str | None:
+    email = context.user.email.strip().lower()
+    roles = internal_staff_roles()
+    if email in roles["owner"]:
+        return "owner"
+    if email in roles["manager"]:
+        return "manager"
+    if email in roles["assistant"]:
+        return "assistant"
+    return None
 
 
 def require_internal_admin(context: AccountContext) -> None:
-    allowed = internal_admin_emails()
-    if not allowed:
+    if not internal_admin_emails():
         raise InternalOpsConfigError("Internal operations access is not configured")
-    if context.user.email.strip().lower() not in allowed:
+    if internal_staff_role_for_context(context) is None:
         raise InternalOpsForbiddenError("Account is not an internal platform admin")
+
+
+def require_internal_permission(context: AccountContext, allowed_roles: set[str]) -> str:
+    role = internal_staff_role_for_context(context)
+    if role is None:
+        raise InternalOpsForbiddenError("Account is not an internal platform admin")
+    if role not in allowed_roles:
+        raise InternalOpsForbiddenError("Internal staff role is not permitted for this action")
+    return role
 
 
 def _current_subscription(db: Session, org_id: uuid.UUID) -> Subscription | None:
@@ -840,4 +874,138 @@ def get_internal_organization_detail(db: Session, *, org_id: uuid.UUID | str) ->
             "manual_override_organization",
             "downgrade_organization_to_starter",
         ],
+    }
+
+
+def _profile_snapshot(profile: AccountProfile | None) -> dict[str, Any]:
+    if profile is None:
+        return {
+            "legal_identity": {"first_name": None, "last_name": None, "business_company_name": None, "role_title": None, "country": None},
+            "business_profile": {"business_email": None, "website": None, "address": None, "business_category": None},
+            "display_profile": {"display_name": None, "workspace_name": None},
+        }
+    return {
+        "legal_identity": {
+            "first_name": profile.legal_first_name,
+            "last_name": profile.legal_last_name,
+            "business_company_name": profile.business_company_name,
+            "role_title": profile.role_title,
+            "country": profile.country,
+        },
+        "business_profile": {
+            "business_email": profile.business_email,
+            "website": profile.website,
+            "address": profile.address,
+            "business_category": profile.business_category,
+        },
+        "display_profile": {
+            "display_name": profile.display_name,
+            "workspace_name": profile.workspace_name,
+        },
+    }
+
+
+def get_internal_ops_summary(db: Session) -> dict[str, Any]:
+    org_payload = list_internal_organizations(db)
+    total_users = _count(db, User)
+    active_users = _count(db, User, User.is_active.is_(True), User.account_status == "active")
+    suspended_users = _count(db, User, User.account_status == "suspended")
+    subscription_rows = list(db.execute(select(Subscription).where(Subscription.is_current.is_(True))).scalars().all())
+    subscription_breakdown: dict[str, int] = {"free": 0, "business": 0, "executive": 0, "enterprise": 0}
+    subscription_states: dict[str, int] = {}
+    for subscription in subscription_rows:
+        plan = "free" if subscription.plan_name in {"starter", "free"} else subscription.plan_name
+        subscription_breakdown[plan] = subscription_breakdown.get(plan, 0) + 1
+        subscription_states[subscription.status] = subscription_states.get(subscription.status, 0) + 1
+
+    paid_invoice_total = db.execute(select(func.coalesce(func.sum(BillingInvoice.amount_paid), 0))).scalar_one()
+    return {
+        "staff_roles_enabled": {key: bool(value) for key, value in internal_staff_roles().items()},
+        "users": {
+            "total": total_users,
+            "active": active_users,
+            "suspended": suspended_users,
+            "disabled": _count(db, User, User.account_status == "disabled"),
+            "closure_requested": _count(db, User, User.account_status == "closure_requested"),
+        },
+        "organizations": org_payload["overview"],
+        "subscription_breakdown": subscription_breakdown,
+        "subscription_states": subscription_states,
+        "scan_usage": {"this_month": org_payload["overview"]["scans_this_month"]},
+        "recent_users": list_internal_users(db, limit=8)["users"],
+        "recent_scans": [
+            _recent_scan_snapshot(scan)
+            for scan in db.execute(select(Scan).order_by(Scan.created_at.desc()).limit(8)).scalars().all()
+        ],
+        "recent_actions": _recent_operator_actions(db, limit=12),
+        "revenue_summary": {
+            "source": "stored_stripe_invoices",
+            "amount_paid_minor_units": int(paid_invoice_total or 0),
+            "estimated": False,
+            "available": bool(paid_invoice_total),
+        },
+    }
+
+
+def list_internal_users(db: Session, *, search: str | None = None, limit: int = 100) -> dict[str, Any]:
+    stmt = select(User).order_by(User.created_at.desc()).limit(max(1, min(limit, 200)))
+    if search and search.strip():
+        needle = f"%{search.strip().lower()}%"
+        stmt = select(User).where(func.lower(User.email).like(needle)).order_by(User.created_at.desc()).limit(max(1, min(limit, 200)))
+    users = list(db.execute(stmt).scalars().all())
+    rows: list[dict[str, Any]] = []
+    for user in users:
+        org = db.get(Organization, user.org_id)
+        profile = db.execute(select(AccountProfile).where(AccountProfile.user_id == user.id).limit(1)).scalars().first()
+        entitlement = resolve_entitlement_for_org(db, org, user_id=str(user.id)) if org else None
+        rows.append({
+            **_account_snapshot(user),
+            "account_status": getattr(user, "account_status", "active"),
+            "closure_requested_at": _serialize_dt(getattr(user, "closure_requested_at", None)),
+            "disabled_at": _serialize_dt(getattr(user, "disabled_at", None)),
+            "soft_deleted_at": _serialize_dt(getattr(user, "soft_deleted_at", None)),
+            "organization_name": org.name if org else None,
+            "profile": _profile_snapshot(profile),
+            "subscription": {
+                "effective_plan": entitlement.effective_plan if entitlement else None,
+                "subscription_state": entitlement.subscription_state if entitlement else None,
+                "monthly_scan_limit": entitlement.monthly_scan_limit if entitlement else None,
+            },
+            "usage": {
+                "scan_count": _count(db, Scan, Scan.user_id == user.id),
+                "monthly_scans_used": _current_month_scan_count(db, org_id=user.org_id),
+            },
+        })
+    return {"read_only": True, "users": rows}
+
+
+def get_internal_user(db: Session, *, user_id: str | uuid.UUID) -> User:
+    parsed = user_id if isinstance(user_id, uuid.UUID) else uuid.UUID(str(user_id))
+    user = db.get(User, parsed)
+    if user is None:
+        raise InternalOpsError("User not found")
+    return user
+
+
+def run_internal_user_state_action(db: Session, *, actor: AccountContext, user_id: str, action: str, reason: str) -> dict[str, Any]:
+    user = get_internal_user(db, user_id=user_id)
+    return set_user_account_state(db, actor=actor, user=user, action=action, reason=reason)
+
+
+def list_internal_audit(db: Session, *, limit: int = 100) -> dict[str, Any]:
+    return {"read_only": True, "actions": _recent_operator_actions(db, limit=max(1, min(limit, 200)))}
+
+
+def internal_staff_snapshot(context: AccountContext) -> dict[str, Any]:
+    role = internal_staff_role_for_context(context)
+    return {
+        "user_id": str(context.user.id),
+        "email": context.user.email,
+        "role": role,
+        "permissions": {
+            "read": role in {"owner", "manager", "assistant"},
+            "manage_users": role in {"owner", "manager"},
+            "manage_testers": role == "owner",
+            "manage_staff": role == "owner",
+        },
     }
