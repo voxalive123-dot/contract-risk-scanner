@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { AccountShell, Panel } from "../account-ui";
+import { AccountShell, Panel, formatAccountDateTime } from "../account-ui";
 
 type Scan = { id: string; created_at: string | null; source_title: string | null; severity: string | null; risk_score: number; confidence: number; source_type: string; };
 
@@ -35,7 +35,7 @@ export default function AccountScansPage() {
     </Panel>
     {message && <div className="mt-6 rounded-xl border border-[#d8c49e] bg-[#fbf3e5] p-5 text-sm text-neutral-700">{message}</div>}
     <div className="mt-6 overflow-x-auto rounded-xl border border-[#d8c49e] bg-[#fbf3e5]">
-      <table className="min-w-full text-left text-sm text-neutral-700"><thead className="bg-[#f7ecd8] text-[11px] uppercase tracking-[0.16em] text-[#8a6a34]"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Title</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Report</th></tr></thead><tbody>{filtered.map((scan) => <tr key={scan.id} className="border-t border-[#ead9bb]"><td className="px-4 py-3">{scan.created_at ?? "?"}</td><td className="px-4 py-3 font-semibold text-neutral-950">{scan.source_title ?? "Untitled scan"}</td><td className="px-4 py-3">{scan.severity ?? "unknown"}</td><td className="px-4 py-3">{scan.risk_score}</td><td className="px-4 py-3"><Link href={`/account/scans/${scan.id}`} className="font-semibold text-[#6f5328] underline decoration-[#c6aa72] underline-offset-4">Open</Link></td></tr>)}</tbody></table>
+      <table className="min-w-full text-left text-sm text-neutral-700"><thead className="bg-[#f7ecd8] text-[11px] uppercase tracking-[0.16em] text-[#8a6a34]"><tr><th className="px-4 py-3">Date</th><th className="px-4 py-3">Title</th><th className="px-4 py-3">Severity</th><th className="px-4 py-3">Score</th><th className="px-4 py-3">Report</th></tr></thead><tbody>{filtered.map((scan) => <tr key={scan.id} className="border-t border-[#ead9bb]"><td className="px-4 py-3">{formatAccountDateTime(scan.created_at)}</td><td className="px-4 py-3 font-semibold text-neutral-950">{scan.source_title ?? "Untitled scan"}</td><td className="px-4 py-3">{scan.severity ?? "unknown"}</td><td className="px-4 py-3">{scan.risk_score}</td><td className="px-4 py-3"><Link href={`/account/scans/${scan.id}`} className="font-semibold text-[#6f5328] underline decoration-[#c6aa72] underline-offset-4">Open</Link></td></tr>)}</tbody></table>
     </div>
   </AccountShell>;
 }

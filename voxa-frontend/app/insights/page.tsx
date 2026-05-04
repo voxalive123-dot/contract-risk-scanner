@@ -49,14 +49,14 @@ export default function InsightsPage() {
               Contract Risk Intelligence Insights
             </h1>
             <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-              This section shares executive, non-legal-advice guidance on contract risk decision intelligence, cross-clause exposure, organisation memory, policy-aware review, and audit-ready governance records.
+              This section shares executive guidance on commercial contract risk intelligence, cross-clause exposure, organisation memory, policy-aware review, and audit-ready governance records.
             </p>
           </div>
 
           <div className="flex h-full flex-col justify-center rounded-[1.5rem] border border-[#d8c49e] bg-[#fbf3e5] p-7 shadow-[0_16px_36px_rgba(75,55,25,0.08)]">
             <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">Boundary</div>
             <p className="mt-5 text-sm leading-7 text-neutral-700">
-              VoxaRisk provides contract risk intelligence and decision support, not legal advice.
+              VoxaRisk provides commercial risk intelligence, review triage support, and evidence-led decision records.
             </p>
             <div className="mt-6">
               <Link
@@ -72,7 +72,7 @@ export default function InsightsPage() {
 
       <section className="mx-auto max-w-[1360px] px-6 pb-8 md:px-8">
         <BoundaryNotice>
-          VoxaRisk provides contract risk intelligence and decision support, not legal advice.
+          VoxaRisk provides commercial risk intelligence, review triage support, and evidence-led decision records.
         </BoundaryNotice>
       </section>
 

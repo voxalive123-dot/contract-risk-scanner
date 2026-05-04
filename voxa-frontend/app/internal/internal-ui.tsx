@@ -61,6 +61,14 @@ export function readable(value?: string | null) {
 export function InternalShell({ title, eyebrow, subtitle, children }: { title: string; eyebrow: string; subtitle?: string; children: ReactNode }) {
   const pathname = usePathname();
 
+  async function signOut() {
+    try {
+      await fetch("/api/account/logout", { method: "POST" });
+    } finally {
+      window.location.href = OWNER_SIGNIN_HREF;
+    }
+  }
+
   return (
     <>
       <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
@@ -92,6 +100,13 @@ export function InternalShell({ title, eyebrow, subtitle, children }: { title: s
                   </Link>
                 );
               })}
+              <button
+                type="button"
+                onClick={signOut}
+                className="rounded-xl border border-[#d8c49e] bg-[#fffdf8] px-4 py-2 font-semibold text-neutral-700 transition hover:bg-[#f3e4c6] hover:text-neutral-950"
+              >
+                Sign out
+              </button>
             </nav>
           </div>
         </header>

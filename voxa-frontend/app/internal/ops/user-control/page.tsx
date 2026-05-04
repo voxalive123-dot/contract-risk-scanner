@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { formatDate } from "../../internal-ui";
+
 type UserControlPayload = {
   found: boolean;
   email: string;
@@ -206,7 +208,7 @@ export default function UserControlPage() {
                   {payload.invites.length ? payload.invites.map((invite) => (
                     <div key={invite.id} className="rounded-xl bg-[#fbf5ea] p-3">
                       <p>Status: <strong>{invite.status}</strong> / Role: {invite.role}</p>
-                      <p className="text-neutral-600">Expires: {invite.expires_at || "n/a"}</p>
+                      <p className="text-neutral-600">Expires: {formatDate(invite.expires_at)}</p>
                     </div>
                   )) : <p className="text-neutral-600">No invites found.</p>}
                 </div>
@@ -218,7 +220,7 @@ export default function UserControlPage() {
                   {payload.password_tokens.length ? payload.password_tokens.map((token) => (
                     <div key={token.id} className="rounded-xl bg-[#fbf5ea] p-3">
                       <p>Purpose: {token.purpose} / Status: <strong>{token.status}</strong></p>
-                      <p className="text-neutral-600">Expires: {token.expires_at || "n/a"}</p>
+                      <p className="text-neutral-600">Expires: {formatDate(token.expires_at)}</p>
                     </div>
                   )) : <p className="text-neutral-600">No password tokens found.</p>}
                 </div>

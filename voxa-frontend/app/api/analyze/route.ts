@@ -116,9 +116,9 @@ export async function POST(request: Request) {
       { error: "Unsupported request content type." },
       { status: 400 },
     );
-  } catch (error) {
+  } catch {
     return NextResponse.json(
-      { error: `Proxy failure: ${String(error)}` },
+      { error: "The upload could not be processed right now. Please try again or use pasted contract text." },
       { status: 500 },
     );
   }

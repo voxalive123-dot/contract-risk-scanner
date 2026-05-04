@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { AccountShell, Metric, Panel } from "./account-ui";
+import { AccountShell, Metric, Panel, formatAccountDateTime } from "./account-ui";
 
 type Summary = {
   user: { email: string; account_status: string };
@@ -39,7 +39,7 @@ export default function AccountOverviewPage() {
             <Metric label="Usage" value={`${summary.usage.monthly_scans_used}/${summary.usage.monthly_scan_limit}`} detail="Current monthly scan usage" />
             <Metric label="Remaining" value={summary.usage.scan_limit_remaining} />
             <Metric label="Account" value={summary.user.account_status} detail={summary.membership.status} />
-            <Metric label="Scans" value={summary.usage.total_scans} detail={summary.usage.latest_scan_at ?? "No scans yet"} />
+            <Metric label="Scans" value={summary.usage.total_scans} detail={summary.usage.latest_scan_at ? formatAccountDateTime(summary.usage.latest_scan_at) : "No scans yet"} />
           </div>
           <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <Panel title="Identity and organisation">

@@ -26,6 +26,13 @@ const bestFitGroups = [
   "In-house teams triaging escalation points before deeper professional review",
 ];
 
+const decisionEngineSignals = [
+  { label: "Rules", detail: "Deterministic clause signals" },
+  { label: "Evidence", detail: "Matched wording and context" },
+  { label: "Policy", detail: "Tolerance and escalation posture" },
+  { label: "AI notes", detail: "Secondary explanation only" },
+];
+
 const workflowSteps = [
   {
     title: "Detect",
@@ -140,7 +147,22 @@ export default function HomePage() {
                 Use VoxaRisk to strengthen review posture, preserve evidence, compare against tolerance, and document the commercial decision path before approval pressure builds.
               </p>
             </div>
-            <p className="mt-8 rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-5 text-sm leading-7 text-neutral-700">
+            <div className="mt-8 grid gap-3 sm:grid-cols-2">
+              {decisionEngineSignals.map((signal, index) => (
+                <div key={signal.label} className="rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-4">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#b08d57] bg-[#f6efe1] text-xs font-black text-[#6f5328]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <div>
+                      <div className="text-sm font-semibold text-neutral-950">{signal.label}</div>
+                      <div className="mt-1 text-xs leading-5 text-neutral-600">{signal.detail}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-6 rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-5 text-sm leading-7 text-neutral-700">
               VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
             </p>
           </aside>

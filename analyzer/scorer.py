@@ -239,6 +239,9 @@ _TOP_RISK_STRUCTURAL_RULE_IDS = {
     "cross_termination_no_refund",
     "cross_data_confidentiality_gap",
     "cross_upfront_payment_suspension",
+    "cross_public_sector_supplier_burden",
+    "cross_supplier_performance_financial_exposure",
+    "cross_data_public_authority_disclosure_stack",
 }
 
 _TOP_RISK_MATERIAL_DATA_RULE_IDS = {
@@ -266,6 +269,10 @@ _TOP_RISK_CATEGORY_PRIORITY = {
     "licensing": 1,
     "ip": 4,
     "force_majeure": 3,
+    "delivery": 4,
+    "remedy": 4,
+    "insurance": 2,
+    "governance": 1,
     "audit": 3,
     "survival": 3,
     "restraint": 3,
@@ -424,6 +431,7 @@ _CONTROLLED_INDEMNITY_RULE_IDS = {
     "indemnity_broad",
     "indemnity_one_way",
     "liability_super_cap_carveout",
+    "supplier_broad_indemnity_public_sector",
 }
 
 _TERMINATION_CONVENIENCE_RULE_IDS = {
@@ -453,6 +461,39 @@ _UPFRONT_PAYMENT_RULE_IDS = {
 _SUPPLIER_SUSPENSION_RULE_IDS = {
     "service_suspension_right",
     "weak_sla_service_remedy_suspension",
+}
+
+_PUBLIC_SECTOR_SUPPLIER_BURDEN_RULE_IDS = {
+    "supplier_broad_indemnity_public_sector",
+    "broad_buyer_termination",
+    "delivery_failure_cancellation",
+    "time_is_of_essence_delivery",
+    "cross_contract_set_off",
+    "step_in_cover_cost_recovery",
+    "enhanced_liquidated_damages",
+    "liquidated_damages_financial_exposure",
+    "delay_discount_or_service_credit",
+    "confidentiality_foia_public_disclosure",
+    "public_procurement_variation_constraint",
+}
+
+_SUPPLIER_PERFORMANCE_FINANCIAL_EXPOSURE_RULE_IDS = {
+    "liquidated_damages_financial_exposure",
+    "enhanced_liquidated_damages",
+    "delay_discount_or_service_credit",
+    "cross_contract_set_off",
+    "post_termination_completion_cost_recovery",
+    "supplier_broad_indemnity_public_sector",
+    "time_is_of_essence_delivery",
+    "step_in_cover_cost_recovery",
+}
+
+_DATA_PUBLIC_AUTHORITY_DISCLOSURE_RULE_IDS = {
+    "outdated_data_protection_framework",
+    "data_transfer_anonymisation_processing",
+    "confidentiality_foia_public_disclosure",
+    "audit_access_cost_confidentiality",
+    "intrusive_audit_rights",
 }
 
 _LOW_LIABILITY_CAP_TEXT_PATTERNS: List[Tuple[str, str]] = [
@@ -1307,6 +1348,70 @@ def _build_controlled_cross_clause_findings(
     suspension_text = _text_signal_labels(text, _BROAD_SUSPENSION_TEXT_PATTERNS)
     matched_upfront = sorted(matched_rule_ids.intersection(_UPFRONT_PAYMENT_RULE_IDS)) if upfront_text else []
     matched_suspension = sorted(matched_rule_ids.intersection(_SUPPLIER_SUSPENSION_RULE_IDS))
+
+    matched_public_burden = sorted(matched_rule_ids.intersection(_PUBLIC_SECTOR_SUPPLIER_BURDEN_RULE_IDS))
+    if len(matched_public_burden) >= 3:
+        contributors = _first_contributors(by_rule_id, matched_public_burden)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="cross_public_sector_supplier_burden",
+            rule_id="cross_public_sector_supplier_burden",
+            category="governance",
+            title="Public-sector supplier burden stack",
+            severity=5,
+            rationale="Multiple buyer/public-authority-favourable terms combine into cumulative supplier burden rather than isolated clause exposure.",
+            why_it_matters="Cumulative burden: indemnity, termination, set-off, step-in, delivery, damages, FOIA, or procurement controls may compound supplier-side exposure.",
+            triggered_by=matched_public_burden,
+            contributors=contributors,
+            reason="Three or more public-sector supplier burden signals were detected in the same reviewed text.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    matched_financial_exposure = sorted(matched_rule_ids.intersection(_SUPPLIER_PERFORMANCE_FINANCIAL_EXPOSURE_RULE_IDS))
+    if len(matched_financial_exposure) >= 2:
+        contributors = _first_contributors(by_rule_id, matched_financial_exposure)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="cross_supplier_performance_financial_exposure",
+            rule_id="cross_supplier_performance_financial_exposure",
+            category="liability",
+            title="Supplier performance-linked financial exposure stack",
+            severity=5 if len(matched_financial_exposure) >= 3 else 4,
+            rationale="Performance-linked deductions, damages, set-off, indemnity, strict delivery, step-in, or completion-cost recovery can compound financial exposure for the supplier.",
+            why_it_matters="Financial exposure: multiple performance remedies may apply together, affecting margin, cash flow, and termination economics.",
+            triggered_by=matched_financial_exposure,
+            contributors=contributors,
+            reason="At least two performance-linked financial exposure signals were detected in the same reviewed text.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    matched_public_data = sorted(matched_rule_ids.intersection(_DATA_PUBLIC_AUTHORITY_DISCLOSURE_RULE_IDS))
+    if len(matched_public_data) >= 2:
+        contributors = _first_contributors(by_rule_id, matched_public_data)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="cross_data_public_authority_disclosure_stack",
+            rule_id="cross_data_public_authority_disclosure_stack",
+            category="data",
+            title="Data and public-authority disclosure stack",
+            severity=4,
+            rationale="Outdated data protection, processing obligations, audit rights, and public-authority disclosure overrides require targeted review when they appear together.",
+            why_it_matters="Data/confidentiality exposure: public disclosure duties and data handling obligations may interact in ways that weaken confidentiality expectations or update obligations.",
+            triggered_by=matched_public_data,
+            contributors=contributors,
+            reason="At least two data, audit, FOIA, or public-authority disclosure signals were detected in the same reviewed text.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
     if (upfront_text or matched_upfront) and (matched_suspension or suspension_text):
         triggered_by = matched_upfront + matched_suspension + upfront_text + suspension_text
         contributors = _first_contributors(by_rule_id, matched_upfront + matched_suspension)
@@ -2382,6 +2487,10 @@ def score_contract(
             "risk_appetite_adjustments": appetite_adjustments,
             "synthesis_patterns_triggered": synthesis_patterns_triggered,
             "derived_finding_count": sum(1 for f in deduped_findings if str(f.get("matched_pattern", "")).startswith("derived_")),
+            "confidence_driver": "No governed rule match detected in reviewed text" if not deduped_findings else None,
+            "signal_type": "Low-signal automated review" if not deduped_findings else "Structural clause-level exposure",
+            "primary_risk_type": "No elevated rule signal" if not deduped_findings else "Contract risk signal",
+            "reliability_wording": "Extraction completed; no covered rule signal detected" if not deduped_findings else None,
         }
         result["meta"]["top_risks"] = [
             {

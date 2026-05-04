@@ -804,7 +804,7 @@ export const autoRenewalRiskArticle: InsightArticle = {
       heading: "What to check before signing and before renewal",
       paragraphs: [
         "Before signing, check whether the contract renews automatically, how long the renewal term runs, how much notice is required, whether pricing can move on renewal, and whether the customer has workable exit rights. Before renewal, check the actual deadline, the required notice method, any linked price adjustments, and whether the business still wants the contract to continue on the existing terms.",
-        "VoxaRisk supports contract risk intelligence and negotiation awareness, but it does not provide legal advice or legal opinions. It does not determine enforceability, and it does not replace lawyers. Where renewal exposure, pricing disputes, or material contractual dependency are significant, appropriate professional advice should still be sought.",
+        "VoxaRisk supports contract risk intelligence and negotiation awareness as a decision-support layer. Where renewal exposure, pricing disputes, or material contractual dependency are significant, appropriate professional advice should still be sought.",
       ],
     },
   ],
@@ -995,7 +995,7 @@ export const contractRiskDecisionIntelligenceVsClmArticle: InsightArticle = {
       paragraphs: [
         "VoxaRisk does not need to pretend to be a law firm. It should not claim to replace lawyers. It should not guarantee that a contract is safe, enforceable, compliant, or commercially suitable.",
         "The correct role is more disciplined:",
-        "VoxaRisk supports commercial review by identifying risk signals, evidence, priorities, consequences, and escalation points. It is decision-support, not legal advice.",
+        "VoxaRisk supports commercial review by identifying risk signals, evidence, priorities, consequences, and escalation points as a decision-support layer.",
         "That boundary is not a weakness. It is part of trust.",
         "Customers do not need another overconfident AI tool. They need a system that helps them see risk clearly, act carefully, and escalate when appropriate.",
       ],
@@ -1113,7 +1113,7 @@ export const autoRenewalClauseRiskArticle: InsightArticle = {
     {
       heading: "How VoxaRisk supports the renewal decision",
       paragraphs: [
-        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. Its role is to help users identify renewal-risk signals, inspect the evidence, and decide whether the clause should be accepted, negotiated, escalated, or tracked operationally.",
+        "VoxaRisk provides commercial risk intelligence and decision support. Its role is to help users identify renewal-risk signals, inspect the evidence, and decide whether the clause should be accepted, negotiated, escalated, or tracked operationally.",
         "For auto-renewal clauses, VoxaRisk is designed to surface automatic renewal wording, cancellation notice windows, renewal lock-in, hidden cancellation burden, price-change exposure, and weak exit mechanics. The value is not just finding a clause. The value is showing why it matters before approval pressure turns the renewal structure into a future cost problem.",
         "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
       ],
@@ -1172,7 +1172,7 @@ export const paymentDelayLateFeesContractRiskArticle: InsightArticle = {
     {
       heading: "How VoxaRisk helps prioritise payment review",
       paragraphs: [
-        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps teams identify payment delay, late fee, invoice dispute, withholding, collection-cost, and suspension-linked risk signals so reviewers can see where cash-flow exposure is being created.",
+        "VoxaRisk provides commercial risk intelligence and decision support. It helps teams identify payment delay, late fee, invoice dispute, withholding, collection-cost, and suspension-linked risk signals so reviewers can see where cash-flow exposure is being created.",
         "That supports better contract risk assessment. Instead of treating every invoice clause as routine, the reviewer can focus on the terms that affect payment timing, negotiation posture, escalation need, and operational continuity.",
         "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
       ],
@@ -1231,7 +1231,7 @@ export const auditRightsDataAccessContractRiskArticle: InsightArticle = {
     {
       heading: "How VoxaRisk supports audit and data-access review",
       paragraphs: [
-        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps identify broad audit access, excessive audit frequency, premises or data access, cost shifting, confidentiality weakness, onward transfer, retention, anonymisation, and security-obligation signals.",
+        "VoxaRisk provides commercial risk intelligence and decision support. It helps identify broad audit access, excessive audit frequency, premises or data access, cost shifting, confidentiality weakness, onward transfer, retention, anonymisation, and security-obligation signals.",
         "The point is disciplined prioritisation. If audit language is narrow and controlled, it may be routine. If audit rights combine with broad data access and weak confidentiality protection, the contract deserves more careful review before approval momentum builds.",
         "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
       ],
@@ -1291,7 +1291,7 @@ export const ipOwnershipBroadLicenceResidualKnowledgeArticle: InsightArticle = {
     {
       heading: "How VoxaRisk supports IP clause review",
       paragraphs: [
-        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps surface foreground IP conflict, background IP rights, broad licence language, sublicensing, derivative works, residual knowledge, and ownership-conflict signals so teams can prioritise review before signing.",
+        "VoxaRisk provides commercial risk intelligence and decision support. It helps surface foreground IP conflict, background IP rights, broad licence language, sublicensing, derivative works, residual knowledge, and ownership-conflict signals so teams can prioritise review before signing.",
         "For IP-heavy contracts, the decision is rarely just accept or reject. The better question is what should be clarified, narrowed, escalated, or negotiated before strategic asset control shifts by default.",
         "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
       ],
@@ -1357,7 +1357,7 @@ export const forceMajeureChangeControlSlaRemedyRiskArticle: InsightArticle = {
     {
       heading: "How VoxaRisk helps identify control stacks",
       paragraphs: [
-        "VoxaRisk provides contract risk intelligence and decision support, not legal advice. It helps teams identify force majeure, unilateral change control, weak SLA, exclusive remedy, suspension, liquidated damages, non-compete, and non-solicitation risk signals before the contract becomes a live operational problem.",
+        "VoxaRisk provides commercial risk intelligence and decision support. It helps teams identify force majeure, unilateral change control, weak SLA, exclusive remedy, suspension, liquidated damages, non-compete, and non-solicitation risk signals before the contract becomes a live operational problem.",
         "The value is in seeing the stack. One clause may be manageable. Several control-shifting clauses together may justify negotiation, internal escalation, or a more cautious approval posture.",
         "Use VoxaRisk to scan contract wording and identify risk signals before you commit.",
       ],

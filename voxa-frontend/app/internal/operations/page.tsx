@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import SiteFooter from "../../site-footer";
+import { formatDate } from "../internal-ui";
 
 type Entitlement = {
   effective_plan: string;
@@ -492,8 +493,8 @@ export default function InternalOperationsPage() {
                       </div>
                       <div className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-4">
                         <div className="font-semibold text-neutral-950">Recent scans and usage</div>
-                        {(detail.recent_scans ?? []).map((scan) => <div key={scan.id} className="mt-2">{scan.request_id} / score {scan.risk_score} / {scan.created_at}</div>)}
-                        {(detail.recent_usage ?? []).map((log) => <div key={log.id} className="mt-2">{log.endpoint} / {log.status_code} / {log.created_at}</div>)}
+                        {(detail.recent_scans ?? []).map((scan) => <div key={scan.id} className="mt-2">{scan.request_id} / score {scan.risk_score} / {formatDate(scan.created_at)}</div>)}
+                        {(detail.recent_usage ?? []).map((log) => <div key={log.id} className="mt-2">{log.endpoint} / {log.status_code} / {formatDate(log.created_at)}</div>)}
                       </div>
                     </div>
 
@@ -546,7 +547,7 @@ export default function InternalOperationsPage() {
                           <div key={action.id} className="mt-3 rounded-lg border border-[#ead9bb] bg-[#fffaf0] p-3 text-xs leading-5 text-neutral-700">
                             <div className="font-semibold text-neutral-950">{action.action_type} / {action.target_type}</div>
                             <div>{action.reason}</div>
-                            <div className="text-neutral-500">{action.created_at}</div>
+                            <div className="text-neutral-500">{formatDate(action.created_at)}</div>
                           </div>
                         ))}
                       </div>
@@ -564,7 +565,7 @@ export default function InternalOperationsPage() {
                   <div key={action.id} className="mt-3 rounded-lg border border-[#ead9bb] bg-[#fffaf0] p-3 text-xs leading-5 text-neutral-700">
                     <div className="font-semibold text-neutral-950">{action.action_type} / {action.target_type}</div>
                     <div>{action.reason}</div>
-                    <div className="text-neutral-500">{action.created_at}</div>
+                    <div className="text-neutral-500">{formatDate(action.created_at)}</div>
                   </div>
                 ))}
               </section>
@@ -573,10 +574,10 @@ export default function InternalOperationsPage() {
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Recent quota and error signals</div>
                 <div className="mt-4 text-xs text-neutral-600">Recent quota-blocked requests</div>
                 {(overview?.recent_quota_blocked_requests ?? []).length === 0 && <div className="mt-2 text-sm text-neutral-600">No recent quota blocks.</div>}
-                {(overview?.recent_quota_blocked_requests ?? []).map((item) => <div key={item.id} className="mt-2 text-xs text-neutral-700">{item.endpoint} / {item.status_code} / {item.created_at}</div>)}
+                {(overview?.recent_quota_blocked_requests ?? []).map((item) => <div key={item.id} className="mt-2 text-xs text-neutral-700">{item.endpoint} / {item.status_code} / {formatDate(item.created_at)}</div>)}
                 <div className="mt-5 text-xs text-neutral-600">Recent error operations</div>
                 {(overview?.recent_error_operations ?? []).length === 0 && <div className="mt-2 text-sm text-neutral-600">No recent error operations.</div>}
-                {(overview?.recent_error_operations ?? []).map((item) => <div key={item.id} className="mt-2 text-xs text-neutral-700">{item.endpoint} / {item.status_code} / {item.created_at}</div>)}
+                {(overview?.recent_error_operations ?? []).map((item) => <div key={item.id} className="mt-2 text-xs text-neutral-700">{item.endpoint} / {item.status_code} / {formatDate(item.created_at)}</div>)}
               </section>
             </div>
           </div>

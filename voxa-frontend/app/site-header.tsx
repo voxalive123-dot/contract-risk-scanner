@@ -76,6 +76,14 @@ export default function SiteHeader({
       ? "rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]"
       : ACCOUNT_BUTTON_CLASS;
 
+  async function signOut() {
+    try {
+      await fetch("/api/account/logout", { method: "POST" });
+    } finally {
+      window.location.href = "/signin";
+    }
+  }
+
   return (
     <header
       className={`sticky top-0 z-50 border-b border-[#dfd0b6] bg-[#f6efe1]/95 backdrop-blur supports-[backdrop-filter]:bg-[#f6efe1]/90 ${className}`.trim()}
@@ -104,10 +112,6 @@ export default function SiteHeader({
             Overview
           </Link>
           <NavDivider />
-          <Link href="/#workflow" className={LINK_CLASS}>
-            Workflow
-          </Link>
-          <NavDivider />
           <Link href="/pricing" className={navClass(activeItem === "pricing")}>
             Pricing
           </Link>
@@ -123,6 +127,15 @@ export default function SiteHeader({
           <Link href={accountHref} className={accountClass}>
             {accountLabel}
           </Link>
+          {signedIn && (
+            <button
+              type="button"
+              onClick={signOut}
+              className="rounded-xl border border-[#d8c49e] bg-[#fffdf8] px-4 py-2 font-semibold text-neutral-700 transition hover:bg-[#f3e4c6] hover:text-neutral-950"
+            >
+              Sign out
+            </button>
+          )}
         </nav>
       </div>
     </header>

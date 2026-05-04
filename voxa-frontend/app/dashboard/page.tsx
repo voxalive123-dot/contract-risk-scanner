@@ -60,6 +60,10 @@ type AnalyzeResult = {
     context_confidence?: string | null;
     context_limitations?: string[];
     context_emphasis?: string[];
+    confidence_driver?: string | null;
+    signal_type?: string | null;
+    primary_risk_type?: string | null;
+    reliability_wording?: string | null;
   };
   extraction_method?: string | null;
   confidence_hint?: number | null;
@@ -523,11 +527,11 @@ function decisionPosture(
   }
 
   return {
-    label: "Proceed with Standard Review",
+    label: "Low-Signal Automated Review",
     detail:
-      "No material automated risk signal was elevated in the reviewed text. This should be treated as a low-signal automated result, not as contract approval.",
+      "No governed risk signal was elevated by the current rule set. This is a low-signal automated result, not a contract clearance outcome. Review may still be required for off-text commercial dependency, unusual drafting, missing protections, sector-specific obligations, or risks outside current rule coverage.",
     nextStep:
-      "Final acceptance should still consider commercial dependency, deal context, and professional review where appropriate.",
+      "Use this as review triage only: confirm the commercial context, missing protections, and any sector-specific obligations before acceptance.",
   };
 }
 
@@ -544,7 +548,7 @@ function formatReportTimestamp(timestamp?: string | null) {
   }).format(new Date(timestamp));
 }
 
-type ReliabilityLabel = "Strong" | "Moderate" | "Limited";
+type ReliabilityLabel = "Strong" | "Moderate" | "Limited" | "Low signal";
 
 function reviewReliability(confidence?: number | null): { label: ReliabilityLabel; helper: string } {
   if (typeof confidence !== "number" || Number.isNaN(confidence) || confidence <= 0) {
@@ -857,7 +861,7 @@ function scanHistoryDisplayTitle(scan: ScanHistoryItem, severity: "LOW" | "MEDIU
   }
 
   if (scan.created_at) {
-    return `${titleCaseReviewLabel(severity.toLowerCase())}-risk review - ${new Date(scan.created_at).toLocaleDateString()}`;
+    return `${titleCaseReviewLabel(severity.toLowerCase())}-risk review - ${formatReportTimestamp(scan.created_at)}`;
   }
 
   return "Contract review";
@@ -870,9 +874,9 @@ function extractCustomerError(raw: string) {
     if (typeof parsed?.detail === "string") return parsed.detail;
     if (typeof parsed?.detail?.error === "string") return parsed.detail.error;
   } catch {
-    return raw;
+    return "The review could not be completed. Please check the source text or upload and try again.";
   }
-  return raw;
+  return "The review could not be completed. Please check the source text or upload and try again.";
 }
 
 function coerceAIReviewSummary(value?: AIReviewSummary | string | null): AIReviewSummary | null {
@@ -1560,23 +1564,36 @@ export default function DashboardPage() {
       primaryCategory,
     );
   }, [result, topRisks.length, findings.length, summaryCategories, primaryCategory]);
+  const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
   const effectiveConfidence =
     typeof confidence === "number" && confidence > 0
       ? confidence
       : typeof result?.confidence_hint === "number"
         ? result.confidence_hint
         : null;
-  const reliabilityAssessment = reviewReliability(effectiveConfidence);
-  const decisionPrimaryRiskType = decisionPrimaryRiskTypeLabel(primaryCategory);
-  const decisionImpactArea = decisionImpactAreaLabel(primaryCategory);
-  const decisionConfidenceDriver = decisionConfidenceDriverLabel(
-    leadRuleId,
-    reliabilityAssessment.label,
-    leadFinding?.matched_location,
-  );
+  const baseReliabilityAssessment = reviewReliability(effectiveConfidence);
+  const reliabilityAssessment = isLowSignalResult
+    ? {
+        label: "Low signal" as ReliabilityLabel,
+        helper: result?.meta?.reliability_wording ?? "Extraction completed; no covered rule signal detected.",
+      }
+    : baseReliabilityAssessment;
+  const decisionPrimaryRiskType = isLowSignalResult
+    ? result?.meta?.primary_risk_type ?? "No elevated rule signal"
+    : decisionPrimaryRiskTypeLabel(primaryCategory);
+  const decisionImpactArea = isLowSignalResult ? "Automated triage coverage" : decisionImpactAreaLabel(primaryCategory);
+  const decisionConfidenceDriver = isLowSignalResult
+    ? result?.meta?.confidence_driver ?? "No governed rule match detected in reviewed text"
+    : decisionConfidenceDriverLabel(
+        leadRuleId,
+        reliabilityAssessment.label,
+        leadFinding?.matched_location,
+      );
+  const decisionSignalType = isLowSignalResult
+    ? result?.meta?.signal_type ?? "Low-signal automated review"
+    : "Structural clause-level exposure";
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
-  const isLowSignalResult = (topRisks.length === 0 && findings.length === 0 && result?.severity === "LOW") || false;
   const duplicatedSummaryDetail =
     !isLowSignalResult &&
     primarySummary.trim().length > 0 &&
@@ -1762,7 +1779,7 @@ export default function DashboardPage() {
           </div>
 
 
-          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-neutral-950">Previous reviews</h2>
@@ -1811,7 +1828,7 @@ export default function DashboardPage() {
                             {displayTitle}
                           </div>
                           <div className="mt-1 text-xs text-[#8f7245]">
-                            {scan.created_at ? new Date(scan.created_at).toLocaleDateString() : "Date unavailable"} · {readableSourceType(scan.source_type)}
+                            {formatReportTimestamp(scan.created_at)} · {readableSourceType(scan.source_type)}
                           </div>
                         </div>
                         <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${severityBadgeClass(severity)}`}>
@@ -1850,7 +1867,7 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+          <div className="report-print-hidden mb-8 rounded-3xl border border-[#d2bd96] bg-[#f8f2e8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
             <div className="mb-4 flex items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-semibold text-neutral-950">Contract input</h2>
@@ -1977,11 +1994,11 @@ export default function DashboardPage() {
             <>
               <div className="report-print-hidden space-y-8">
                 <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-stretch">
-                  <div className="flex h-full flex-col rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                  <div className="flex h-full flex-col rounded-3xl border border-[#d2bd96] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                     <div className="flex flex-wrap items-start justify-between gap-4">
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                          Decision Signal
+                          Risk Intelligence Report Ready
                         </div>
                         <h2 className="mt-2 text-2xl font-semibold text-neutral-950">
                           {scoreBand(normalizedScore, result.severity)} exposure
@@ -2068,13 +2085,13 @@ export default function DashboardPage() {
                           Signal Type
                         </div>
                         <div className="mt-2 text-sm font-semibold text-neutral-950">
-                          Structural clause-level exposure
+                          {decisionSignalType}
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex h-full flex-col rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                  <div className="flex h-full flex-col rounded-3xl border border-[#d2bd96] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
                     <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                       Decision Posture
                     </div>
