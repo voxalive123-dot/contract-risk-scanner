@@ -22,7 +22,7 @@ export function InsightsShell({
 }) {
   return (
     <>
-      <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
+      <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
         <SiteHeader activeItem={activeItem} />
         {children}
       </main>
@@ -33,7 +33,7 @@ export function InsightsShell({
 
 export function BoundaryNotice({ children }: { children: React.ReactNode }) {
   return (
-    <div className="rounded-[1.15rem] border border-[#d9c7a6] bg-[#fbf3e5] px-5 py-4 text-sm leading-7 text-neutral-700">
+    <div className="rounded-[1.15rem] border border-[rgba(198,168,107,0.22)] bg-[#eee6d8] px-5 py-4 text-sm leading-7 text-neutral-700">
       {children}
     </div>
   );
@@ -43,7 +43,7 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
   return (
     <InsightsShell activeItem="insights">
       <section className="mx-auto max-w-[1100px] px-6 py-10 md:px-8">
-        <div className="rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10">
+        <div className="rounded-[2rem] border border-[rgba(198,168,107,0.24)] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
             <Eyebrow>{article.category}</Eyebrow>
             {article.readingTime ? <span className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">{article.readingTime}</span> : null}
@@ -56,7 +56,7 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
       </section>
 
       <section className="mx-auto max-w-[1100px] px-6 pb-16 md:px-8">
-        <article className="rounded-[1.75rem] border border-[#dfd0b6] bg-[#fffdf8] px-7 py-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)] md:px-10 md:py-10">
+        <article className="rounded-[1.75rem] border border-[rgba(198,168,107,0.22)] bg-[#fffaf0] px-7 py-8 shadow-[0_16px_40px_rgba(75,55,25,0.07)] md:px-10 md:py-10">
           <div className="space-y-10">
             {article.sections.map((section) => (
               <section key={section.heading} className="border-b border-[#eadfcd] pb-8 last:border-b-0 last:pb-0">
@@ -72,15 +72,15 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
             ))}
           </div>
 
-          <div className="mt-10 rounded-[1.35rem] border border-[#d8c49e] bg-[#fbf3e5] p-6">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Structured first-pass review</div>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-neutral-700">
-              Use VoxaRisk to support structured contract risk review and escalation discipline.
+          <div className="mt-10 rounded-[1.35rem] border border-[rgba(198,168,107,0.28)] bg-[#241C16] text-[#EDE7DF] p-6">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Structured first-pass review</div>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-[#BFAE94]">
+              Use VoxaRisk as an evidence-led decision-support layer for structured contract risk review and escalation discipline.
             </p>
             <div className="mt-5 flex flex-col gap-3 sm:flex-row">
               <Link
                 href="/dashboard"
-                className="rounded-xl bg-[#11110f] px-5 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]"
+                className="rounded-xl bg-[#1E1712] px-5 py-3 text-center text-sm font-semibold text-[#EDE7DF] transition hover:bg-[#322720]"
               >
                 Scan a contract
               </Link>
@@ -104,8 +104,8 @@ export function InsightArticleLayout({ article }: { article: InsightArticle }) {
                 ))}
               </div>
             ) : null}
-            <p className="mt-5 text-sm leading-7 text-neutral-700">
-              VoxaRisk supports contract risk intelligence and review discipline. It does not provide legal advice, legal opinions, solicitor services, or contract approval.
+            <p className="mt-5 text-sm leading-7 text-[#BFAE94]">
+              VoxaRisk supports commercial risk intelligence and review discipline. It is not a substitute for professional legal advice, legal opinions, solicitor services, or contract approval.
             </p>
           </div>
         </article>

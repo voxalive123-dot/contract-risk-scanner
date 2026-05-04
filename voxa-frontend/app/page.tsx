@@ -111,88 +111,67 @@ export default function HomePage() {
               </p>
 
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link href="/dashboard" className="bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
+                <Link href="/dashboard" className="bg-[#1E1712] px-6 py-3 text-center text-sm font-semibold text-[#EDE7DF] transition hover:bg-[#241C16]">
                   Run a contract scan
                 </Link>
                 <Link href="#product" className="border border-[#b08d57] bg-transparent px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#fff6e4]">
-                  See how it works
+                  View full risk report
                 </Link>
               </div>
             </div>
 
-            <aside className="relative w-full overflow-hidden bg-[#0c0c0c] p-4 text-stone-100 shadow-[0_30px_80px_rgba(17,17,15,0.24)] ring-1 ring-[#b08d57]/35 md:p-5 lg:my-6">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_16%,rgba(176,141,87,0.20),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,transparent_38%)]" />
-              <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(213,189,136,0.42)_1px,transparent_1px),linear-gradient(90deg,rgba(213,189,136,0.32)_1px,transparent_1px)] [background-size:32px_32px]" />
-              <div className="relative border border-[#b08d57]/45 bg-[#11110f]/86 p-4 shadow-[0_0_45px_rgba(176,141,87,0.12)] md:p-5">
-                <div className="flex flex-col gap-3 border-b border-[#b08d57]/45 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#d5bd88]">Decision intelligence command interface</div>
-                    <div className="mt-2 text-sm text-stone-300">Rules, evidence, exposure score, and action posture in one governed view.</div>
+            <aside className="relative w-full overflow-hidden bg-[#1E1712] p-4 text-[#EDE7DF] shadow-[0_26px_70px_rgba(36,28,22,0.24)] ring-1 ring-[#b08d57]/35 md:p-5 lg:my-6">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_76%_12%,rgba(176,141,87,0.16),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.045)_0%,transparent_42%)]" />
+              <div className="relative bg-[#241C16]/92 p-5 md:p-6">
+                <div className="border-b border-[#b08d57]/35 pb-4">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">
+                    Sample output — before you sign
                   </div>
-                  <div className="h-px bg-[#b08d57]/70 sm:h-10 sm:w-px" />
-                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-stone-400">Live review mode</div>
                 </div>
 
-                <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
-                    <div className="flex items-center justify-between gap-4 border-b border-[#b08d57]/35 pb-3">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Contract Intake</h2>
-                      <span className="font-mono text-[11px] text-stone-500">SOURCE TEXT</span>
+                <div className="divide-y divide-[#b08d57]/25 text-sm">
+                  <div className="grid gap-1 py-4 sm:grid-cols-[150px_1fr] sm:gap-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a98c5a]">
+                      Contract
                     </div>
-                    <blockquote className="mt-4 font-mono text-sm leading-7 text-stone-200">
-                      &quot;Supplier shall indemnify and keep indemnified the Customer against any and all loss, damage, liability, legal fees and costs...&quot;
-                    </blockquote>
-                    <div className="mt-5 h-px bg-[linear-gradient(90deg,rgba(176,141,87,0.85),transparent)]" />
-                    <div className="mt-4 grid gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-stone-500 sm:grid-cols-3">
-                      <span>Rule match</span>
-                      <span>Evidence bound</span>
-                      <span>Clause context</span>
-                    </div>
-                  </section>
+                    <div className="font-semibold text-[#EDE7DF]">Supplier Agreement</div>
+                  </div>
 
-                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
-                    <div className="border-b border-[#b08d57]/35 pb-3">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Detected Signals</h2>
+                  <div className="grid gap-3 py-4 sm:grid-cols-[150px_1fr] sm:gap-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a98c5a]">
+                      Key risks identified
                     </div>
-                    <div className="mt-4 space-y-3 font-mono text-sm text-stone-200">
-                      {["Broad indemnity", "Cross-contract set-off", "Termination leverage"].map((signal) => (
-                        <div key={signal} className="flex items-center gap-3">
-                          <span className="h-px w-5 bg-[#b08d57]" />
-                          <span>{signal}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                </div>
+                    <ul className="space-y-3 text-[#d8d0c6]">
+                      <li>
+                        <div>Broad indemnity</div>
+                        <div className="mt-1 text-xs text-[#d8d0c6]/65">…indemnify and keep indemnified…</div>
+                      </li>
+                      <li>
+                        <div>Cross-contract set-off</div>
+                        <div className="mt-1 text-xs text-[#d8d0c6]/65">…set off under this or any other contract…</div>
+                      </li>
+                      <li>
+                        <div>Termination leverage</div>
+                        <div className="mt-1 text-xs text-[#d8d0c6]/65">…may terminate immediately…</div>
+                      </li>
+                    </ul>
+                  </div>
 
-                <div className="mt-4 grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
-                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
-                    <div className="border-b border-[#b08d57]/35 pb-3">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Risk Score</h2>
+                  <div className="grid gap-1 py-4 sm:grid-cols-[150px_1fr] sm:gap-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a98c5a]">
+                      Risk level
                     </div>
-                    <div className="mt-5 flex items-end justify-between gap-4">
-                      <div>
-                        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-400">High exposure</div>
-                        <div className="mt-2 text-5xl font-semibold leading-none text-stone-100">28</div>
-                      </div>
-                      <div className="h-20 w-px bg-[#b08d57]/60" />
-                      <div className="max-w-[150px] text-xs leading-5 text-stone-400">Financial exposure, control imbalance, and termination pressure elevated.</div>
-                    </div>
-                  </section>
+                    <div className="text-xl font-semibold uppercase tracking-[0.12em] text-[#EDE7DF]">HIGH</div>
+                  </div>
 
-                  <section className="border border-[#d5bd88]/60 bg-[#15130f] p-4 shadow-[0_0_34px_rgba(176,141,87,0.13)]">
-                    <div className="border-b border-[#b08d57]/45 pb-3">
-                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Decision Output</h2>
+                  <div className="grid gap-2 pt-4 sm:grid-cols-[150px_1fr] sm:gap-6">
+                    <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a98c5a]">
+                      What to do next
                     </div>
-                    <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-                      <div>
-                        <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-stone-500">Recommended posture</div>
-                        <div className="mt-2 text-2xl font-semibold uppercase text-stone-100 md:text-3xl">Hold / Renegotiate</div>
-                      </div>
-                      <div className="h-px bg-[#b08d57]/55 sm:h-12 sm:w-px" />
-                      <div className="text-sm leading-6 text-stone-300">Escalate broad indemnity, set-off, and termination leverage before approval.</div>
+                    <div className="text-2xl font-semibold uppercase leading-tight text-[#EDE7DF] md:text-3xl">
+                      Hold / Renegotiate
                     </div>
-                  </section>
+                  </div>
                 </div>
               </div>
             </aside>

@@ -86,12 +86,12 @@ function PricingCard({ plan }: { plan: Plan }) {
   const hasCheckoutOptions = Boolean(plan.checkoutOptions?.length);
 
   return (
-    <article className={`relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-[1.25rem] border bg-[#fffdf8] p-5 shadow-[0_14px_30px_rgba(75,55,25,0.07)] ${featured ? "border-[#8a6a34] ring-1 ring-[#b08d57]/40" : "border-[#dfcfb0]"}`}>
+    <article className={`relative flex h-full min-h-[520px] flex-col overflow-hidden rounded-[1.25rem] border bg-[#fffaf0] p-5 shadow-[0_14px_30px_rgba(75,55,25,0.07)] ${featured ? "border-[#C6A86B] ring-1 ring-[#C6A86B]/45" : "border-[rgba(198,168,107,0.22)]"}`}>
       <div className="absolute inset-x-0 top-0 h-[3px] bg-[#c2a46d]" />
       <div className="flex min-h-[28px] items-center justify-between gap-3 pt-1">
         <div className="text-[10px] font-semibold uppercase tracking-[0.3em] text-neutral-500">{plan.name}</div>
         {featured ? (
-          <div className="rounded-full border border-[#c2a46d] bg-[#fff4dc] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#765a2b]">Recommended</div>
+          <div className="rounded-full border border-[#C6A86B] bg-[#241C16] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[0.18em] text-[#EDE7DF]">Recommended</div>
         ) : (
           <span aria-hidden="true" className="h-[22px] w-[96px] shrink-0" />
         )}
@@ -128,7 +128,7 @@ function PricingCard({ plan }: { plan: Plan }) {
                   rel="noopener noreferrer"
                   className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${
                     featured && index === 0
-                      ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]"
+                      ? "bg-[#1E1712] text-[#EDE7DF] hover:bg-[#241C16]"
                       : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"
                   }`}
                 >
@@ -137,7 +137,7 @@ function PricingCard({ plan }: { plan: Plan }) {
               ))}
             </div>
           ) : (
-            <Link href={plan.href} className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${featured ? "bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]" : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"}`}>
+            <Link href={plan.href} className={`block rounded-xl px-4 py-3 text-center text-sm font-semibold transition ${featured ? "bg-[#1E1712] text-[#EDE7DF] hover:bg-[#241C16]" : "border border-[#c6aa72] bg-white text-neutral-950 hover:bg-[#fff4dc]"}`}>
               {plan.cta}
             </Link>
           )}
@@ -150,11 +150,11 @@ function PricingCard({ plan }: { plan: Plan }) {
 export default function PricingPage() {
   return (
     <>
-    <main className="min-h-screen bg-[#f6efe1] text-neutral-950">
+    <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
       <SiteHeader activeItem="pricing" />
 
       <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
-        <div className="grid gap-8 rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
+        <div className="grid gap-8 rounded-[2rem] border border-[rgba(198,168,107,0.24)] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
           <div className="flex flex-col justify-center">
             <Eyebrow>Public pricing</Eyebrow>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.055em] text-neutral-950 md:text-5xl">
@@ -173,17 +173,17 @@ export default function PricingPage() {
             </div>
 
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">Analyse a contract</Link>
+              <Link href="/dashboard" className="rounded-xl bg-[#1E1712] px-6 py-3 text-center text-sm font-semibold text-[#EDE7DF] transition hover:bg-[#241C16]">Analyse a contract</Link>
               <Link href="/" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">Back to Home</Link>
             </div>
           </div>
 
-          <aside className="flex h-full flex-col justify-center rounded-[1.5rem] border border-[#d8c49e] bg-[#fbf3e5] p-7 shadow-[0_16px_36px_rgba(75,55,25,0.08)]">
-            <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">Why teams upgrade</div>
-            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
+          <aside className="flex h-full flex-col justify-center rounded-[1.5rem] border border-[rgba(198,168,107,0.28)] bg-[#241C16] p-7 text-[#EDE7DF] shadow-[0_16px_36px_rgba(75,55,25,0.08)]">
+            <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#d5bd88]">Why teams upgrade</div>
+            <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-[#EDE7DF]">
               Turn contract risk signals into disciplined commercial decisions.
             </h2>
-            <p className="mt-5 text-sm leading-7 text-neutral-700">
+            <p className="mt-5 text-sm leading-7 text-[#BFAE94]">
               Paid tiers support full findings, clause evidence, policy-aware review, decision history, and report-ready output that can travel to decision-makers.
             </p>
           </aside>
@@ -191,9 +191,9 @@ export default function PricingPage() {
       </section>
 
       <section className="mx-auto max-w-[1360px] px-6 pb-14 md:px-8">
-        <div className="grid gap-4 rounded-[1.5rem] border border-[#dccaad] bg-[#fbf2df] p-5 shadow-[0_16px_40px_rgba(75,55,25,0.07)] lg:grid-cols-3">
+        <div className="grid gap-4 rounded-[1.5rem] border border-[rgba(198,168,107,0.22)] bg-[#eee6d8] p-5 shadow-[0_16px_40px_rgba(75,55,25,0.07)] lg:grid-cols-3">
           {upgradeReasons.map((item) => (
-            <article key={item.title} className="rounded-[1rem] border border-[#dccaad] bg-[#fffdf8] p-5">
+            <article key={item.title} className="rounded-[1rem] border border-[rgba(198,168,107,0.22)] bg-[#fffaf0] p-5">
               <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">{item.title}</div>
               <p className="mt-3 text-sm leading-6 text-neutral-700">{item.body}</p>
             </article>
@@ -201,10 +201,10 @@ export default function PricingPage() {
         </div>
 
         <section className="mt-8">
-          <div className="rounded-[1.5rem] border border-[#d7c39b] bg-[#f8edd8] p-4 shadow-[0_20px_46px_rgba(75,55,25,0.10)]">
+          <div className="rounded-[1.5rem] border border-[rgba(198,168,107,0.24)] bg-[#241C16] p-4 shadow-[0_20px_46px_rgba(75,55,25,0.10)]">
             <div className="mb-5 px-2">
-              <Eyebrow>Pricing</Eyebrow>
-              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-neutral-950">
+              <div className="flex items-center gap-3 text-[11px] font-semibold uppercase tracking-[0.3em] text-[#d5bd88]"><span className="h-px w-8 bg-[#C6A86B]" />Pricing</div>
+              <h2 className="mt-4 text-3xl font-semibold tracking-[-0.04em] text-[#EDE7DF]">
                 Choose the decision-intelligence level that matches your risk exposure.
               </h2>
             </div>
@@ -216,7 +216,7 @@ export default function PricingPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[1.5rem] border border-[#d8c49e] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(75,55,25,0.06)]">
+        <section className="mt-6 rounded-[1.5rem] border border-[rgba(198,168,107,0.22)] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(75,55,25,0.06)]">
           <Eyebrow>Enterprise and team deployment</Eyebrow>
           <h2 className="mt-4 text-[28px] font-semibold tracking-[-0.04em] text-neutral-950">
             Enterprise is for governed organisation risk memory and decision records.

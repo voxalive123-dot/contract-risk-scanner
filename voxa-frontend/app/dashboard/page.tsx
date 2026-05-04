@@ -1652,7 +1652,7 @@ export default function DashboardPage() {
   if (authState === "loading") {
     return (
       <>
-        <main className="min-h-screen bg-[linear-gradient(180deg,#f7f3ea_0%,#f1e5cf_100%)] text-neutral-950">
+        <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
           <SiteHeader className="report-print-hidden" />
           <div className="mx-auto max-w-4xl px-6 py-16 md:px-8">
             <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-10 text-center shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
@@ -1678,7 +1678,7 @@ export default function DashboardPage() {
   if (authState === "unauthenticated") {
     return (
       <>
-        <main className="min-h-screen bg-[linear-gradient(180deg,#f7f3ea_0%,#f1e5cf_100%)] text-neutral-950">
+        <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
           <SiteHeader className="report-print-hidden" authMode="unauthenticated" emphasizeSignIn />
           <div className="mx-auto max-w-4xl px-6 py-16 md:px-8">
             <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-10 text-center shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
@@ -1694,7 +1694,7 @@ export default function DashboardPage() {
               <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
                 <Link
                   href="/signin"
-                  className="rounded-2xl bg-[#11110f] px-6 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1a1a17]"
+                  className="rounded-2xl bg-[#1E1712] px-6 py-3 text-sm font-semibold text-[#EDE7DF] transition hover:bg-[#241C16]"
                 >
                   Sign in
                 </Link>
@@ -1717,277 +1717,247 @@ export default function DashboardPage() {
 
   return (
     <>
-      <main className="min-h-screen bg-[linear-gradient(180deg,#f7f3ea_0%,#f1e5cf_100%)] text-neutral-950">
+      <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
         <SiteHeader className="report-print-hidden" activeItem="dashboard" authMode="authenticated" />
 
         <div className="mx-auto max-w-7xl px-6 py-8 md:px-8">
-          <div className="report-print-hidden mb-8 grid gap-5 rounded-3xl border border-[#dccaa8] bg-[#fffaf0] px-6 py-5 shadow-[0_12px_28px_rgba(80,60,30,0.06)] lg:grid-cols-[minmax(0,1.65fr)_minmax(300px,0.95fr)] lg:px-7">
-            <div className="min-w-0">
-              <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                Contract Risk Decision Workspace
+          <div className="report-print-hidden mb-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
+            <section className="overflow-hidden border border-[rgba(180,150,90,0.2)] bg-[#241C16] text-[#EDE7DF] shadow-[0_22px_52px_rgba(36,28,22,0.18)]">
+              <div className="border-b border-[rgba(180,150,90,0.2)] bg-[#1E1712] px-5 py-4 md:px-6">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">
+                  Decision Workspace
+                </div>
+                <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                  <div>
+                    <h1 className="text-2xl font-semibold tracking-tight text-[#EDE7DF] md:text-3xl">
+                      Contract risk decision console
+                    </h1>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#cfc4b8]">
+                      Intake contract text, surface governed signals, read exposure score, and record the commercial decision path.
+                    </p>
+                  </div>
+                  <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#a98c5a]">
+                    Signed-in workspace
+                  </div>
+                </div>
               </div>
-              <h1 className="mt-2.5 text-[2rem] font-semibold tracking-tight text-neutral-950">
-                Decision intelligence console
-              </h1>
-              <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-700">
-                Paste contract text or upload a document to generate structured risk intelligence, tolerance-aware review posture, negotiation focus, and an executive record.
-              </p>
-            </div>
 
-            <aside className="rounded-[1.35rem] border border-[#d2bd96] bg-[#fcf2df] p-5 shadow-[0_10px_22px_rgba(80,60,30,0.05)]">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f7245]">
-                Workspace
+              <div className="grid gap-4 p-4 md:p-5 xl:grid-cols-[1.2fr_0.8fr]">
+                <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.2)] pb-3">
+                    <div>
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
+                        Contract Input
+                      </div>
+                      <p className="mt-1 text-xs leading-5 text-[#bfb3a7]">
+                        Paste text, upload a PDF/image, or use camera capture for OCR-supported review.
+                      </p>
+                    </div>
+                    <div className="text-xs text-[#a98c5a]">
+                      {inputMode === "file" ? uploadLabel : `${text.trim().length} characters`}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setInputMode("text")}
+                      className={`border px-3 py-2 text-xs font-semibold transition ${
+                        inputMode === "text"
+                          ? "border-[#d5bd88] bg-[#322720] text-[#EDE7DF]"
+                          : "border-[rgba(180,150,90,0.2)] bg-[#241C16] text-[#cfc4b8] hover:border-[#b08d57]"
+                      }`}
+                    >
+                      Paste text
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputMode("file");
+                        fileInputRef.current?.click();
+                      }}
+                      className={`border px-3 py-2 text-xs font-semibold transition ${
+                        inputMode === "file"
+                          ? "border-[#d5bd88] bg-[#322720] text-[#EDE7DF]"
+                          : "border-[rgba(180,150,90,0.2)] bg-[#241C16] text-[#cfc4b8] hover:border-[#b08d57]"
+                      }`}
+                    >
+                      Upload PDF / Image
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setInputMode("file");
+                        cameraInputRef.current?.click();
+                      }}
+                      className="border border-[rgba(180,150,90,0.2)] bg-[#241C16] px-3 py-2 text-xs font-semibold text-[#cfc4b8] transition hover:border-[#b08d57]"
+                    >
+                      Use camera
+                    </button>
+                    {selectedFile && (
+                      <button
+                        type="button"
+                        onClick={clearUpload}
+                        className="border border-[rgba(180,150,90,0.2)] bg-[#241C16] px-3 py-2 text-xs font-semibold text-[#cfc4b8] transition hover:border-[#b08d57]"
+                      >
+                        Clear file
+                      </button>
+                    )}
+                  </div>
+
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
+                    className="hidden"
+                    onChange={onFileInputChange}
+                  />
+
+                  <input
+                    ref={cameraInputRef}
+                    type="file"
+                    accept="image/*"
+                    capture="environment"
+                    className="hidden"
+                    onChange={onFileInputChange}
+                  />
+
+                  <div className="mt-4 border border-dashed border-[rgba(180,150,90,0.26)] bg-[#241C16] p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d5bd88]">
+                      Intake mode
+                    </div>
+                    <div className="mt-1 text-xs leading-5 text-[#cfc4b8]">
+                      {inputMode === "file"
+                        ? `File mode active. ${uploadLabel}`
+                        : "Text mode active. Paste the contract or clauses for commercial risk review."}
+                    </div>
+                  </div>
+
+                  <textarea
+                    value={text}
+                    onChange={(event) => {
+                      setText(event.target.value);
+                      if (event.target.value.trim()) {
+                        setInputMode("text");
+                        setSelectedFile(null);
+                        setUploadLabel("No file selected");
+                        if (fileInputRef.current) fileInputRef.current.value = "";
+                        if (cameraInputRef.current) cameraInputRef.current.value = "";
+                      }
+                    }}
+                    placeholder="Paste key clauses or full contract text here..."
+                    className="mt-4 min-h-[190px] w-full border border-[rgba(180,150,90,0.2)] bg-[#1E1712] px-4 py-4 text-sm leading-6 text-[#EDE7DF] outline-none transition placeholder:text-[#8f8174] focus:border-[#b08d57]"
+                  />
+
+                  {errorMessage && (
+                    <div className="mt-3 border border-red-300/30 bg-red-950/20 p-3 text-sm leading-6 text-red-100">
+                      {errorMessage}
+                    </div>
+                  )}
+
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-xs leading-5 text-[#a98c5a]">
+                      Core scoring is rules-first. AI notes are secondary explanation only.
+                    </div>
+                    <button
+                      onClick={runReview}
+                      disabled={loading || !hasInput}
+                      className="bg-[#d5bd88] px-5 py-3 text-sm font-semibold text-[#1E1712] shadow-[0_12px_24px_rgba(0,0,0,0.16)] transition hover:bg-[#e1c998] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {loading ? "Reviewing..." : "Run Executive Review"}
+                    </button>
+                  </div>
+                </section>
+
+                <div className="grid gap-4">
+                  <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+                    <div className="flex items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.2)] pb-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
+                        Detected Signals
+                      </div>
+                      <div className="text-xs text-[#a98c5a]">
+                        {result ? `${matchedRuleCount} findings` : "Awaiting scan"}
+                      </div>
+                    </div>
+                    <div className="mt-3 space-y-2">
+                      {result && (reportPriorityItems.length || findings.length) ? (
+                        (reportPriorityItems.length ? reportPriorityItems : findings).slice(0, 4).map((item, index) => (
+                          <div key={`workspace-signal-${item.title ?? "risk"}-${index}`} className="flex items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.14)] py-2 last:border-b-0">
+                            <span className="min-w-0 truncate text-sm text-[#EDE7DF]">{item.title ?? "Unlabeled risk"}</span>
+                            <span className="shrink-0 text-xs uppercase tracking-[0.14em] text-[#a98c5a]">{item.category ?? "risk"}</span>
+                          </div>
+                        ))
+                      ) : (
+                        <div className="text-sm leading-6 text-[#cfc4b8]">
+                          Run a review to populate governed clause signals and evidence-linked risk drivers.
+                        </div>
+                      )}
+                    </div>
+                  </section>
+
+                  <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+                    <div className="border-b border-[rgba(180,150,90,0.2)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
+                      Risk Score
+                    </div>
+                    <div className="mt-4 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#a98c5a]">
+                          {result ? `${result.severity} exposure` : "Not calculated"}
+                        </div>
+                        <div className="mt-2 text-5xl font-semibold leading-none text-[#EDE7DF]">
+                          {result ? normalizedScore : "--"}
+                        </div>
+                      </div>
+                      <div className="h-16 w-px bg-[#b08d57]/55" />
+                      <div className="max-w-[150px] text-xs leading-5 text-[#cfc4b8]">
+                        {result ? scoreBand(normalizedScore, result.severity) : "Exposure score appears after analysis."}
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="border border-[#d5bd88]/55 bg-[#322720] p-4 shadow-[0_0_34px_rgba(176,141,87,0.12)]">
+                    <div className="border-b border-[rgba(180,150,90,0.24)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
+                      Decision Output
+                    </div>
+                    <div className="mt-4 text-2xl font-semibold uppercase leading-tight text-[#EDE7DF] md:text-3xl">
+                      {posture?.label ?? "Awaiting Review"}
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-[#cfc4b8]">
+                      {posture?.nextStep ?? "Run a scan to generate hold, accept, escalate, or renegotiate guidance."}
+                    </p>
+                  </section>
+                </div>
+              </div>
+            </section>
+
+            <aside className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4 text-[#EDE7DF] shadow-[0_18px_42px_rgba(36,28,22,0.14)] lg:sticky lg:top-6 lg:self-start">
+              <div className="border-b border-[rgba(180,150,90,0.2)] pb-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
+                  Workspace Context
+                </div>
+                <div className="mt-1 text-xs leading-5 text-[#bfb3a7]">
+                  Account and entitlement state for this review session.
+                </div>
               </div>
 
-              <dl className="mt-4 grid grid-cols-[minmax(0,1fr)_auto] gap-x-5 gap-y-2.5 text-sm">
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                  Organisation
-                </dt>
-                <dd className="min-w-0 text-right font-semibold text-neutral-950">
-                  {accountContext?.organization.name ?? "Workspace"}
-                </dd>
-
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                  Plan
-                </dt>
-                <dd className="text-right font-semibold capitalize text-neutral-950">
-                  {accountContext?.entitlement.effective_plan ?? "starter"}
-                </dd>
-
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                  Monthly limit
-                </dt>
-                <dd className="text-right font-semibold text-neutral-950">
-                  {(accountContext?.entitlement.monthly_scan_limit ?? 0) + " reviews"}
-                </dd>
-
-                <dt className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                  Session
-                </dt>
-                <dd className="text-right font-semibold text-neutral-950">
-                  Active
-                </dd>
+              <dl className="mt-4 space-y-3 text-sm">
+                {[
+                  { label: "Organisation", value: accountContext?.organization.name ?? "Workspace" },
+                  { label: "Plan", value: accountContext?.entitlement.effective_plan ?? "starter" },
+                  { label: "Monthly limit", value: `${accountContext?.entitlement.monthly_scan_limit ?? 0} reviews` },
+                  { label: "Session", value: "Active" },
+                ].map((item) => (
+                  <div key={item.label} className="flex items-start justify-between gap-4 border-b border-[rgba(180,150,90,0.14)] pb-3 last:border-b-0 last:pb-0">
+                    <dt className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#a98c5a]">{item.label}</dt>
+                    <dd className="min-w-0 text-right font-semibold capitalize text-[#EDE7DF]">{item.value}</dd>
+                  </div>
+                ))}
               </dl>
 
-              <div
-                className="mt-4 text-xs leading-5 text-neutral-500"
-                title={accountContext?.user.email ?? "Account verified"}
-              >
-                Account verified
+              <div className="mt-4 border border-[rgba(180,150,90,0.18)] bg-[#241C16] p-3 text-xs leading-5 text-[#cfc4b8]" title={accountContext?.user.email ?? "Account verified"}>
+                Session verified for the signed-in workspace.
               </div>
             </aside>
-          </div>
-
-
-          <div className="report-print-hidden mb-8 rounded-3xl border border-[#dccaa8] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-950">Previous reviews</h2>
-                <p className="mt-1 text-sm text-[#8f7245]">
-                  Organisation-scoped review history for this workspace. Stored snapshots keep evidence, recurring risk families, and decision context visible without cross-customer analytics.
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => void loadScanHistory()}
-                className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] px-4 py-2 text-sm font-medium text-neutral-700"
-              >
-                Refresh
-              </button>
-            </div>
-
-            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-              <div className="space-y-3">
-                {historyLoading && (
-                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
-                    Loading review history...
-                  </div>
-                )}
-                {!historyLoading && scanHistory.length === 0 && (
-                  <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm text-neutral-600">
-                    No previous contract risk reviews stored for this organisation yet.
-                  </div>
-                )}
-                {scanHistory.slice(0, 5).map((scan) => {
-                  const severity =
-                    scan.severity === "HIGH" || scan.severity === "MEDIUM" || scan.severity === "LOW"
-                      ? scan.severity
-                      : "LOW";
-                  const exposureScore = scanHistoryExposureScore(scan);
-                  const displayTitle = scanHistoryDisplayTitle(scan, severity);
-                  return (
-                    <button
-                      key={scan.id}
-                      type="button"
-                      onClick={() => void reopenStoredScan(scan.id)}
-                      className="w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4 text-left transition hover:border-[#b08d57]"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate text-sm font-semibold text-neutral-950">
-                            {displayTitle}
-                          </div>
-                          <div className="mt-1 text-xs text-[#8f7245]">
-                            {formatReportTimestamp(scan.created_at)} · {readableSourceType(scan.source_type)}
-                          </div>
-                        </div>
-                        <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${severityBadgeClass(severity)}`}>
-                          {severity} {"\u00b7"} {exposureScore === null ? "Exposure unavailable" : `Exposure ${exposureScore}`}
-                        </span>
-                      </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {(scan.clause_families_detected ?? []).slice(0, 4).map((family) => (
-                          <span key={family} className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-2.5 py-1 text-xs text-[#6f552d]">
-                            {family}
-                          </span>
-                        ))}
-                        <span className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-2.5 py-1 text-xs text-[#6f552d]">
-                          report: {scan.report_export_state ?? "absent"}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-
-              <aside className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
-                <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                  Recurring families
-                </div>
-                <div className="mt-3 space-y-2 text-sm text-neutral-700">
-                  {recurringFamilies.slice(0, 6).map((item) => (
-                    <div key={item.family} className="flex items-center justify-between gap-3">
-                      <span>{item.family}</span>
-                      <span className="font-semibold text-neutral-950">{item.count}</span>
-                    </div>
-                  ))}
-                  {recurringFamilies.length === 0 && <div>No recurring families yet.</div>}
-                </div>
-              </aside>
-            </div>
-          </div>
-
-          <div className="report-print-hidden mb-8 rounded-3xl border border-[#d2bd96] bg-[#f8f2e8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-semibold text-neutral-950">Contract input</h2>
-                <p className="mt-1 text-sm text-[#8f7245]">
-                  Paste contract text or upload a supported file for decision-ready commercial review.
-                </p>
-              </div>
-              <div className="text-xs text-neutral-500">Signed-in workspace only</div>
-            </div>
-
-            <div className="mb-4 flex flex-wrap gap-3">
-              <button
-                type="button"
-                onClick={() => setInputMode("text")}
-                className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
-                  inputMode === "text"
-                    ? "border-[#11110f] bg-[#11110f] text-stone-100"
-                    : "border-[#dccaa8] bg-[#fffaf0] text-neutral-700"
-                }`}
-              >
-                Paste text
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setInputMode("file");
-                  fileInputRef.current?.click();
-                }}
-                className={`rounded-2xl border px-4 py-2 text-sm font-medium ${
-                  inputMode === "file"
-                    ? "border-[#11110f] bg-[#11110f] text-stone-100"
-                    : "border-[#dccaa8] bg-[#fffaf0] text-neutral-700"
-                }`}
-              >
-                Upload PDF / Image
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setInputMode("file");
-                  cameraInputRef.current?.click();
-                }}
-                className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-neutral-700"
-              >
-                Use camera
-              </button>
-              {selectedFile && (
-                <button
-                  type="button"
-                  onClick={clearUpload}
-                  className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] px-4 py-2 text-sm font-medium text-neutral-700"
-                >
-                  Clear file
-                </button>
-              )}
-            </div>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".pdf,image/jpeg,image/jpg,image/png,image/webp"
-              className="hidden"
-              onChange={onFileInputChange}
-            />
-
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={onFileInputChange}
-            />
-
-            <div className="mb-4 rounded-2xl border border-dashed border-[#d6c4a0] bg-[#fcf2df] p-4">
-              <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                Intake mode
-              </div>
-              <div className="mt-2 text-sm text-neutral-700">
-                {inputMode === "file"
-                  ? `File mode active. ${uploadLabel}`
-                  : "Text mode active. Paste the contract or the clauses that need commercial risk review."}
-              </div>
-            </div>
-
-            <textarea
-              value={text}
-              onChange={(event) => {
-                setText(event.target.value);
-                if (event.target.value.trim()) {
-                  setInputMode("text");
-                  setSelectedFile(null);
-                  setUploadLabel("No file selected");
-                  if (fileInputRef.current) fileInputRef.current.value = "";
-                  if (cameraInputRef.current) cameraInputRef.current.value = "";
-                }
-              }}
-              placeholder="Paste key clauses or the full contract text here..."
-              className="min-h-[220px] w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-4 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
-            />
-
-            {errorMessage && (
-              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-700">
-                {errorMessage}
-              </div>
-            )}
-
-            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-sm text-[#8f7245]">
-                Use legible source text and review clause evidence, policy status, and decision records before relying on the result.
-              </div>
-
-              <button
-                onClick={runReview}
-                disabled={loading || !hasInput}
-                className="rounded-2xl bg-[#11110f] px-6 py-3 text-sm font-semibold text-stone-100 shadow-[0_10px_22px_rgba(80,60,30,0.14)] transition hover:bg-[#1a1a17] disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {loading ? "Reviewing..." : "Run Executive Review"}
-              </button>
-            </div>
           </div>
 
           {result && (
@@ -2425,7 +2395,7 @@ export default function DashboardPage() {
                                       )
                                     }
                                     disabled={!activeScanId || decisionSavingKey === findingId}
-                                    className="rounded-full bg-[#11110f] px-4 py-2 text-xs font-semibold text-stone-100 transition hover:bg-[#1b1a17] disabled:cursor-not-allowed disabled:opacity-60"
+                                    className="rounded-full bg-[#1E1712] px-4 py-2 text-xs font-semibold text-[#EDE7DF] transition hover:bg-[#241C16] disabled:cursor-not-allowed disabled:opacity-60"
                                   >
                                     Save note
                                   </button>
@@ -2895,7 +2865,7 @@ export default function DashboardPage() {
                       <button
                         type="button"
                         onClick={handlePrintReport}
-                        className="rounded-2xl bg-[#11110f] px-5 py-3 text-sm font-medium text-stone-100 transition hover:opacity-90"
+                        className="rounded-2xl bg-[#1E1712] px-5 py-3 text-sm font-medium text-[#EDE7DF] transition hover:opacity-90"
                       >
                         Generate Executive Report
                       </button>
@@ -2908,6 +2878,88 @@ export default function DashboardPage() {
               </section>
             </>
           )}
+
+          <section className="report-print-hidden mt-6 border border-[#dccaa8] bg-[#eee6d8] p-4 shadow-[0_10px_24px_rgba(80,60,30,0.04)] md:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f7245]">
+                  Previous Reviews
+                </div>
+                <h2 className="mt-1 text-lg font-semibold text-[#1E1712]">Recent workspace history</h2>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => void loadScanHistory()}
+                  className="border border-[#dccaa8] bg-[#f8f2e8] px-3 py-2 text-xs font-semibold text-[#6f552d]"
+                >
+                  Refresh
+                </button>
+                <Link href="/account/scans" className="border border-[#b08d57] bg-[#f8f2e8] px-3 py-2 text-xs font-semibold text-[#6f552d]">
+                  View full history →
+                </Link>
+              </div>
+            </div>
+
+            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+              <div className="grid gap-3 md:grid-cols-3">
+                {historyLoading && (
+                  <div className="border border-[#dccaa8] bg-[#f8f2e8] p-3 text-sm text-neutral-600 md:col-span-3">
+                    Loading review history...
+                  </div>
+                )}
+                {!historyLoading && scanHistory.length === 0 && (
+                  <div className="border border-[#dccaa8] bg-[#f8f2e8] p-3 text-sm text-neutral-600 md:col-span-3">
+                    No previous contract risk reviews stored for this organisation yet.
+                  </div>
+                )}
+                {scanHistory.slice(0, 3).map((scan) => {
+                  const severity =
+                    scan.severity === "HIGH" || scan.severity === "MEDIUM" || scan.severity === "LOW"
+                      ? scan.severity
+                      : "LOW";
+                  const exposureScore = scanHistoryExposureScore(scan);
+                  const displayTitle = scanHistoryDisplayTitle(scan, severity);
+                  return (
+                    <button
+                      key={scan.id}
+                      type="button"
+                      onClick={() => void reopenStoredScan(scan.id)}
+                      className="min-w-0 border border-[#dccaa8] bg-[#f8f2e8] p-3 text-left opacity-90 transition hover:border-[#b08d57] hover:opacity-100"
+                    >
+                      <div className="truncate text-sm font-semibold text-[#1E1712]">{displayTitle}</div>
+                      <div className="mt-1 text-xs text-[#8f7245]">
+                        {formatReportTimestamp(scan.created_at)} · {readableSourceType(scan.source_type)}
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className={`border px-2 py-1 text-[11px] font-semibold ${severityBadgeClass(severity)}`}>
+                          {severity}
+                        </span>
+                        <span className="border border-[#dccaa8] bg-[#eee6d8] px-2 py-1 text-[11px] text-[#6f552d]">
+                          {exposureScore === null ? "Exposure unavailable" : `Exposure ${exposureScore}`}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              <aside className="border border-[#dccaa8] bg-[#f8f2e8] p-3">
+                <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                  Recurring families
+                </div>
+                <div className="mt-3 space-y-2 text-xs text-neutral-700">
+                  {recurringFamilies.slice(0, 4).map((item) => (
+                    <div key={item.family} className="flex items-center justify-between gap-3">
+                      <span className="truncate">{item.family}</span>
+                      <span className="font-semibold text-[#1E1712]">{item.count}</span>
+                    </div>
+                  ))}
+                  {recurringFamilies.length === 0 && <div>No recurring families yet.</div>}
+                </div>
+              </aside>
+            </div>
+          </section>
         </div>
       </main>
 
