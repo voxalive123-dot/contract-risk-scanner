@@ -75,6 +75,7 @@ export default function SiteHeader({
     : emphasizeSignIn && !signedIn
       ? "rounded-xl bg-[#11110f] px-4 py-2 font-semibold text-stone-100 transition hover:bg-[#1b1a17]"
       : ACCOUNT_BUTTON_CLASS;
+  const showSignOut = authMode === "authenticated";
 
   async function signOut() {
     try {
@@ -127,7 +128,7 @@ export default function SiteHeader({
           <Link href={accountHref} className={accountClass}>
             {accountLabel}
           </Link>
-          {signedIn && (
+          {showSignOut && (
             <button
               type="button"
               onClick={signOut}

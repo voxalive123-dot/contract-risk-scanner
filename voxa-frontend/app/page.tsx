@@ -104,8 +104,8 @@ export default function HomePage() {
       <SiteHeader activeItem="product" />
 
       <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
-        <div className="grid gap-8 rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-8 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.1fr_0.9fr] lg:items-stretch">
-          <div className="flex min-h-[430px] flex-col justify-center">
+        <div className="grid gap-8 rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] p-7 shadow-[0_22px_60px_rgba(75,55,25,0.10)] md:p-10 lg:grid-cols-[1.18fr_0.82fr] lg:items-center">
+          <div className="flex min-h-[390px] flex-col justify-center">
             <Eyebrow>Contract risk governance</Eyebrow>
             <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] tracking-[-0.055em] text-neutral-950 md:text-5xl">
               Contract Risk Decision Intelligence for Commercial Leaders
@@ -126,44 +126,34 @@ export default function HomePage() {
               <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
                 Analyse a contract
               </Link>
-              <Link href="/dashboard" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">
-                View decision dashboard
-              </Link>
               <Link href="/pricing" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">
-                Start contract risk review
+                View plans
               </Link>
             </div>
           </div>
 
-          <aside className="flex h-full flex-col justify-between rounded-[1.5rem] border border-[#d8c49e] bg-[#fbf3e5] p-7 shadow-[0_16px_36px_rgba(75,55,25,0.08)]">
-            <div>
-              <div className="text-[11px] font-semibold uppercase tracking-[0.3em] text-[#8a6a34]">
+          <aside className="self-center rounded-[1.35rem] border border-[#d8c49e] bg-[#fbf5ea] p-6 shadow-[0_14px_32px_rgba(75,55,25,0.07)] md:p-7">
+            <div className="border-b border-[#dfd0b6] pb-5">
+              <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#8a6a34]">
                 Decision boundary
               </div>
-              <h2 className="mt-5 text-3xl font-semibold leading-tight tracking-[-0.04em] text-neutral-950">
-                Executive contract risk intelligence without pretending to decide for you.
+              <h2 className="mt-4 text-2xl font-semibold leading-tight text-neutral-950">
+                Evidence-led intelligence. Human commercial judgement retained.
               </h2>
-              <p className="mt-5 text-sm leading-7 text-neutral-700">
-                Use VoxaRisk to strengthen review posture, preserve evidence, compare against tolerance, and document the commercial decision path before approval pressure builds.
+              <p className="mt-4 text-sm leading-7 text-neutral-700">
+                Strengthen review posture, preserve evidence, compare tolerance, and document the decision path before approval pressure builds.
               </p>
             </div>
-            <div className="mt-8 grid gap-3 sm:grid-cols-2">
-              {decisionEngineSignals.map((signal, index) => (
-                <div key={signal.label} className="rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#b08d57] bg-[#f6efe1] text-xs font-black text-[#6f5328]">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <div>
-                      <div className="text-sm font-semibold text-neutral-950">{signal.label}</div>
-                      <div className="mt-1 text-xs leading-5 text-neutral-600">{signal.detail}</div>
-                    </div>
-                  </div>
+            <div className="mt-5 grid gap-3">
+              {decisionEngineSignals.map((signal) => (
+                <div key={signal.label} className="border-l border-[#b08d57] bg-[#fffdf8] px-4 py-3">
+                  <div className="text-sm font-semibold text-neutral-950">{signal.label}</div>
+                  <div className="mt-1 text-xs leading-5 text-neutral-600">{signal.detail}</div>
                 </div>
               ))}
             </div>
-            <p className="mt-6 rounded-2xl border border-[#dccaad] bg-[#fffdf8] p-5 text-sm leading-7 text-neutral-700">
-              VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes. Users remain responsible for commercial and legal decisions and should obtain professional advice where appropriate.
+            <p className="mt-5 text-xs leading-6 text-neutral-600">
+              VoxaRisk provides commercial risk decision support. It does not provide legal advice, legal opinion, contract approval, compliance certification or universal jurisdiction outcomes.
             </p>
           </aside>
         </div>
