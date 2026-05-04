@@ -26,13 +26,6 @@ const bestFitGroups = [
   "In-house teams triaging escalation points before deeper professional review",
 ];
 
-const decisionEngineSignals = [
-  { label: "Rules", detail: "Deterministic clause signals" },
-  { label: "Evidence", detail: "Matched wording and context" },
-  { label: "Policy", detail: "Tolerance and escalation posture" },
-  { label: "AI notes", detail: "Secondary explanation only" },
-];
-
 const workflowSteps = [
   {
     title: "Detect",
@@ -104,104 +97,102 @@ export default function HomePage() {
       <SiteHeader activeItem="product" />
 
       <section className="mx-auto max-w-[1360px] px-6 py-10 md:px-8">
-        <div className="relative overflow-hidden rounded-[2rem] border border-[#dfd0b6] bg-[#fffaf0] shadow-[0_24px_70px_rgba(75,55,25,0.10)]">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(176,141,87,0.16),transparent_32%),radial-gradient(circle_at_82%_20%,rgba(17,17,15,0.08),transparent_28%),linear-gradient(135deg,#fffaf0_0%,#f7ecd8_100%)]" />
-          <div className="absolute inset-0 opacity-35 [background-image:linear-gradient(rgba(176,141,87,0.16)_1px,transparent_1px),linear-gradient(90deg,rgba(176,141,87,0.12)_1px,transparent_1px)] [background-size:34px_34px]" />
-          <div className="relative grid gap-8 p-7 md:p-10 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
+        <div className="relative overflow-hidden border border-[#dfd0b6] bg-[#fffaf0] shadow-[0_24px_70px_rgba(75,55,25,0.10)]">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(176,141,87,0.14),transparent_30%),linear-gradient(135deg,#fffaf0_0%,#f7ecd8_100%)]" />
+          <div className="absolute inset-0 opacity-30 [background-image:linear-gradient(rgba(176,141,87,0.14)_1px,transparent_1px),linear-gradient(90deg,rgba(176,141,87,0.10)_1px,transparent_1px)] [background-size:38px_38px]" />
+          <div className="relative grid gap-10 p-7 md:p-10 lg:grid-cols-[0.8fr_1.2fr] lg:items-center lg:p-12">
             <div className="flex min-h-[430px] flex-col justify-center">
               <Eyebrow>Contract risk governance</Eyebrow>
-              <h1 className="mt-6 max-w-4xl text-4xl font-semibold leading-[1.05] text-neutral-950 md:text-5xl">
-                Contract Risk Decision Intelligence for Commercial Leaders
+              <h1 className="mt-6 max-w-3xl text-4xl font-semibold leading-[1.04] text-neutral-950 md:text-5xl">
+                Contract Risk Intelligence That Surfaces What Others Miss
               </h1>
-              <p className="mt-6 max-w-3xl text-base leading-8 text-neutral-700">
-                VoxaRisk helps organisations detect hidden contract exposure, compare risks against internal tolerance, preserve decision history, and turn contract review into a repeatable governance process.
+              <p className="mt-6 max-w-2xl text-base leading-7 text-neutral-700">
+                Rules-first review, evidence trails, and decision outputs for teams that need commercial risk clarity before signature pressure builds.
               </p>
 
-              <div className="mt-7 grid max-w-3xl gap-3 sm:grid-cols-2">
-                {["Rules-first risk spine", "Evidence-led review", "Policy-aware posture", "Audit-ready decisions"].map((item) => (
-                  <div key={item} className="border-l border-[#b08d57] bg-[#fffdf8]/72 px-4 py-3 text-sm font-semibold text-neutral-900 shadow-[0_10px_24px_rgba(75,55,25,0.04)] backdrop-blur-sm">
-                    {item}
-                  </div>
-                ))}
-              </div>
-
               <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-                <Link href="/dashboard" className="rounded-xl bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
-                  Analyse a contract
+                <Link href="/dashboard" className="bg-[#11110f] px-6 py-3 text-center text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
+                  Run a contract scan
                 </Link>
-                <Link href="/pricing" className="rounded-xl border border-[#c6aa72] bg-[#fff8ea] px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#f3e4c6]">
-                  View plans
+                <Link href="#product" className="border border-[#b08d57] bg-transparent px-6 py-3 text-center text-sm font-semibold text-neutral-950 transition hover:bg-[#fff6e4]">
+                  See how it works
                 </Link>
               </div>
             </div>
 
-            <aside className="relative mx-auto w-full max-w-[560px] py-2 lg:py-8">
-              <div className="absolute left-8 right-8 top-8 h-32 rounded-full bg-[#b08d57]/10 blur-3xl" />
-              <div className="relative rounded-[1.55rem] border border-[#d8c49e] bg-[#fffdf8]/86 p-4 shadow-[0_24px_55px_rgba(75,55,25,0.12)] backdrop-blur-md md:p-5">
-                <div className="flex items-center justify-between gap-4 border-b border-[#eadcc4] pb-4">
+            <aside className="relative w-full overflow-hidden bg-[#0c0c0c] p-4 text-stone-100 shadow-[0_30px_80px_rgba(17,17,15,0.24)] ring-1 ring-[#b08d57]/35 md:p-5 lg:my-6">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_72%_16%,rgba(176,141,87,0.20),transparent_30%),linear-gradient(135deg,rgba(255,255,255,0.05)_0%,transparent_38%)]" />
+              <div className="absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(213,189,136,0.42)_1px,transparent_1px),linear-gradient(90deg,rgba(213,189,136,0.32)_1px,transparent_1px)] [background-size:32px_32px]" />
+              <div className="relative border border-[#b08d57]/45 bg-[#11110f]/86 p-4 shadow-[0_0_45px_rgba(176,141,87,0.12)] md:p-5">
+                <div className="flex flex-col gap-3 border-b border-[#b08d57]/45 pb-4 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">
-                      Risk Intelligence Stack
-                    </div>
-                    <div className="mt-2 text-lg font-semibold text-neutral-950">Executive review package</div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#d5bd88]">Decision intelligence command interface</div>
+                    <div className="mt-2 text-sm text-stone-300">Rules, evidence, exposure score, and action posture in one governed view.</div>
                   </div>
-                  <div className="h-2 w-20 rounded-full bg-[linear-gradient(90deg,#11110f_0%,#b08d57_100%)]" />
+                  <div className="h-px bg-[#b08d57]/70 sm:h-10 sm:w-px" />
+                  <div className="font-mono text-[11px] uppercase tracking-[0.18em] text-stone-400">Live review mode</div>
                 </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-[0.9fr_1.1fr]">
-                  <div className="rounded-[1.1rem] border border-[#dfd0b6] bg-[#fbf5ea] p-4">
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#8a6a34]">Contract evidence</div>
-                      <div className="h-px flex-1 bg-[#d2bd96]" />
+                <div className="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
+                    <div className="flex items-center justify-between gap-4 border-b border-[#b08d57]/35 pb-3">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Contract Intake</h2>
+                      <span className="font-mono text-[11px] text-stone-500">SOURCE TEXT</span>
                     </div>
-                    <div className="mt-4 space-y-3">
-                      <div className="rounded-xl border border-[#eadcc4] bg-[#fffaf0] p-4 shadow-[0_10px_20px_rgba(75,55,25,0.04)]">
-                        <div className="h-2 w-28 rounded-full bg-[#11110f]/80" />
-                        <div className="mt-4 space-y-2">
-                          <div className="h-1.5 w-full rounded-full bg-[#d8c49e]" />
-                          <div className="h-1.5 w-10/12 rounded-full bg-[#d8c49e]" />
-                          <div className="h-1.5 w-11/12 rounded-full bg-[#d8c49e]" />
-                        </div>
-                        <div className="mt-4 border-l-2 border-[#b08d57] bg-[#fffdf8] px-3 py-2">
-                          <div className="h-1.5 w-24 rounded-full bg-[#b08d57]" />
-                          <div className="mt-2 h-1.5 w-32 rounded-full bg-[#d8c49e]" />
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2">
-                        {['Evidence', 'Score', 'Posture'].map((item) => (
-                          <div key={item} className="rounded-lg border border-[#eadcc4] bg-[#fffdf8] px-2 py-2 text-center text-[10px] font-semibold uppercase tracking-[0.12em] text-[#6f5328]">
-                            {item}
-                          </div>
-                        ))}
-                      </div>
+                    <blockquote className="mt-4 font-mono text-sm leading-7 text-stone-200">
+                      &quot;Supplier shall indemnify and keep indemnified the Customer against any and all loss, damage, liability, legal fees and costs...&quot;
+                    </blockquote>
+                    <div className="mt-5 h-px bg-[linear-gradient(90deg,rgba(176,141,87,0.85),transparent)]" />
+                    <div className="mt-4 grid gap-2 font-mono text-[11px] uppercase tracking-[0.16em] text-stone-500 sm:grid-cols-3">
+                      <span>Rule match</span>
+                      <span>Evidence bound</span>
+                      <span>Clause context</span>
                     </div>
-                  </div>
+                  </section>
 
-                  <div className="space-y-3">
-                    {decisionEngineSignals.map((signal) => (
-                      <div key={signal.label} className="relative rounded-[1rem] border border-[#dfd0b6] bg-[#fffaf0]/88 p-4 shadow-[0_12px_24px_rgba(75,55,25,0.05)]">
-                        <div className="absolute left-0 top-4 h-8 w-px bg-[#b08d57]" />
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <div className="text-sm font-semibold text-neutral-950">{signal.label}</div>
-                            <div className="mt-1 text-xs leading-5 text-neutral-600">{signal.detail}</div>
-                          </div>
-                          <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#b08d57]" />
+                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
+                    <div className="border-b border-[#b08d57]/35 pb-3">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Detected Signals</h2>
+                    </div>
+                    <div className="mt-4 space-y-3 font-mono text-sm text-stone-200">
+                      {["Broad indemnity", "Cross-contract set-off", "Termination leverage"].map((signal) => (
+                        <div key={signal} className="flex items-center gap-3">
+                          <span className="h-px w-5 bg-[#b08d57]" />
+                          <span>{signal}</span>
                         </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
 
-                <div className="mt-5 rounded-[1.1rem] border border-[#d8c49e] bg-[#11110f] p-4 text-stone-100 shadow-[0_16px_32px_rgba(17,17,15,0.14)]">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="text-[11px] font-semibold uppercase tracking-[0.2em] text-[#d5bd88]">Decision output</div>
-                      <div className="mt-2 text-sm font-semibold">Negotiation priorities and evidence record prepared</div>
+                <div className="mt-4 grid gap-4 md:grid-cols-[0.85fr_1.15fr]">
+                  <section className="border border-[#b08d57]/35 bg-[#0c0c0c]/84 p-4">
+                    <div className="border-b border-[#b08d57]/35 pb-3">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Risk Score</h2>
                     </div>
-                    <div className="h-px bg-[#d5bd88]/50 sm:h-10 sm:w-px" />
-                    <div className="text-xs leading-5 text-stone-300">AI notes remain secondary to governed rules and evidence.</div>
-                  </div>
+                    <div className="mt-5 flex items-end justify-between gap-4">
+                      <div>
+                        <div className="text-xs font-semibold uppercase tracking-[0.22em] text-stone-400">High exposure</div>
+                        <div className="mt-2 text-5xl font-semibold leading-none text-stone-100">28</div>
+                      </div>
+                      <div className="h-20 w-px bg-[#b08d57]/60" />
+                      <div className="max-w-[150px] text-xs leading-5 text-stone-400">Financial exposure, control imbalance, and termination pressure elevated.</div>
+                    </div>
+                  </section>
+
+                  <section className="border border-[#d5bd88]/60 bg-[#15130f] p-4 shadow-[0_0_34px_rgba(176,141,87,0.13)]">
+                    <div className="border-b border-[#b08d57]/45 pb-3">
+                      <h2 className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">Decision Output</h2>
+                    </div>
+                    <div className="mt-5 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                      <div>
+                        <div className="font-mono text-[11px] uppercase tracking-[0.2em] text-stone-500">Recommended posture</div>
+                        <div className="mt-2 text-2xl font-semibold uppercase text-stone-100 md:text-3xl">Hold / Renegotiate</div>
+                      </div>
+                      <div className="h-px bg-[#b08d57]/55 sm:h-12 sm:w-px" />
+                      <div className="text-sm leading-6 text-stone-300">Escalate broad indemnity, set-off, and termination leverage before approval.</div>
+                    </div>
+                  </section>
                 </div>
               </div>
             </aside>
