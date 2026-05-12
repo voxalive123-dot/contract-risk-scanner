@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import GoogleAnalytics from "./GoogleAnalytics";
 
 import "./globals.css";
 
@@ -15,7 +16,8 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body><GoogleAnalytics />
+        {children}</body>
     </html>
   );
 }
