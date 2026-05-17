@@ -115,6 +115,23 @@ def _decision_note_payload(note: DecisionNote) -> dict[str, Any]:
     }
 
 
+def _scan_context_payload(scan: Scan) -> dict[str, Any]:
+    return {
+        "user_role": scan.context_user_role,
+        "contract_type": scan.context_contract_type,
+        "criticality_level": scan.context_criticality_level,
+        "risk_posture": scan.context_risk_posture,
+        "deal_value": scan.context_deal_value,
+        "industry": scan.context_industry,
+        "jurisdiction": scan.context_jurisdiction,
+        "negotiation_leverage": scan.context_negotiation_leverage,
+        "counterparty_tier": scan.context_counterparty_tier,
+        "data_sensitivity": scan.context_data_sensitivity,
+        "insurance_coverage": scan.context_insurance_coverage,
+        "capture_version": scan.context_capture_version,
+    }
+
+
 def serialize_scan_detail(scan: Scan) -> dict[str, Any]:
     payload = serialize_scan_summary(scan)
     payload.update(
@@ -124,6 +141,7 @@ def serialize_scan_detail(scan: Scan) -> dict[str, Any]:
             "risk_density": float(scan.risk_density or 0),
             "scan_input_length": scan.scan_input_length,
             "context_profile_snapshot": _json_load(scan.context_profile_snapshot, None),
+            "context": _scan_context_payload(scan),
             "decision_intelligence_snapshot": _json_load(scan.decision_intelligence_snapshot, None),
             "decision_state": _scan_decision_payload(scan.scan_decision),
             "finding_decisions": [
@@ -229,7 +247,17 @@ def create_scan(
     context_profile_snapshot: Optional[dict[str, Any]] = None,
     report_export_state: str = "absent",
     decision_intelligence_snapshot: Optional[dict[str, Any]] = None,
+    context_fields: Optional[dict[str, Any]] = None,
 ) -> Scan:
+    context_fields = context_fields or {}
+    context_snapshot = context_profile_snapshot or {}
+    if isinstance(context_snapshot, dict):
+        context_snapshot_fields = context_snapshot.get("context") or {}
+        context_version = context_snapshot.get("version")
+    else:
+        context_snapshot_fields = {}
+        context_version = None
+    merged_context = {**context_snapshot_fields, **context_fields}
     scan = Scan(
         org_id=org_id,
         user_id=user_id,
@@ -246,6 +274,18 @@ def create_scan(
         clause_families_detected=_json_dump(clause_families_detected or []),
         synthesis_patterns_triggered=_json_dump(synthesis_patterns_triggered or []),
         context_profile_snapshot=_json_dump(context_profile_snapshot),
+        context_user_role=merged_context.get("user_role"),
+        context_contract_type=merged_context.get("contract_type"),
+        context_criticality_level=merged_context.get("criticality_level"),
+        context_risk_posture=merged_context.get("risk_posture"),
+        context_deal_value=merged_context.get("deal_value"),
+        context_industry=merged_context.get("industry"),
+        context_jurisdiction=merged_context.get("jurisdiction"),
+        context_negotiation_leverage=merged_context.get("negotiation_leverage"),
+        context_counterparty_tier=merged_context.get("counterparty_tier"),
+        context_data_sensitivity=merged_context.get("data_sensitivity"),
+        context_insurance_coverage=merged_context.get("insurance_coverage"),
+        context_capture_version=context_version,
         report_export_state=report_export_state or "absent",
         decision_intelligence_snapshot=_json_dump(decision_intelligence_snapshot),
         created_at=utcnow(),

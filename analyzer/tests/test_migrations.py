@@ -60,6 +60,18 @@ def test_upgrade_head_on_fresh_db() -> None:
     assert "context_profile_snapshot" in columns
     assert "report_export_state" in columns
     assert "decision_intelligence_snapshot" in columns
+    assert "context_user_role" in columns
+    assert "context_contract_type" in columns
+    assert "context_criticality_level" in columns
+    assert "context_risk_posture" in columns
+    assert "context_deal_value" in columns
+    assert "context_industry" in columns
+    assert "context_jurisdiction" in columns
+    assert "context_negotiation_leverage" in columns
+    assert "context_counterparty_tier" in columns
+    assert "context_data_sensitivity" in columns
+    assert "context_insurance_coverage" in columns
+    assert "context_capture_version" in columns
 
     scan_note_columns = table_columns(DB_PATH, "scan_notes")
     assert "org_id" in scan_note_columns
@@ -185,7 +197,7 @@ def test_upgrade_head_on_fresh_db() -> None:
         cur.execute("SELECT version_num FROM alembic_version")
         row = cur.fetchone()
         assert row is not None
-        assert row[0] == "f6a7b8c9d0e1"
+        assert row[0] == "a7b8c9d0e1f2"
     finally:
         conn.close()
 
@@ -199,6 +211,9 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "source_title" not in columns_after_downgrade
     assert "context_profile_snapshot" not in columns_after_downgrade
     assert "decision_intelligence_snapshot" not in columns_after_downgrade
+    assert "context_user_role" not in columns_after_downgrade
+    assert "context_criticality_level" not in columns_after_downgrade
+    assert "context_risk_posture" not in columns_after_downgrade
 
     user_columns_after_downgrade = table_columns(DB_PATH, "users")
     assert "account_status" not in user_columns_after_downgrade
@@ -268,6 +283,9 @@ def test_downgrade_then_upgrade_roundtrip() -> None:
     assert "source_title" in columns_after_reupgrade
     assert "context_profile_snapshot" in columns_after_reupgrade
     assert "decision_intelligence_snapshot" in columns_after_reupgrade
+    assert "context_user_role" in columns_after_reupgrade
+    assert "context_criticality_level" in columns_after_reupgrade
+    assert "context_risk_posture" in columns_after_reupgrade
 
     user_columns_after_reupgrade = table_columns(DB_PATH, "users")
     assert "account_status" in user_columns_after_reupgrade

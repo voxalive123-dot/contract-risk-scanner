@@ -222,11 +222,22 @@ ALLOWED_IMAGE_TYPES = {
 ALLOWED_SOURCE_TYPES = {"text", "pdf", "image", "unknown"}
 ALLOWED_USER_ROLES = {
     "buyer",
+    "seller",
     "supplier",
+    "customer",
+    "landlord",
+    "tenant",
+    "lender",
+    "borrower",
+    "partner",
+    "licensor",
+    "licensee",
+    "employer",
+    "employee",
+    "other",
     "saas_provider",
     "agency",
     "consultant",
-    "employer",
     "contractor",
     "reseller",
     "processor",
@@ -235,13 +246,20 @@ ALLOWED_USER_ROLES = {
 }
 ALLOWED_CONTRACT_TYPES = {
     "saas",
-    "services",
-    "consultancy",
-    "procurement",
-    "employment",
+    "supplier_agreement",
+    "nda",
     "lease",
+    "employment",
+    "reseller",
+    "partnership",
+    "loan",
+    "procurement",
     "data_processing",
     "franchise",
+    "services",
+    "government",
+    "other",
+    "consultancy",
     "logistics",
     "security_services",
     "healthcare",
@@ -275,6 +293,21 @@ ALLOWED_DOCUMENT_POSITIONS = {
     "customer_terms",
     "unknown",
 }
+
+ALLOWED_CRITICALITY_LEVELS = {"low", "medium", "high", "mission_critical", "unknown"}
+ALLOWED_RISK_POSTURES = {"balanced", "conservative", "aggressive_growth", "unknown"}
+ALLOWED_NEGOTIATION_LEVERAGE = {"low", "medium", "high", "unknown"}
+ALLOWED_COUNTERPARTY_TIERS = {
+    "startup",
+    "sme",
+    "mid_market",
+    "enterprise",
+    "public_sector",
+    "strategic",
+    "unknown",
+}
+ALLOWED_DATA_SENSITIVITY = {"none", "low", "moderate", "high", "special_category", "unknown"}
+ALLOWED_INSURANCE_COVERAGE = {"unknown", "not_applicable", "not_confirmed", "confirmed", "insufficient"}
 
 
 def enforce_rate_limit(request: Request) -> None:
@@ -319,6 +352,15 @@ class AnalyzeRequest(BaseModel):
     counterparty_profile: str | None = None
     value_criticality: str | None = None
     document_position: str | None = None
+    criticality_level: str | None = None
+    risk_posture: str | None = None
+    deal_value: str | None = None
+    industry: str | None = None
+    jurisdiction: str | None = None
+    negotiation_leverage: str | None = None
+    counterparty_tier: str | None = None
+    data_sensitivity: str | None = None
+    insurance_coverage: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -373,6 +415,52 @@ class AnalyzeRequest(BaseModel):
     @classmethod
     def validate_document_position(cls, value: str | None) -> str | None:
         return _validate_optional_choice(value, ALLOWED_DOCUMENT_POSITIONS, "unsupported document_position")
+
+    @field_validator("criticality_level")
+    @classmethod
+    def validate_criticality_level(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_CRITICALITY_LEVELS, "unsupported criticality_level")
+
+    @field_validator("risk_posture")
+    @classmethod
+    def validate_risk_posture(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_RISK_POSTURES, "unsupported risk_posture")
+
+    @field_validator("deal_value")
+    @classmethod
+    def validate_deal_value(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:80] if stripped else None
+
+    @field_validator("industry", "jurisdiction")
+    @classmethod
+    def validate_short_context_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip().lower().replace("-", "_").replace(" ", "_")
+        return stripped[:80] if stripped else None
+
+    @field_validator("negotiation_leverage")
+    @classmethod
+    def validate_negotiation_leverage(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_NEGOTIATION_LEVERAGE, "unsupported negotiation_leverage")
+
+    @field_validator("counterparty_tier")
+    @classmethod
+    def validate_counterparty_tier(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_COUNTERPARTY_TIERS, "unsupported counterparty_tier")
+
+    @field_validator("data_sensitivity")
+    @classmethod
+    def validate_data_sensitivity(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_DATA_SENSITIVITY, "unsupported data_sensitivity")
+
+    @field_validator("insurance_coverage")
+    @classmethod
+    def validate_insurance_coverage(cls, value: str | None) -> str | None:
+        return _validate_optional_choice(value, ALLOWED_INSURANCE_COVERAGE, "unsupported insurance_coverage")
 
 
 class AnalyzeResponse(BaseModel):
@@ -997,6 +1085,15 @@ def _context_from_request(request: AnalyzeRequest) -> dict[str, Any]:
         "counterparty_profile": request.counterparty_profile,
         "value_criticality": request.value_criticality,
         "document_position": request.document_position,
+        "criticality_level": request.criticality_level,
+        "risk_posture": request.risk_posture,
+        "deal_value": request.deal_value,
+        "industry": request.industry,
+        "jurisdiction": request.jurisdiction,
+        "negotiation_leverage": request.negotiation_leverage,
+        "counterparty_tier": request.counterparty_tier,
+        "data_sensitivity": request.data_sensitivity,
+        "insurance_coverage": request.insurance_coverage,
     }
 
 
@@ -1082,6 +1179,15 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
         counterparty_profile=context.get("counterparty_profile"),
         value_criticality=context.get("value_criticality"),
         document_position=context.get("document_position"),
+        criticality_level=context.get("criticality_level"),
+        risk_posture=context.get("risk_posture"),
+        deal_value=context.get("deal_value"),
+        industry=context.get("industry"),
+        jurisdiction=context.get("jurisdiction"),
+        negotiation_leverage=context.get("negotiation_leverage"),
+        counterparty_tier=context.get("counterparty_tier"),
+        data_sensitivity=context.get("data_sensitivity"),
+        insurance_coverage=context.get("insurance_coverage"),
     )
 
     raw_meta = result.get("meta", {}) or {}
@@ -1186,6 +1292,7 @@ def _persist_analysis(
         source_type=source_type,
         report_export_state=report_export_state,
         **_scan_snapshot_fields(payload),
+        context_fields=(meta.get("context_profile_used") or {}).get("context", {}),
     )
 
     create_usage_log(
@@ -2467,6 +2574,7 @@ def analyze(
         clause_families_detected=list(result_meta.get("rule_families_detected", [])),
         synthesis_patterns_triggered=list(result_meta.get("synthesis_patterns_triggered", [])),
         context_profile_snapshot=result_meta.get("context_profile_used"),
+        context_fields=_context_from_request(request),
     )
 
     create_usage_log(

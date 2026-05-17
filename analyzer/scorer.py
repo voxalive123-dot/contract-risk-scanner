@@ -2251,23 +2251,24 @@ def _contextual_emphasis_for_finding(
     context = context_profile.get("context", {}) or {}
     role = context.get("user_role", "unknown")
     contract_type = context.get("contract_type", "unknown")
-    criticality = context.get("value_criticality", "unknown")
+    criticality = context.get("criticality_level", "unknown")
+    legacy_criticality = context.get("value_criticality", "unknown")
     category = str(finding.get("category", ""))
     rule_id = str(finding.get("rule_id", ""))
 
-    if role == "buyer" and (category in {"service", "payment", "termination"} or "suspension" in rule_id):
+    if role in {"buyer", "customer", "tenant", "borrower", "licensee", "employee"} and (category in {"service", "payment", "termination"} or "suspension" in rule_id):
         return "Buyer context: review operational continuity, cash-flow exposure, and supplier control leverage before acceptance."
 
-    if role in {"supplier", "saas_provider", "consultant", "agency"} and category in {"liability", "indemnity"}:
+    if role in {"seller", "supplier", "landlord", "lender", "licensor", "employer", "saas_provider", "consultant", "agency"} and category in {"liability", "indemnity"}:
         return "Supplier context: review downside exposure, insurability, and margin protection before accepting this allocation."
 
     if contract_type in {"saas", "data_processing", "healthcare"} and category in {"data", "confidentiality", "licensing"}:
         return "Data-heavy context: review governance, confidentiality, onward transfer, and trust impact before relying on the clause package."
 
-    if criticality in {"high_value", "business_critical", "strategic_partnership"}:
+    if criticality in {"high", "mission_critical"} or legacy_criticality in {"high_value", "business_critical", "strategic_partnership"}:
         return "Criticality context: evidence-backed escalation should be stronger because operational or financial consequence may be material."
 
-    if criticality in {"low_value", "one_off", "pilot"}:
+    if criticality == "low" or legacy_criticality in {"low_value", "one_off", "pilot"}:
         return "Limited-criticality context: keep the finding visible, but calibrate escalation to the deal value and dependency."
 
     return None
@@ -2296,6 +2297,14 @@ def score_contract(
     counterparty_profile: Optional[str] = None,
     value_criticality: Optional[str] = None,
     document_position: Optional[str] = None,
+    criticality_level: Optional[str] = None,
+    risk_posture: Optional[str] = None,
+    deal_value: Optional[str] = None,
+    industry: Optional[str] = None,
+    negotiation_leverage: Optional[str] = None,
+    counterparty_tier: Optional[str] = None,
+    data_sensitivity: Optional[str] = None,
+    insurance_coverage: Optional[str] = None,
     objective: Optional[str] = None,
     policy_profile: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
@@ -2307,6 +2316,14 @@ def score_contract(
         counterparty_profile=counterparty_profile,
         value_criticality=value_criticality,
         document_position=document_position,
+        criticality_level=criticality_level,
+        risk_posture=risk_posture,
+        deal_value=deal_value,
+        industry=industry,
+        negotiation_leverage=negotiation_leverage,
+        counterparty_tier=counterparty_tier,
+        data_sensitivity=data_sensitivity,
+        insurance_coverage=insurance_coverage,
         objective=objective,
     )
     original_text = text or ""

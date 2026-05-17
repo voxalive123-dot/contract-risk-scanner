@@ -206,13 +206,60 @@ const FINDING_DECISION_OPTIONS: Array<{ value: FindingDecisionValue; label: stri
 ];
 
 const DOCUMENT_TYPE_OPTIONS = [
-  "Supplier Agreement",
-  "NDA",
-  "Service Agreement",
-  "Loan Agreement",
-  "Lease",
-  "Employment Contract",
-  "Other",
+  { label: "Supplier Agreement", value: "supplier_agreement" },
+  { label: "NDA", value: "nda" },
+  { label: "SaaS", value: "saas" },
+  { label: "Service Agreement", value: "services" },
+  { label: "Loan Agreement", value: "loan" },
+  { label: "Lease", value: "lease" },
+  { label: "Employment Contract", value: "employment" },
+  { label: "Other", value: "other" },
+] as const;
+
+const CONTEXT_ROLE_OPTIONS = [
+  { label: "Buyer", value: "buyer" },
+  { label: "Seller", value: "seller" },
+  { label: "Supplier", value: "supplier" },
+  { label: "Customer", value: "customer" },
+  { label: "Landlord", value: "landlord" },
+  { label: "Tenant", value: "tenant" },
+  { label: "Lender", value: "lender" },
+  { label: "Borrower", value: "borrower" },
+  { label: "Partner", value: "partner" },
+  { label: "Licensor", value: "licensor" },
+  { label: "Licensee", value: "licensee" },
+  { label: "Employer", value: "employer" },
+  { label: "Employee", value: "employee" },
+  { label: "Other", value: "other" },
+] as const;
+
+const CRITICALITY_OPTIONS = [
+  { label: "Low", value: "low" },
+  { label: "Medium", value: "medium" },
+  { label: "High", value: "high" },
+  { label: "Mission critical", value: "mission_critical" },
+] as const;
+
+const RISK_POSTURE_OPTIONS = [
+  { label: "Balanced", value: "balanced" },
+  { label: "Conservative", value: "conservative" },
+  { label: "Aggressive growth", value: "aggressive_growth" },
+] as const;
+
+const DATA_SENSITIVITY_OPTIONS = [
+  { label: "Not applicable", value: "none" },
+  { label: "Low", value: "low" },
+  { label: "Moderate", value: "moderate" },
+  { label: "High", value: "high" },
+  { label: "Special category", value: "special_category" },
+] as const;
+
+const INSURANCE_OPTIONS = [
+  { label: "Unknown", value: "unknown" },
+  { label: "Not applicable", value: "not_applicable" },
+  { label: "Not confirmed", value: "not_confirmed" },
+  { label: "Confirmed", value: "confirmed" },
+  { label: "Insufficient", value: "insufficient" },
 ] as const;
 
 const REVIEW_PURPOSE_OPTIONS = [
@@ -1143,6 +1190,14 @@ export default function DashboardPage() {
   const [preparedFor, setPreparedFor] = useState("");
   const [documentType, setDocumentType] = useState("");
   const [reviewPurpose, setReviewPurpose] = useState("");
+  const [contextUserRole, setContextUserRole] = useState("");
+  const [criticalityLevel, setCriticalityLevel] = useState("");
+  const [riskPosture, setRiskPosture] = useState("balanced");
+  const [dealValue, setDealValue] = useState("");
+  const [industry, setIndustry] = useState("");
+  const [jurisdiction, setJurisdiction] = useState("");
+  const [dataSensitivity, setDataSensitivity] = useState("");
+  const [insuranceCoverage, setInsuranceCoverage] = useState("");
   const [internalReference, setInternalReference] = useState("");
   const [reportValidationMessage, setReportValidationMessage] = useState<string | null>(null);
   const [aiReview, setAIReview] = useState<NormalizedAIExplainResponse | null>(null);
@@ -1315,6 +1370,20 @@ export default function DashboardPage() {
     }
   }
 
+  function contextPayload() {
+    return {
+      user_role: contextUserRole || undefined,
+      contract_type: documentType || undefined,
+      criticality_level: criticalityLevel || undefined,
+      risk_posture: riskPosture || undefined,
+      deal_value: dealValue.trim() || undefined,
+      industry: industry.trim() || undefined,
+      jurisdiction: jurisdiction.trim() || undefined,
+      data_sensitivity: dataSensitivity || undefined,
+      insurance_coverage: insuranceCoverage || undefined,
+    };
+  }
+
   async function runReview() {
     const hasFileInput = !!selectedFile;
     const hasTextInput = text.trim().length > 0;
@@ -1332,6 +1401,9 @@ export default function DashboardPage() {
           ? (() => {
               const formData = new FormData();
               formData.append("file", selectedFile, selectedFile.name);
+              Object.entries(contextPayload()).forEach(([key, value]) => {
+                if (value) formData.append(key, String(value));
+              });
               return { method: "POST", body: formData };
             })()
           : {
@@ -1339,10 +1411,12 @@ export default function DashboardPage() {
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
                 text,
-                source_title: reportTitle.trim() || documentType || undefined,
+                source_title:
+                  reportTitle.trim() ||
+                  DOCUMENT_TYPE_OPTIONS.find((option) => option.value === documentType)?.label ||
+                  undefined,
                 source_type: "text",
-                user_role: undefined,
-                contract_type: documentType.toLowerCase().includes("service") ? "services" : undefined,
+                ...contextPayload(),
                 value_criticality: reviewPurpose.toLowerCase().includes("renewal") ? "recurring" : undefined,
                 document_position: reviewPurpose.toLowerCase().includes("renewal") ? "renewal" : undefined,
               }),
@@ -2812,8 +2886,8 @@ export default function DashboardPage() {
                       >
                         <option value="">Select document type</option>
                         {DOCUMENT_TYPE_OPTIONS.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
+                          <option key={option.value} value={option.value}>
+                            {option.label}
                           </option>
                         ))}
                       </select>
@@ -2832,6 +2906,134 @@ export default function DashboardPage() {
                         {REVIEW_PURPOSE_OPTIONS.map((option) => (
                           <option key={option} value={option}>
                             {option}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Your position
+                      </span>
+                      <select
+                        value={contextUserRole}
+                        onChange={(event) => setContextUserRole(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select role</option>
+                        {CONTEXT_ROLE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Criticality
+                      </span>
+                      <select
+                        value={criticalityLevel}
+                        onChange={(event) => setCriticalityLevel(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select criticality</option>
+                        {CRITICALITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Risk posture
+                      </span>
+                      <select
+                        value={riskPosture}
+                        onChange={(event) => setRiskPosture(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        {RISK_POSTURE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Deal value
+                      </span>
+                      <input
+                        value={dealValue}
+                        onChange={(event) => setDealValue(event.target.value.slice(0, 80))}
+                        placeholder="e.g. 250000"
+                        maxLength={80}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Industry
+                      </span>
+                      <input
+                        value={industry}
+                        onChange={(event) => setIndustry(event.target.value.slice(0, 80))}
+                        placeholder="Fintech, healthcare, procurement"
+                        maxLength={80}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Jurisdiction
+                      </span>
+                      <input
+                        value={jurisdiction}
+                        onChange={(event) => setJurisdiction(event.target.value.slice(0, 80))}
+                        placeholder="UK, EU, US"
+                        maxLength={80}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      />
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Data sensitivity
+                      </span>
+                      <select
+                        value={dataSensitivity}
+                        onChange={(event) => setDataSensitivity(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select sensitivity</option>
+                        {DATA_SENSITIVITY_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    <label className="block">
+                      <span className="text-sm font-semibold text-neutral-900">
+                        Insurance coverage
+                      </span>
+                      <select
+                        value={insuranceCoverage}
+                        onChange={(event) => setInsuranceCoverage(event.target.value)}
+                        className="mt-2 w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] px-4 py-3 text-sm text-neutral-900 outline-none transition focus:border-[#b08d57]"
+                      >
+                        <option value="">Select coverage</option>
+                        {INSURANCE_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
                           </option>
                         ))}
                       </select>

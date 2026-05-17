@@ -37,6 +37,15 @@ def test_saved_scan_persists_org_context_and_snapshots(account_client):
             "counterparty_profile": "key_supplier",
             "value_criticality": "business_critical",
             "document_position": "vendor_paper",
+            "criticality_level": "mission_critical",
+            "risk_posture": "conservative",
+            "deal_value": "250000",
+            "industry": "fintech",
+            "jurisdiction": "uk",
+            "negotiation_leverage": "low",
+            "counterparty_tier": "enterprise",
+            "data_sensitivity": "high",
+            "insurance_coverage": "confirmed",
         },
     )
 
@@ -54,6 +63,18 @@ def test_saved_scan_persists_org_context_and_snapshots(account_client):
         assert "suspension" in scan.clause_families_detected
         assert "upfront_payment_suspension" in scan.synthesis_patterns_triggered
         assert "business_critical" in scan.context_profile_snapshot
+        assert scan.context_user_role == "buyer"
+        assert scan.context_contract_type == "services"
+        assert scan.context_criticality_level == "mission_critical"
+        assert scan.context_risk_posture == "conservative"
+        assert scan.context_deal_value == "250000"
+        assert scan.context_industry == "fintech"
+        assert scan.context_jurisdiction == "uk"
+        assert scan.context_negotiation_leverage == "low"
+        assert scan.context_counterparty_tier == "enterprise"
+        assert scan.context_data_sensitivity == "high"
+        assert scan.context_insurance_coverage == "confirmed"
+        assert scan.context_capture_version == "0.2.0"
         assert scan.report_export_state == "absent"
 
 
@@ -151,6 +172,8 @@ def test_context_defaults_and_confidence_levels_are_safe():
         counterparty_profile="larger_counterparty",
         value_criticality="high_value",
         document_position="negotiated_draft",
+        criticality_level="high",
+        risk_posture="balanced",
     )
 
     assert missing["meta"]["context_confidence"] == "low"

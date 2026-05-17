@@ -4,8 +4,8 @@ from copy import deepcopy
 from typing import Any, Dict, Optional
 
 
-CONTEXT_PROFILE_VERSION = "0.1.0"
-CONTEXT_PROFILE_LAST_UPDATED = "2026-05-01"
+CONTEXT_PROFILE_VERSION = "0.2.0"
+CONTEXT_PROFILE_LAST_UPDATED = "2026-05-17"
 
 
 JURISDICTION_PROFILES: Dict[str, Dict[str, Any]] = {
@@ -71,11 +71,23 @@ SECTOR_PROFILES: Dict[str, Dict[str, Any]] = {
 
 USER_ROLE_VALUES = {
     "buyer",
+    "seller",
     "supplier",
+    "customer",
+    "landlord",
+    "tenant",
+    "lender",
+    "borrower",
+    "partner",
+    "licensor",
+    "licensee",
+    "employer",
+    "employee",
+    "other",
+    # Legacy values retained for backward compatibility.
     "saas_provider",
     "agency",
     "consultant",
-    "employer",
     "contractor",
     "reseller",
     "processor",
@@ -85,13 +97,21 @@ USER_ROLE_VALUES = {
 
 CONTRACT_TYPE_VALUES = {
     "saas",
-    "services",
-    "consultancy",
-    "procurement",
-    "employment",
+    "supplier_agreement",
+    "nda",
     "lease",
+    "employment",
+    "reseller",
+    "partnership",
+    "loan",
+    "procurement",
     "data_processing",
     "franchise",
+    "services",
+    "government",
+    "other",
+    # Legacy values retained for backward compatibility.
+    "consultancy",
     "logistics",
     "security_services",
     "healthcare",
@@ -117,6 +137,55 @@ VALUE_CRITICALITY_VALUES = {
     "pilot",
     "strategic_partnership",
     "unknown",
+}
+
+CRITICALITY_LEVEL_VALUES = {
+    "low",
+    "medium",
+    "high",
+    "mission_critical",
+    "unknown",
+}
+
+RISK_POSTURE_VALUES = {
+    "balanced",
+    "conservative",
+    "aggressive_growth",
+    "unknown",
+}
+
+NEGOTIATION_LEVERAGE_VALUES = {
+    "low",
+    "medium",
+    "high",
+    "unknown",
+}
+
+COUNTERPARTY_TIER_VALUES = {
+    "startup",
+    "sme",
+    "mid_market",
+    "enterprise",
+    "public_sector",
+    "strategic",
+    "unknown",
+}
+
+DATA_SENSITIVITY_VALUES = {
+    "none",
+    "low",
+    "moderate",
+    "high",
+    "special_category",
+    "unknown",
+}
+
+INSURANCE_COVERAGE_VALUES = {
+    "unknown",
+    "not_applicable",
+    "not_confirmed",
+    "confirmed",
+    "insufficient",
 }
 
 DOCUMENT_POSITION_VALUES = {
@@ -154,9 +223,18 @@ RISK_APPETITE_SETTINGS: Dict[str, Dict[str, Any]] = {
 PLAYBOOK_PLACEHOLDERS: Dict[str, Optional[str]] = {
     "contract_type": None,
     "user_role": None,
+    "criticality_level": None,
+    "risk_posture": None,
     "counterparty_profile": None,
     "value_criticality": None,
     "document_position": None,
+    "deal_value": None,
+    "industry": None,
+    "jurisdiction": None,
+    "negotiation_leverage": None,
+    "counterparty_tier": None,
+    "data_sensitivity": None,
+    "insurance_coverage": None,
     "objective": None,
 }
 
@@ -201,7 +279,7 @@ SYNTHESIS_PATTERN_METADATA: Dict[str, Dict[str, str]] = {
 CONTEXT_PROFILE_AUDIT: Dict[str, str] = {
     "version": CONTEXT_PROFILE_VERSION,
     "last_updated": CONTEXT_PROFILE_LAST_UPDATED,
-    "change_note": "Initial non-invasive global market intelligence readiness foundation.",
+    "change_note": "Adds first-class context intelligence capture while preserving deterministic rule authority.",
 }
 
 
@@ -219,10 +297,16 @@ def normalize_context_value(value: Optional[str], allowed_values: set[str]) -> s
 
 
 def context_confidence_for(values: Dict[str, str]) -> str:
-    provided = sum(1 for value in values.values() if value != "unknown")
-    if provided >= 4:
+    required_keys = ("user_role", "contract_type", "criticality_level", "risk_posture")
+    required_provided = sum(1 for key in required_keys if values.get(key) != "unknown")
+    optional_provided = sum(
+        1
+        for key, value in values.items()
+        if key not in required_keys and value not in {None, "", "unknown"}
+    )
+    if required_provided == len(required_keys):
         return "high"
-    if provided >= 2:
+    if required_provided >= 2 or optional_provided >= 2:
         return "medium"
     return "low"
 
@@ -231,20 +315,28 @@ def context_emphasis_notes(values: Dict[str, str]) -> list[str]:
     notes: list[str] = []
     role = values.get("user_role", "unknown")
     contract_type = values.get("contract_type", "unknown")
-    criticality = values.get("value_criticality", "unknown")
+    criticality = values.get("criticality_level", "unknown")
+    legacy_criticality = values.get("value_criticality", "unknown")
+    risk_posture = values.get("risk_posture", "unknown")
+    data_sensitivity = values.get("data_sensitivity", "unknown")
 
-    if role == "buyer":
-        notes.append("Buyer posture: emphasize operational continuity, cash-flow exposure, and supplier control rights.")
-    elif role in {"supplier", "saas_provider", "consultant", "agency"}:
-        notes.append("Supplier posture: emphasize downside exposure, margin protection, and obligation scope.")
+    if role in {"buyer", "customer", "tenant", "borrower", "licensee", "employee"}:
+        notes.append("Recipient-side posture: emphasize operational continuity, payment leverage, supplier control, and exit exposure.")
+    elif role in {"seller", "supplier", "landlord", "lender", "licensor", "employer", "saas_provider", "consultant", "agency"}:
+        notes.append("Provider-side posture: emphasize downside exposure, obligation scope, margin protection, and insurability.")
 
-    if contract_type in {"saas", "data_processing", "healthcare"}:
-        notes.append("Data-heavy posture: emphasize governance, confidentiality, trust, and transfer controls.")
+    if contract_type in {"saas", "data_processing", "healthcare"} or data_sensitivity in {"high", "special_category"}:
+        notes.append("Data-sensitive posture: emphasize governance, confidentiality, trust, and transfer controls.")
 
-    if criticality in {"high_value", "business_critical", "strategic_partnership"}:
+    if criticality in {"high", "mission_critical"} or legacy_criticality in {"high_value", "business_critical", "strategic_partnership"}:
         notes.append("Criticality posture: escalation language should be stronger where evidence supports material exposure.")
-    elif criticality in {"low_value", "one_off", "pilot"}:
+    elif criticality == "low" or legacy_criticality in {"low_value", "one_off", "pilot"}:
         notes.append("Limited-criticality posture: keep findings visible while moderating escalation language.")
+
+    if risk_posture == "conservative":
+        notes.append("Conservative posture: prioritize review and escalation of control, liability, renewal, and continuity risks.")
+    elif risk_posture == "aggressive_growth":
+        notes.append("Growth posture: preserve risk visibility while distinguishing blocker issues from managed commercial trade-offs.")
 
     if not notes:
         notes.append(MISSING_CONTEXT_MESSAGE)
@@ -260,24 +352,49 @@ def build_context_profile_metadata(
     counterparty_profile: Optional[str] = None,
     value_criticality: Optional[str] = None,
     document_position: Optional[str] = None,
+    criticality_level: Optional[str] = None,
+    risk_posture: Optional[str] = None,
+    deal_value: Optional[str] = None,
+    industry: Optional[str] = None,
+    negotiation_leverage: Optional[str] = None,
+    counterparty_tier: Optional[str] = None,
+    data_sensitivity: Optional[str] = None,
+    insurance_coverage: Optional[str] = None,
     objective: Optional[str] = None,
 ) -> Dict[str, Any]:
     jurisdiction_key = _normalize_key(jurisdiction)
     sector_key = _normalize_key(sector)
+    industry_key = _normalize_key(industry)
+    normalized_criticality = normalize_context_value(criticality_level, CRITICALITY_LEVEL_VALUES)
+    if normalized_criticality == "unknown":
+        legacy_criticality = normalize_context_value(value_criticality, VALUE_CRITICALITY_VALUES)
+        if legacy_criticality in {"high_value", "business_critical", "strategic_partnership"}:
+            normalized_criticality = "high"
+        elif legacy_criticality in {"low_value", "one_off", "pilot"}:
+            normalized_criticality = "low"
     context_values = {
         "user_role": normalize_context_value(user_role, USER_ROLE_VALUES),
         "contract_type": normalize_context_value(contract_type, CONTRACT_TYPE_VALUES),
+        "criticality_level": normalized_criticality,
+        "risk_posture": normalize_context_value(risk_posture, RISK_POSTURE_VALUES),
         "counterparty_profile": normalize_context_value(counterparty_profile, COUNTERPARTY_PROFILE_VALUES),
         "value_criticality": normalize_context_value(value_criticality, VALUE_CRITICALITY_VALUES),
         "document_position": normalize_context_value(document_position, DOCUMENT_POSITION_VALUES),
+        "deal_value": str(deal_value).strip()[:80] if deal_value is not None and str(deal_value).strip() else None,
+        "industry": industry_key,
+        "jurisdiction": jurisdiction_key,
+        "negotiation_leverage": normalize_context_value(negotiation_leverage, NEGOTIATION_LEVERAGE_VALUES),
+        "counterparty_tier": normalize_context_value(counterparty_tier, COUNTERPARTY_TIER_VALUES),
+        "data_sensitivity": normalize_context_value(data_sensitivity, DATA_SENSITIVITY_VALUES),
+        "insurance_coverage": normalize_context_value(insurance_coverage, INSURANCE_COVERAGE_VALUES),
     }
     confidence = context_confidence_for(context_values)
 
     profile = {
         "version": CONTEXT_PROFILE_VERSION,
-        "jurisdiction": jurisdiction_key if jurisdiction_key in JURISDICTION_PROFILES else None,
-        "sector": sector_key if sector_key in SECTOR_PROFILES else None,
-        "risk_positioning": "contextual warning support only; no legal outcome prediction",
+        "jurisdiction": jurisdiction_key if jurisdiction_key in JURISDICTION_PROFILES else jurisdiction_key,
+        "sector": sector_key if sector_key in SECTOR_PROFILES else sector_key,
+        "risk_positioning": "contextual warning support only; deterministic findings remain the truth layer",
         "context": context_values,
         "context_confidence": confidence,
         "context_limitations": [] if confidence != "low" else [MISSING_CONTEXT_MESSAGE],
@@ -291,9 +408,18 @@ def build_context_profile_metadata(
         {
             "contract_type": context_values["contract_type"],
             "user_role": context_values["user_role"],
+            "criticality_level": context_values["criticality_level"],
+            "risk_posture": context_values["risk_posture"],
             "counterparty_profile": context_values["counterparty_profile"],
             "value_criticality": context_values["value_criticality"],
             "document_position": context_values["document_position"],
+            "deal_value": context_values["deal_value"],
+            "industry": context_values["industry"],
+            "jurisdiction": context_values["jurisdiction"],
+            "negotiation_leverage": context_values["negotiation_leverage"],
+            "counterparty_tier": context_values["counterparty_tier"],
+            "data_sensitivity": context_values["data_sensitivity"],
+            "insurance_coverage": context_values["insurance_coverage"],
             "objective": objective,
         }
     )
