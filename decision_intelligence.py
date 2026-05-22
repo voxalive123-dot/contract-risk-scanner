@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import Counter
 from datetime import date
+import re
 from typing import Any
 
 POLICY_METADATA = {
@@ -29,6 +30,12 @@ ALLOWED_POLICY_VALUES: dict[str, set[str]] = {
     "governing_law_forum_mismatch": {"escalate", "accept_if_low_value", "case_by_case", "approved_jurisdictions_only", "unknown"},
     "broad_indemnity": {"escalate", "negotiate", "allow_if_capped", "allow_if_mutual", "unknown"},
     "data_use": {"strict", "moderate", "flexible", "no_ai_training", "no_onward_sharing", "unknown"},
+    "uncapped_indemnity": {"reject", "escalate", "negotiate", "unknown"},
+    "deal_value_threshold": {"legal_review_over_250k", "executive_approval_over_250k", "legal_review_over_100k", "unknown"},
+    "auto_renewal_duration": {"prohibit_over_12_months", "review_over_12_months", "allow", "unknown"},
+    "eu_data_processing": {"require_dpa", "review", "unknown"},
+    "cross_border_transfer": {"executive_approval", "review", "unknown"},
+    "high_liability_exposure": {"insurance_required", "escalate", "unknown"},
 }
 
 DEFAULT_ORG_POLICY: dict[str, str] = {key: "unknown" for key in ALLOWED_POLICY_VALUES}
@@ -166,10 +173,206 @@ def _finding_text(finding: dict[str, Any]) -> str:
         finding.get("rule_id"),
         finding.get("category"),
         finding.get("matched_text"),
+        finding.get("excerpt"),
         finding.get("rationale"),
         finding.get("contextual_emphasis"),
     ]
     return " ".join(str(part or "") for part in parts).lower()
+
+
+def _context_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    context_profile = meta.get("context_profile_used") if isinstance(meta.get("context_profile_used"), dict) else {}
+    context = context_profile.get("context") if isinstance(context_profile.get("context"), dict) else {}
+    return context or {}
+
+
+def _parse_money(value: Any) -> float | None:
+    if value is None:
+        return None
+    text = str(value).lower().strip()
+    if not text:
+        return None
+    multiplier = 1.0
+    if re.search(r"\b(?:m|mn|million)\b", text):
+        multiplier = 1_000_000.0
+    elif re.search(r"\b(?:k|thousand)\b", text):
+        multiplier = 1_000.0
+    match = re.search(r"(\d+(?:[,\s]\d{3})*(?:\.\d+)?|\d+(?:\.\d+)?)", text)
+    if not match:
+        return None
+    numeric = re.sub(r"[,\s]", "", match.group(1))
+    try:
+        return float(numeric) * multiplier
+    except ValueError:
+        return None
+
+
+def _finding_has_any(finding: dict[str, Any], needles: set[str]) -> bool:
+    text = _finding_text(finding)
+    return any(needle in text for needle in needles)
+
+
+def _evidence_refs(findings: list[dict[str, Any]], *, limit: int = 5) -> list[dict[str, Any]]:
+    refs: list[dict[str, Any]] = []
+    for finding in findings:
+        if not isinstance(finding, dict):
+            continue
+        refs.append(
+            {
+                "rule_id": finding.get("rule_id"),
+                "title": finding.get("title"),
+                "evidence_excerpt": finding.get("matched_text") or finding.get("excerpt"),
+            }
+        )
+        if len(refs) >= limit:
+            break
+    return refs
+
+
+def _posture_rank(value: str) -> int:
+    order = {
+        "monitor only": 0,
+        "acceptable below threshold": 1,
+        "acceptable": 2,
+        "acceptable with controls": 3,
+        "negotiate": 4,
+        "acceptable only with insurance": 5,
+        "acceptable only with executive approval": 6,
+        "escalate internally": 7,
+        "reject": 8,
+    }
+    return order.get(value, 3)
+
+
+def _choose_stronger_posture(current: str, candidate: str) -> str:
+    return candidate if _posture_rank(candidate) > _posture_rank(current) else current
+
+
+def _posture_next_step(posture: str) -> str:
+    return {
+        "acceptable": "Proceed only after normal commercial checks and documented business ownership.",
+        "acceptable with controls": "Proceed only with the controls, amendments, or owner acknowledgements recorded.",
+        "acceptable below threshold": "Keep evidence on file and confirm the value, dependency, and scope stay below internal thresholds.",
+        "acceptable only with insurance": "Confirm suitable insurance coverage before approval or signature.",
+        "acceptable only with executive approval": "Obtain executive approval before acceptance or signature.",
+        "negotiate": "Use the highest-evidence findings as negotiation priorities before acceptance.",
+        "escalate internally": "Escalate to the appropriate internal owner before the contract moves forward.",
+        "reject": "Do not proceed on the current terms unless the relevant risk is removed or formally re-approved.",
+        "monitor only": "No material covered signal was elevated; keep the review record and continue normal business checks.",
+    }.get(posture, "Record the decision rationale before the contract moves forward.")
+
+
+def build_operational_decision_posture(
+    payload: dict[str, Any],
+    *,
+    policy_trace: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    findings = [finding for finding in payload.get("findings", []) if isinstance(finding, dict)]
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    context = _context_from_payload(payload)
+    severity = str(payload.get("severity") or "LOW").upper()
+    normalized_score = int(meta.get("normalized_score") or payload.get("risk_score") or 0)
+    high_count = sum(1 for finding in findings if int(finding.get("severity") or 0) >= 4)
+    compound = [
+        finding for finding in findings
+        if str(finding.get("matched_pattern") or "").startswith("derived_")
+        or "cross_clause" in (finding.get("tags") or [])
+        or str(finding.get("rule_id") or "").startswith("cross_")
+    ]
+    role = str(context.get("user_role") or "unknown")
+    criticality = str(context.get("criticality_level") or "unknown")
+    posture_pref = str(context.get("risk_posture") or "unknown")
+    insurance = str(context.get("insurance_coverage") or "unknown")
+    deal_value = _parse_money(context.get("deal_value"))
+    policy_summary = meta.get("policy_status_summary") if isinstance(meta.get("policy_status_summary"), dict) else {}
+    policy_trace = policy_trace or meta.get("policy_trace") or []
+
+    posture = "monitor only" if not findings else "acceptable with controls"
+    rationale: list[str] = []
+    escalation_reason = None
+
+    if not findings:
+        rationale.append("No covered deterministic finding was elevated in the reviewed text.")
+    elif severity == "LOW" and normalized_score < 20 and high_count == 0 and not compound:
+        posture = "acceptable"
+        rationale.append("Detected findings are low severity and no compound interaction was elevated.")
+    elif severity == "MEDIUM" or high_count or compound:
+        posture = "negotiate"
+        rationale.append("Deterministic findings indicate negotiable commercial exposure.")
+    if severity == "HIGH" or normalized_score >= 65 or high_count >= 2:
+        posture = _choose_stronger_posture(posture, "escalate internally")
+        escalation_reason = "High severity or multiple material deterministic findings."
+        rationale.append("High-severity deterministic findings increase the need for internal review.")
+
+    if criticality == "mission_critical":
+        posture = _choose_stronger_posture(posture, "escalate internally")
+        escalation_reason = escalation_reason or "Mission-critical context increases operational consequence."
+        rationale.append("Mission-critical context increases operational exposure.")
+    elif criticality == "low" and posture in {"acceptable", "acceptable with controls"}:
+        posture = "acceptable below threshold"
+        rationale.append("Low criticality supports a below-threshold posture where evidence remains documented.")
+
+    if posture_pref == "conservative" and posture in {"acceptable", "acceptable with controls", "negotiate"}:
+        posture = _choose_stronger_posture(posture, "negotiate" if posture.startswith("acceptable") else "escalate internally")
+        rationale.append("Conservative risk posture increases review attention.")
+
+    if role in {"seller", "supplier", "licensor", "contractor", "consultant", "agency"} and any(
+        _finding_has_any(finding, {"indemn", "liability", "set-off", "liquidated damages"}) for finding in findings
+    ):
+        rationale.append("Provider-side context increases focus on downside exposure, margin, and insurability.")
+    if role in {"buyer", "customer", "licensee", "tenant", "borrower"} and any(
+        _finding_has_any(finding, {"suspension", "renewal", "termination", "data", "payment"}) for finding in findings
+    ):
+        rationale.append("Recipient-side context increases focus on continuity, exit, and counterparty leverage.")
+
+    if insurance in {"not_confirmed", "insufficient", "unknown"} and any(
+        _finding_has_any(finding, {"liability", "indemnity", "uncapped", "cap"}) and int(finding.get("severity") or 0) >= 4
+        for finding in findings
+    ):
+        posture = _choose_stronger_posture(posture, "acceptable only with insurance")
+        rationale.append("High liability or indemnity exposure should be checked against insurance coverage.")
+
+    if deal_value is not None and deal_value >= 250_000 and posture in {"negotiate", "acceptable with controls", "acceptable below threshold", "acceptable"}:
+        posture = _choose_stronger_posture(posture, "acceptable only with executive approval")
+        rationale.append("Deal value is above the default executive-review threshold.")
+
+    if policy_summary.get("exceeds_tolerance"):
+        posture = _choose_stronger_posture(posture, "escalate internally")
+        escalation_reason = escalation_reason or "One or more findings exceed configured tolerance."
+        rationale.append("Configured organisation tolerance is exceeded.")
+    elif policy_summary.get("conflicts_with_policy"):
+        posture = _choose_stronger_posture(posture, "negotiate")
+        rationale.append("One or more findings conflict with configured organisation policy.")
+
+    policy_actions = {str(item.get("action") or "") for item in policy_trace if isinstance(item, dict)}
+    if "reject" in policy_actions:
+        posture = "reject"
+        escalation_reason = "Organisation policy marks at least one exposure as reject."
+        rationale.append("Organisation policy requires rejection unless terms change.")
+    if "mandatory_legal_review" in policy_actions:
+        posture = _choose_stronger_posture(posture, "escalate internally")
+        escalation_reason = escalation_reason or "Organisation policy requires legal review."
+        rationale.append("Organisation policy requires mandatory legal review.")
+    if "executive_approval" in policy_actions:
+        posture = _choose_stronger_posture(posture, "acceptable only with executive approval")
+        rationale.append("Organisation policy requires executive approval.")
+    if "insurance_required" in policy_actions:
+        posture = _choose_stronger_posture(posture, "acceptable only with insurance")
+        rationale.append("Organisation policy requires insurance confirmation.")
+
+    if not rationale:
+        rationale.append("Safe baseline posture applied from deterministic score, findings, and available context.")
+
+    return {
+        "decision_posture": posture,
+        "decision_posture_code": posture,
+        "posture_rationale": list(dict.fromkeys(rationale)),
+        "recommended_next_step": _posture_next_step(posture),
+        "escalation_reason": escalation_reason,
+        "decision_posture_evidence": _evidence_refs(findings),
+        "decision_posture_boundary": "Decision posture is deterministic commercial decision-support only and is not legal advice.",
+    }
 
 
 def _policy_result(category: str, value: str, finding: dict[str, Any]) -> tuple[str, str]:
@@ -260,6 +463,135 @@ def _policy_result(category: str, value: str, finding: dict[str, Any]) -> tuple[
     return "policy_unknown", "Policy unknown: no tolerance configured for this risk family. Evidence should still be documented."
 
 
+def _org_tolerance_trace(payload: dict[str, Any], policy: dict[str, str]) -> list[dict[str, Any]]:
+    findings = [finding for finding in payload.get("findings", []) if isinstance(finding, dict)]
+    context = _context_from_payload(payload)
+    jurisdiction = str(context.get("jurisdiction") or "").lower()
+    data_sensitivity = str(context.get("data_sensitivity") or "unknown")
+    insurance = str(context.get("insurance_coverage") or "unknown")
+    deal_value = _parse_money(context.get("deal_value"))
+    trace: list[dict[str, Any]] = []
+
+    has_uncapped_indemnity = any(
+        _finding_has_any(finding, {"uncapped indemnity", "not subject to the liability cap", "indemnity obligations outside the cap"})
+        or str(finding.get("rule_id") or "") in {"cross_low_cap_broad_indemnity", "cross_indemnity_cap_gap"}
+        for finding in findings
+    )
+    if has_uncapped_indemnity and policy.get("uncapped_indemnity") in {"reject", "escalate", "negotiate"}:
+        value = policy.get("uncapped_indemnity")
+        trace.append(
+            {
+                "policy_key": "uncapped_indemnity",
+                "policy_value": value,
+                "status": "exceeds_tolerance" if value in {"reject", "escalate"} else "conflicts_with_policy",
+                "action": "reject" if value == "reject" else "mandatory_legal_review",
+                "reason": "Uncapped or cap-weakened indemnity detected against organisation tolerance.",
+            }
+        )
+
+    if deal_value is not None:
+        threshold_policy = policy.get("deal_value_threshold")
+        if threshold_policy == "legal_review_over_250k" and deal_value >= 250_000:
+            trace.append(
+                {
+                    "policy_key": "deal_value_threshold",
+                    "policy_value": threshold_policy,
+                    "status": "mandatory_review",
+                    "action": "mandatory_legal_review",
+                    "reason": "Deal value is at or above the configured legal review threshold.",
+                }
+            )
+        elif threshold_policy == "executive_approval_over_250k" and deal_value >= 250_000:
+            trace.append(
+                {
+                    "policy_key": "deal_value_threshold",
+                    "policy_value": threshold_policy,
+                    "status": "mandatory_approval",
+                    "action": "executive_approval",
+                    "reason": "Deal value is at or above the configured executive approval threshold.",
+                }
+            )
+        elif threshold_policy == "legal_review_over_100k" and deal_value >= 100_000:
+            trace.append(
+                {
+                    "policy_key": "deal_value_threshold",
+                    "policy_value": threshold_policy,
+                    "status": "mandatory_review",
+                    "action": "mandatory_legal_review",
+                    "reason": "Deal value is at or above the configured legal review threshold.",
+                }
+            )
+
+    renewal_policy = policy.get("auto_renewal_duration")
+    if renewal_policy in {"prohibit_over_12_months", "review_over_12_months"}:
+        long_renewal = any(
+            str(finding.get("rule_id") or "") in {"renewal_long_commitment", "auto_renewal_notice_trap", "cross_renewal_price_lock_in"}
+            or _finding_has_any(finding, {"24 months", "two year", "successive one year", "successive 12 month"})
+            for finding in findings
+        )
+        if long_renewal:
+            trace.append(
+                {
+                    "policy_key": "auto_renewal_duration",
+                    "policy_value": renewal_policy,
+                    "status": "exceeds_tolerance" if renewal_policy == "prohibit_over_12_months" else "mandatory_review",
+                    "action": "reject" if renewal_policy == "prohibit_over_12_months" else "mandatory_legal_review",
+                    "reason": "Auto-renewal duration appears to exceed the configured renewal tolerance.",
+                }
+            )
+
+    if policy.get("eu_data_processing") in {"require_dpa", "review"} and (
+        jurisdiction in {"eu", "eea", "uk"} or data_sensitivity in {"high", "special_category"}
+    ):
+        has_data_findings = any(finding_policy_category(finding) == "data_use" for finding in findings)
+        if has_data_findings:
+            trace.append(
+                {
+                    "policy_key": "eu_data_processing",
+                    "policy_value": policy.get("eu_data_processing"),
+                    "status": "mandatory_review",
+                    "action": "mandatory_legal_review",
+                    "reason": "Data-related findings require DPA or data protection review under configured policy.",
+                }
+            )
+
+    if policy.get("cross_border_transfer") in {"executive_approval", "review"}:
+        has_transfer = any(
+            str(finding.get("rule_id") or "") == "data_transfer_anonymisation_processing"
+            or _finding_has_any(finding, {"cross-border", "onward transfer", "transfer"})
+            for finding in findings
+        )
+        if has_transfer:
+            trace.append(
+                {
+                    "policy_key": "cross_border_transfer",
+                    "policy_value": policy.get("cross_border_transfer"),
+                    "status": "mandatory_approval" if policy.get("cross_border_transfer") == "executive_approval" else "mandatory_review",
+                    "action": "executive_approval" if policy.get("cross_border_transfer") == "executive_approval" else "mandatory_legal_review",
+                    "reason": "Cross-border or onward data transfer signal triggered configured approval policy.",
+                }
+            )
+
+    if policy.get("high_liability_exposure") in {"insurance_required", "escalate"}:
+        high_liability = any(
+            _finding_has_any(finding, {"liability", "indemnity", "uncapped", "cap"})
+            and int(finding.get("severity") or 0) >= 4
+            for finding in findings
+        )
+        if high_liability:
+            trace.append(
+                {
+                    "policy_key": "high_liability_exposure",
+                    "policy_value": policy.get("high_liability_exposure"),
+                    "status": "mandatory_review",
+                    "action": "insurance_required" if policy.get("high_liability_exposure") == "insurance_required" and insurance != "confirmed" else "mandatory_legal_review",
+                    "reason": "High liability exposure triggered configured insurance or escalation policy.",
+                }
+            )
+
+    return trace
+
+
 def decision_guidance_for_finding(finding: dict[str, Any]) -> list[str]:
     category = finding_policy_category(finding)
     text = _finding_text(finding)
@@ -317,10 +649,26 @@ def apply_policy_to_payload(
     meta = payload.setdefault("meta", {})
     meta["policy_profile_used"] = normalized_policy
     meta["policy_metadata"] = POLICY_METADATA
+    policy_trace = _org_tolerance_trace(payload, normalized_policy)
+    if policy_trace:
+        meta["policy_trace"] = policy_trace
+        for item in policy_trace:
+            status = str(item.get("status") or "")
+            if status in {"exceeds_tolerance", "mandatory_review", "mandatory_approval", "conflicts_with_policy"}:
+                policy_counts[status] += 1
+            key = str(item.get("policy_key") or "")
+            if status in {"exceeds_tolerance", "mandatory_review", "mandatory_approval", "conflicts_with_policy"} and key:
+                breaches[key] += 1
     meta["policy_status_summary"] = dict(policy_counts)
     meta["most_common_policy_breaches"] = [
         {"policy_category": key, "count": count} for key, count in breaches.most_common()
     ]
+    posture = build_operational_decision_posture(payload, policy_trace=policy_trace)
+    payload.update(posture)
+    meta["decision_posture"] = posture["decision_posture"]
+    meta["posture_rationale"] = posture["posture_rationale"]
+    meta["recommended_next_step"] = posture["recommended_next_step"]
+    meta["escalation_reason"] = posture["escalation_reason"]
     meta["decision_intelligence"] = build_decision_intelligence_snapshot(
         payload,
         prior_outcome_hint=prior_outcome_hint,
@@ -357,21 +705,30 @@ def build_decision_intelligence_snapshot(
         if finding.get("matched_text")
     ]
     policy_summary = payload.get("meta", {}).get("policy_status_summary", {}) or {}
-    posture = "Decision posture is pending; deterministic scoring remains the governing core."
+    posture = payload.get("decision_posture") or "monitor only"
+    posture_rationale = payload.get("posture_rationale") or []
+    recommended_next_step = payload.get("recommended_next_step")
+    escalation_reason = payload.get("escalation_reason")
+    posture_summary = "Decision posture is pending; deterministic scoring remains the governing core."
     if prior_outcome_hint and prior_outcome_hint.get("state") and prior_outcome_hint.get("family"):
-        posture = (
+        posture_summary = (
             f"Your organisation {prior_outcome_hint['state']} this type of risk in prior contracts; "
             "this scan follows the same pattern unless a commercial exception is recorded."
         )
     elif policy_summary.get("exceeds_tolerance"):
-        posture = "One or more findings exceed configured tolerance and should be escalated or documented before acceptance."
+        posture_summary = "One or more findings exceed configured tolerance and should be escalated or documented before acceptance."
     elif policy_summary.get("conflicts_with_policy"):
-        posture = "One or more findings conflict with usual policy and should be negotiated or exception-tracked."
+        posture_summary = "One or more findings conflict with usual policy and should be negotiated or exception-tracked."
     elif policy_summary.get("policy_unknown"):
-        posture = "Policy unknown for one or more findings; decision posture is conservative until tolerance is configured."
+        posture_summary = "Policy unknown for one or more findings; decision posture is conservative until tolerance is configured."
 
     return {
-        "decision_posture": posture,
+        "decision_posture": posture_summary,
+        "decision_posture_code": posture,
+        "decision_posture_summary": posture_summary,
+        "posture_rationale": posture_rationale,
+        "recommended_next_step": recommended_next_step,
+        "escalation_reason": escalation_reason,
         "top_drivers": top_drivers,
         "evidence_references": evidence_references,
         "tolerance_comparison": policy_summary,

@@ -438,6 +438,28 @@ def test_ai_route_does_not_return_changed_deterministic_score_or_severity(ai_tes
     assert body["status"] == "available"
 
 
+def test_ai_route_cannot_override_decision_posture(ai_test_client, monkeypatch):
+    client, session_factory = ai_test_client
+    raw_key = create_org_and_key(
+        session_factory,
+        plan_type="business",
+        plan_status="active",
+        with_subscription=True,
+    )
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(ai_explain, "_call_openai_json", lambda *args, **kwargs: build_provider_summary())
+
+    request = build_request()
+    request["decision_posture"] = "reject"
+    response = client.post(
+        "/ai/explain",
+        headers={"X-API-Key": raw_key},
+        json=request,
+    )
+
+    assert response.status_code == 422
+
+
 def test_low_confidence_or_sparse_findings_produce_uncertainty_notes(ai_test_client, monkeypatch):
     client, session_factory = ai_test_client
     raw_key = create_org_and_key(

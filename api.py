@@ -1147,6 +1147,12 @@ def _scan_snapshot_fields(payload: dict[str, Any]) -> dict[str, Any]:
             "policy_status": finding.get("policy_status"),
             "policy_explanation": finding.get("policy_explanation"),
             "decision_guidance": finding.get("decision_guidance", []),
+            "role_aware_family": finding.get("role_aware_family"),
+            "role_aware_interpretation": finding.get("role_aware_interpretation"),
+            "structural_risk": finding.get("structural_risk"),
+            "contextual_impact": finding.get("contextual_impact"),
+            "operational_exposure": finding.get("operational_exposure"),
+            "recommended_attention": finding.get("recommended_attention"),
         }
         for finding in findings[:5]
     ]
@@ -1217,10 +1223,20 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
                 "category": f.get("category"),
                 "severity": f.get("severity"),
                 "matched_text": f.get("matched_text"),
+                "excerpt": f.get("excerpt"),
                 "matched_location": f.get("matched_location"),
                 "context_note": f.get("context_note"),
                 "rationale": f.get("rationale"),
                 "contextual_emphasis": f.get("contextual_emphasis"),
+                "role_aware_family": f.get("role_aware_family"),
+                "role_aware_interpretation": f.get("role_aware_interpretation"),
+                "structural_risk": f.get("structural_risk"),
+                "contextual_impact": f.get("contextual_impact"),
+                "operational_exposure": f.get("operational_exposure"),
+                "recommended_attention": f.get("recommended_attention"),
+                "matched_pattern": f.get("matched_pattern"),
+                "tags": f.get("tags", []),
+                "triggered_by": f.get("triggered_by", []),
             }
         )
 
@@ -1252,6 +1268,11 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
         "policy_status_summary": raw_meta.get("policy_status_summary", {}),
         "most_common_policy_breaches": raw_meta.get("most_common_policy_breaches", []),
         "decision_intelligence": raw_meta.get("decision_intelligence"),
+        "decision_posture": raw_meta.get("decision_posture"),
+        "posture_rationale": raw_meta.get("posture_rationale", []),
+        "recommended_next_step": raw_meta.get("recommended_next_step"),
+        "escalation_reason": raw_meta.get("escalation_reason"),
+        "policy_trace": raw_meta.get("policy_trace", []),
     }
 
     return {
@@ -1260,6 +1281,20 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
         "flags": list(result.get("flags", [])),
         "findings": findings,
         "meta": meta,
+        "decision_posture": result.get("decision_posture"),
+        "posture_rationale": result.get("posture_rationale", []),
+        "recommended_next_step": result.get("recommended_next_step"),
+        "escalation_reason": result.get("escalation_reason"),
+    }
+
+
+def _public_detailed_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "risk_score": payload.get("risk_score", 0),
+        "severity": payload.get("severity", "LOW"),
+        "flags": payload.get("flags", []),
+        "findings": payload.get("findings", []),
+        "meta": payload.get("meta", {}),
     }
 
 
@@ -2622,7 +2657,7 @@ def analyze_detailed(
         source_type=request.source_type or "text",
         scan_input_length=len(request.text),
     )
-    return payload
+    return _public_detailed_payload(payload)
 
 
 # ==========================================================

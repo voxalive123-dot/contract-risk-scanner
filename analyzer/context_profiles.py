@@ -273,6 +273,21 @@ SYNTHESIS_PATTERN_METADATA: Dict[str, Dict[str, str]] = {
         "last_updated": CONTEXT_PROFILE_LAST_UPDATED,
         "change_note": "Detect early payment exposure paired with broad supplier suspension rights.",
     },
+    "auto_renewal_unilateral_price_increase": {
+        "version": "0.1.0",
+        "last_updated": CONTEXT_PROFILE_LAST_UPDATED,
+        "change_note": "Detect auto-renewal mechanics paired with unilateral price increase rights.",
+    },
+    "exclusive_jurisdiction_operational_dependency": {
+        "version": "0.1.0",
+        "last_updated": CONTEXT_PROFILE_LAST_UPDATED,
+        "change_note": "Detect exclusive dispute forum obligations paired with operational dependency signals.",
+    },
+    "no_assignment_lock_in": {
+        "version": "0.1.0",
+        "last_updated": CONTEXT_PROFILE_LAST_UPDATED,
+        "change_note": "Detect assignment restrictions paired with renewal or exit lock-in structures.",
+    },
 }
 
 

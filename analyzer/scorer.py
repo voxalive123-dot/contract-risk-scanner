@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from decision_intelligence import apply_policy_to_payload
+from decision_intelligence import apply_policy_to_payload, build_operational_decision_posture
 from analyzer.context_profiles import (
     SYNTHESIS_PATTERN_METADATA,
     build_context_profile_metadata,
@@ -461,6 +461,29 @@ _UPFRONT_PAYMENT_RULE_IDS = {
 _SUPPLIER_SUSPENSION_RULE_IDS = {
     "service_suspension_right",
     "weak_sla_service_remedy_suspension",
+}
+
+_OPERATIONAL_DEPENDENCY_RULE_IDS = {
+    "service_suspension_right",
+    "termination_assistance_exit_dependency",
+    "weak_sla_service_remedy_suspension",
+    "service_credits_sole_remedy",
+    "minimum_commitment_lock_in",
+    "auto_renewal_notice_trap",
+}
+
+_ASSIGNMENT_RESTRICTION_RULE_IDS = {
+    "assignment_subcontracting_consent_restriction",
+}
+
+_LOCK_IN_STRUCTURE_RULE_IDS = {
+    "auto_renewal_silent",
+    "auto_renewal_notice_trap",
+    "renewal_long_commitment",
+    "minimum_commitment_lock_in",
+    "early_termination_fee",
+    "no_termination_for_convenience_customer",
+    "termination_assistance_exit_dependency",
 }
 
 _PUBLIC_SECTOR_SUPPLIER_BURDEN_RULE_IDS = {
@@ -1349,6 +1372,29 @@ def _build_controlled_cross_clause_findings(
     matched_upfront = sorted(matched_rule_ids.intersection(_UPFRONT_PAYMENT_RULE_IDS)) if upfront_text else []
     matched_suspension = sorted(matched_rule_ids.intersection(_SUPPLIER_SUSPENSION_RULE_IDS))
 
+    matched_auto_renewal = sorted(matched_rule_ids.intersection(_RENEWAL_EXIT_TRAP_RULE_IDS))
+    matched_unilateral_price = sorted(matched_rule_ids.intersection({"unilateral_price_increase", "renewal_price_increase_on_renewal"}))
+    if matched_auto_renewal and matched_unilateral_price and "cross_renewal_price_lock_in" not in existing_rule_ids:
+        triggered_by = matched_auto_renewal + matched_unilateral_price
+        contributors = _first_contributors(by_rule_id, triggered_by)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="auto_renewal_unilateral_price_increase",
+            rule_id="cross_auto_renewal_unilateral_price_increase",
+            category="renewal",
+            title="Auto-renewal combined with unilateral price increase may weaken renewal leverage",
+            severity=5 if "renewal_long_commitment" in matched_auto_renewal else 4,
+            rationale="Auto-renewal mechanics become more commercially significant where the counterparty can also increase pricing unilaterally or on renewal.",
+            why_it_matters="Compound exposure: renewal inertia may lock the business into changed economics before there is practical room to exit.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Auto-renewal or notice-trap signals combine with unilateral price increase rights.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
     matched_public_burden = sorted(matched_rule_ids.intersection(_PUBLIC_SECTOR_SUPPLIER_BURDEN_RULE_IDS))
     if len(matched_public_burden) >= 3:
         contributors = _first_contributors(by_rule_id, matched_public_burden)
@@ -1434,6 +1480,52 @@ def _build_controlled_cross_clause_findings(
             triggered_by=triggered_by,
             contributors=contributors,
             reason="Upfront or prepaid payment signals combine with broad supplier suspension rights.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    matched_exclusive_jurisdiction = sorted(matched_rule_ids.intersection({"jurisdiction_exclusive_foreign_forum", "venue_burden_foreign_court", "arbitration_forum_or_seat"}))
+    matched_dependency = sorted(matched_rule_ids.intersection(_OPERATIONAL_DEPENDENCY_RULE_IDS))
+    if matched_exclusive_jurisdiction and matched_dependency:
+        triggered_by = matched_exclusive_jurisdiction + matched_dependency
+        contributors = _first_contributors(by_rule_id, triggered_by)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="exclusive_jurisdiction_operational_dependency",
+            rule_id="cross_exclusive_jurisdiction_operational_dependency",
+            category="jurisdiction",
+            title="Exclusive dispute forum combined with operational dependency may raise escalation cost",
+            severity=4,
+            rationale="Exclusive or burdensome dispute forum language appears alongside operational dependency signals, which may make escalation slower, more costly, or less practical during service disruption.",
+            why_it_matters="Operational exposure: the route for enforcing rights may be difficult to use when continuity or exit support is already constrained.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Exclusive jurisdiction or venue burden signals combine with continuity, suspension, or exit-dependency signals.",
+            remaining_score_room=remaining_score_room,
+        )
+        remaining_score_room -= added
+
+    matched_assignment_restriction = sorted(matched_rule_ids.intersection(_ASSIGNMENT_RESTRICTION_RULE_IDS))
+    matched_lock_in = sorted(matched_rule_ids.intersection(_LOCK_IN_STRUCTURE_RULE_IDS))
+    if matched_assignment_restriction and matched_lock_in:
+        triggered_by = matched_assignment_restriction + matched_lock_in
+        contributors = _first_contributors(by_rule_id, triggered_by)
+        added = _add_controlled_cross_clause_pattern(
+            cross_findings=cross_findings,
+            cross_adjustments=cross_adjustments,
+            existing_rule_ids=existing_rule_ids,
+            pattern="no_assignment_lock_in",
+            rule_id="cross_no_assignment_lock_in",
+            category="assignment",
+            title="Assignment restriction combined with lock-in may reduce exit flexibility",
+            severity=4,
+            rationale="Restrictions on assignment, subcontracting, substitution, or transfer become more important where renewal, minimum commitment, or limited-exit structures also constrain commercial flexibility.",
+            why_it_matters="Lock-in exposure: the business may be unable to transfer or restructure delivery while still bound by renewal or exit constraints.",
+            triggered_by=triggered_by,
+            contributors=contributors,
+            reason="Assignment restriction signals combine with renewal, minimum commitment, or limited-exit signals.",
             remaining_score_room=remaining_score_room,
         )
         remaining_score_room -= added
@@ -2284,6 +2376,120 @@ def _apply_contextual_emphasis(
             finding["contextual_emphasis"] = emphasis
 
 
+_ROLE_AWARE_FAMILIES: Dict[str, set[str]] = {
+    "suspension rights": {"service_suspension_right", "weak_sla_service_remedy_suspension", "cross_suspension_payment_control", "cross_upfront_payment_suspension"},
+    "audit rights": {"intrusive_audit_rights", "audit_access_cost_confidentiality", "cross_audit_data_confidentiality_exposure"},
+    "auto-renewal": _RENEWAL_EXIT_TRAP_RULE_IDS.union({"cross_renewal_price_lock_in", "cross_auto_renewal_unilateral_price_increase"}),
+    "indemnity": {"indemnity_broad", "indemnity_one_way", "supplier_broad_indemnity_public_sector", "cross_low_cap_broad_indemnity", "cross_indemnity_cap_gap"},
+    "liability caps": {"liability_cap_present", "liability_cap_missing_or_unclear", "liability_super_cap_carveout", "liability_unlimited", "cross_low_cap_broad_indemnity"},
+    "payment leverage": _PAYMENT_LEVERAGE_SIGNAL_RULE_IDS.union({"cross_payment_leverage_stack", "cross_variation_payment_leverage"}),
+    "data rights": {"broad_customer_data_use", "broad_sublicensing_right", "data_retention_deletion_asymmetry", "data_transfer_anonymisation_processing", "cross_data_confidentiality_gap"},
+    "termination rights": {"termination_for_convenience_counterparty", "unilateral_termination_for_convenience", "termination_without_notice", "no_termination_for_convenience_customer", "termination_assistance_exit_dependency", "cross_termination_no_refund"},
+}
+
+
+def _role_family_for_finding(finding: Dict[str, Any]) -> Optional[str]:
+    rule_id = str(finding.get("rule_id") or "")
+    category = str(finding.get("category") or "").lower()
+    title = str(finding.get("title") or "").lower()
+    haystack = f"{category} {rule_id} {title}"
+    for family, rule_ids in _ROLE_AWARE_FAMILIES.items():
+        if rule_id in rule_ids:
+            return family
+    if "suspension" in haystack or "suspend" in haystack:
+        return "suspension rights"
+    if "audit" in haystack:
+        return "audit rights"
+    if "renewal" in haystack or "auto_renew" in haystack:
+        return "auto-renewal"
+    if "indemn" in haystack:
+        return "indemnity"
+    if "liability" in haystack or "cap" in haystack:
+        return "liability caps"
+    if "payment" in haystack or "fee" in haystack:
+        return "payment leverage"
+    if "data" in haystack:
+        return "data rights"
+    if "termination" in haystack or "exit" in haystack:
+        return "termination rights"
+    return None
+
+
+def _role_context_label(role: str) -> str:
+    if role in {"buyer", "customer", "tenant", "borrower", "licensee", "employee"}:
+        return "buyer-side"
+    if role in {"seller", "supplier", "landlord", "lender", "licensor", "employer", "saas_provider", "consultant", "agency", "contractor"}:
+        return "seller-side"
+    return "unspecified-role"
+
+
+def _role_aware_sections(finding: Dict[str, Any], context_profile: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    family = _role_family_for_finding(finding)
+    if not family:
+        return None
+    context = context_profile.get("context", {}) or {}
+    role = str(context.get("user_role") or "unknown")
+    criticality = str(context.get("criticality_level") or "unknown")
+    posture = str(context.get("risk_posture") or "unknown")
+    leverage = str(context.get("negotiation_leverage") or "unknown")
+    data_sensitivity = str(context.get("data_sensitivity") or "unknown")
+    insurance = str(context.get("insurance_coverage") or "unknown")
+    role_label = _role_context_label(role)
+    title = str(finding.get("title") or "This finding")
+
+    structural = f"{title} is treated as a {family} structural signal. The matched evidence remains unchanged and should be read against the clause text."
+    if role_label == "buyer-side":
+        contextual = f"Buyer-side context: assess whether the clause gives the counterparty leverage over continuity, cost, data, or exit."
+    elif role_label == "seller-side":
+        contextual = f"Seller-side context: assess whether the clause increases delivery burden, downside exposure, margin pressure, or insurability concerns."
+    else:
+        contextual = "Context not provided; interpret the finding as a baseline commercial risk signal without role-specific assumptions."
+
+    exposure_parts: List[str] = []
+    if criticality == "mission_critical":
+        exposure_parts.append("Mission-critical context increases operational exposure.")
+    elif criticality == "high":
+        exposure_parts.append("High criticality increases the practical consequence of the finding.")
+    elif criticality == "low":
+        exposure_parts.append("Low criticality may reduce urgency but does not remove the evidence.")
+    if family == "data rights" and data_sensitivity in {"high", "special_category"}:
+        exposure_parts.append("High data sensitivity increases privacy, trust, and control exposure.")
+    if family in {"liability caps", "indemnity"} and insurance in {"unknown", "not_confirmed", "insufficient"}:
+        exposure_parts.append("Insurance coverage should be confirmed before acceptance.")
+    if leverage == "low":
+        exposure_parts.append("Low negotiation leverage may make fallback controls or approval more important.")
+    operational = " ".join(exposure_parts) or "Operational exposure depends on business dependency, value, timing, and fallback options."
+
+    attention = "Review before acceptance."
+    if posture == "conservative" or criticality in {"high", "mission_critical"}:
+        attention = "Escalate or negotiate before acceptance."
+    elif posture == "aggressive_growth" and criticality == "low":
+        attention = "Document controls if accepted as a commercial trade-off."
+
+    return {
+        "Structural Risk": structural,
+        "Contextual Impact": contextual,
+        "Operational Exposure": operational,
+        "Recommended Attention": attention,
+    }
+
+
+def _apply_role_aware_intelligence(
+    findings: List[Dict[str, Any]],
+    context_profile: Dict[str, Any],
+) -> None:
+    for finding in findings:
+        sections = _role_aware_sections(finding, context_profile)
+        if not sections:
+            continue
+        finding["role_aware_family"] = _role_family_for_finding(finding)
+        finding["role_aware_interpretation"] = sections
+        finding["structural_risk"] = sections["Structural Risk"]
+        finding["contextual_impact"] = sections["Contextual Impact"]
+        finding["operational_exposure"] = sections["Operational Exposure"]
+        finding["recommended_attention"] = sections["Recommended Attention"]
+
+
 def score_contract(
     text: str,
     *,
@@ -2426,6 +2632,7 @@ def score_contract(
         score_adjustments.extend(appetite_adjustments)
 
     _apply_contextual_emphasis(deduped_findings, context_profile)
+    _apply_role_aware_intelligence(deduped_findings, context_profile)
 
     flags: List[str] = [_display_flag(f) for f in deduped_findings]
 
@@ -2523,6 +2730,14 @@ def score_contract(
         ]
         if overlap_suppressions:
             result["meta"]["overlap_suppressions"] = overlap_suppressions
+
+    posture = build_operational_decision_posture(result)
+    result.update(posture)
+    if include_meta:
+        result["meta"]["decision_posture"] = posture["decision_posture"]
+        result["meta"]["posture_rationale"] = posture["posture_rationale"]
+        result["meta"]["recommended_next_step"] = posture["recommended_next_step"]
+        result["meta"]["escalation_reason"] = posture["escalation_reason"]
 
     if policy_profile is not None:
         apply_policy_to_payload(result, policy_profile)

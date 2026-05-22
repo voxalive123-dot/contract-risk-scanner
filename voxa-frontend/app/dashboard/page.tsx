@@ -12,6 +12,38 @@ type ScoreAdjustment = {
   reason?: string;
 };
 
+type RoleAwareInterpretation = Partial<{
+  "Structural Risk": string;
+  "Contextual Impact": string;
+  "Operational Exposure": string;
+  "Recommended Attention": string;
+}>;
+
+type PolicyTraceItem = {
+  policy_key?: string;
+  policy_value?: string;
+  status?: string;
+  action?: string;
+  reason?: string;
+};
+
+type DecisionIntelligenceSnapshot = {
+  decision_posture?: string;
+  decision_posture_code?: string;
+  decision_posture_summary?: string;
+  posture_rationale?: string[];
+  recommended_next_step?: string;
+  escalation_reason?: string | null;
+  policy_status_summary?: Record<string, number>;
+};
+
+type DecisionPostureDisplay = {
+  label: string;
+  detail: string;
+  nextStep: string;
+  escalationReason?: string | null;
+};
+
 type Finding = {
   rule_id?: string;
   title?: string;
@@ -19,6 +51,7 @@ type Finding = {
   severity?: number;
   rationale?: string;
   matched_text?: string;
+  excerpt?: string;
   matched_location?: string | null;
   context_note?: string | null;
   contextual_emphasis?: string | null;
@@ -27,6 +60,15 @@ type Finding = {
   policy_status?: string | null;
   policy_explanation?: string | null;
   decision_guidance?: string[];
+  role_aware_family?: string | null;
+  role_aware_interpretation?: RoleAwareInterpretation | null;
+  structural_risk?: string | null;
+  contextual_impact?: string | null;
+  operational_exposure?: string | null;
+  recommended_attention?: string | null;
+  matched_pattern?: string | null;
+  tags?: string[];
+  triggered_by?: string[];
 };
 
 type TopRisk = {
@@ -64,7 +106,18 @@ type AnalyzeResult = {
     signal_type?: string | null;
     primary_risk_type?: string | null;
     reliability_wording?: string | null;
+    decision_posture?: string | null;
+    posture_rationale?: string[];
+    recommended_next_step?: string | null;
+    escalation_reason?: string | null;
+    policy_trace?: PolicyTraceItem[];
+    decision_intelligence?: DecisionIntelligenceSnapshot | null;
   };
+  decision_posture?: string | null;
+  decision_posture_code?: string | null;
+  posture_rationale?: string[];
+  recommended_next_step?: string | null;
+  escalation_reason?: string | null;
   extraction_method?: string | null;
   confidence_hint?: number | null;
   source_type?: string | null;
@@ -90,6 +143,7 @@ type ScanHistoryItem = {
   decision_state?: ScanDecisionState;
   finding_decisions?: FindingDecisionState[];
   notes?: Array<{ id: string; note: string; finding_rule_id?: string | null }>;
+  decision_intelligence_snapshot?: DecisionIntelligenceSnapshot | null;
 };
 
 type ScanHistoryResponse = {
@@ -490,7 +544,7 @@ function decisionPosture(
   topRiskCount: number,
   categories: string[],
   primaryCategory?: string,
-) {
+): DecisionPostureDisplay {
   const uniqueCategories = Array.from(new Set(categories.filter(Boolean)));
   const hasControlRisk = hasAnyCategory(uniqueCategories, CONTROL_CATEGORIES);
   const hasDisputeRisk = hasAnyCategory(uniqueCategories, DISPUTE_CATEGORIES);
@@ -579,6 +633,47 @@ function decisionPosture(
       "No governed risk signal was elevated by the current rule set. This is a low-signal automated result, not a contract clearance outcome. Review may still be required for off-text commercial dependency, unusual drafting, missing protections, sector-specific obligations, or risks outside current rule coverage.",
     nextStep:
       "Use this as review triage only: confirm the commercial context, missing protections, and any sector-specific obligations before acceptance.",
+  };
+}
+
+function postureLabel(value?: string | null) {
+  if (!value) return "";
+  return value
+    .replace(/_/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
+function backendDecisionPosture(result: AnalyzeResult | null): DecisionPostureDisplay | null {
+  if (!result) return null;
+  const snapshot = result.meta?.decision_intelligence ?? null;
+  const code =
+    result.decision_posture_code ||
+    result.decision_posture ||
+    result.meta?.decision_posture ||
+    snapshot?.decision_posture_code ||
+    null;
+  if (!code) return null;
+  const rationale = result.posture_rationale ?? result.meta?.posture_rationale ?? snapshot?.posture_rationale ?? [];
+  const summary = snapshot?.decision_posture_summary;
+  return {
+    label: postureLabel(code),
+    detail:
+      rationale[0] ||
+      summary ||
+      "Deterministic findings, context, and configured tolerance have been converted into a management review posture.",
+    nextStep:
+      result.recommended_next_step ||
+      result.meta?.recommended_next_step ||
+      snapshot?.recommended_next_step ||
+      "Review the linked evidence and record the commercial decision before proceeding.",
+    escalationReason:
+      result.escalation_reason ||
+      result.meta?.escalation_reason ||
+      snapshot?.escalation_reason ||
+      null,
   };
 }
 
@@ -1256,6 +1351,7 @@ export default function DashboardPage() {
           ? detail.severity
           : "LOW";
       const exposureScore = scanHistoryExposureScore(detail);
+      const intelligenceSnapshot = detail.decision_intelligence_snapshot ?? null;
       setResult({
         risk_score: detail.risk_score,
         severity,
@@ -1269,7 +1365,16 @@ export default function DashboardPage() {
           rule_families_detected: detail.clause_families_detected ?? [],
           synthesis_patterns_triggered: detail.synthesis_patterns_triggered ?? [],
           context_profile_used: detail.context_profile_snapshot ?? null,
+          decision_intelligence: intelligenceSnapshot,
+          decision_posture: intelligenceSnapshot?.decision_posture_code ?? null,
+          posture_rationale: intelligenceSnapshot?.posture_rationale ?? [],
+          recommended_next_step: intelligenceSnapshot?.recommended_next_step ?? null,
+          escalation_reason: intelligenceSnapshot?.escalation_reason ?? null,
         },
+        decision_posture: intelligenceSnapshot?.decision_posture_code ?? null,
+        posture_rationale: intelligenceSnapshot?.posture_rationale ?? [],
+        recommended_next_step: intelligenceSnapshot?.recommended_next_step ?? null,
+        escalation_reason: intelligenceSnapshot?.escalation_reason ?? null,
         source_type: detail.source_type ?? "unknown",
       });
       setReportGeneratedAt(detail.created_at ?? new Date().toISOString());
@@ -1622,6 +1727,8 @@ export default function DashboardPage() {
   );
   const posture = useMemo(() => {
     if (!result) return null;
+    const backendPosture = backendDecisionPosture(result);
+    if (backendPosture) return backendPosture;
     return decisionPosture(
       result.severity,
       topRisks.length || findings.length,
@@ -1629,6 +1736,7 @@ export default function DashboardPage() {
       primaryCategory,
     );
   }, [result, topRisks.length, findings.length, summaryCategories, primaryCategory]);
+  const policyTrace = useMemo(() => result?.meta?.policy_trace ?? [], [result?.meta?.policy_trace]);
   const primarySummary = useMemo(() => {
     if (!result) return "";
     return executiveSummary(
@@ -2155,6 +2263,19 @@ export default function DashboardPage() {
                       </p>
                     </div>
 
+                    {(posture?.escalationReason || policyTrace.length > 0) && (
+                      <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                          Policy / Tolerance signal
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-neutral-700">
+                          {policyTrace[0]?.reason ||
+                            posture?.escalationReason ||
+                            "Configured tolerance has been considered in the deterministic posture."}
+                        </p>
+                      </div>
+                    )}
+
                     <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -2319,6 +2440,24 @@ export default function DashboardPage() {
                         const noteOpen = Boolean(decisionNotesOpen[findingId]);
                         const noteDraft = findingDecisionNotes[findingId] ?? decision.note ?? "";
                         const isTopRisk = index < 3;
+                        const roleAwareSections = [
+                          {
+                            label: "Structural Risk",
+                            value: finding.structural_risk ?? finding.role_aware_interpretation?.["Structural Risk"],
+                          },
+                          {
+                            label: "Contextual Impact",
+                            value: finding.contextual_impact ?? finding.role_aware_interpretation?.["Contextual Impact"],
+                          },
+                          {
+                            label: "Operational Exposure",
+                            value: finding.operational_exposure ?? finding.role_aware_interpretation?.["Operational Exposure"],
+                          },
+                          {
+                            label: "Recommended Attention",
+                            value: finding.recommended_attention ?? finding.role_aware_interpretation?.["Recommended Attention"],
+                          },
+                        ].filter((section) => section.value);
 
                         return (
                         <div
@@ -2348,6 +2487,21 @@ export default function DashboardPage() {
                               <p className="mt-2 text-sm leading-6 text-neutral-700">
                                 {policy.detail}
                               </p>
+                            </div>
+                          )}
+
+                          {roleAwareSections.length > 0 && (
+                            <div className="mt-4 grid gap-3 md:grid-cols-2">
+                              {roleAwareSections.map((section) => (
+                                <div key={section.label} className="rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
+                                  <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                                    {section.label}
+                                  </div>
+                                  <p className="mt-2 text-sm leading-6 text-neutral-700">
+                                    {section.value}
+                                  </p>
+                                </div>
+                              ))}
                             </div>
                           )}
 
