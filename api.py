@@ -59,14 +59,19 @@ from analyzer.scorer import score_contract
 from auth_keys import hash_api_key
 from decision_intelligence import (
     DECISION_REASON_CODES,
+    DOCUMENT_RELATIONSHIP_TYPES,
     FINDING_DECISION_STATUSES,
+    OUTCOME_EVENT_CATEGORIES,
     POLICY_METADATA,
     SCAN_DECISION_STATES,
+    apply_memory_and_linked_intelligence,
     apply_policy_to_payload,
     validate_policy_values,
 )
 from crud import (
+    build_contract_memory_signals,
     build_decision_intelligence_dashboard,
+    build_linked_document_signals,
     count_scans_for_org_since,
     create_decision_note,
     create_scan,
@@ -76,11 +81,14 @@ from crud import (
     get_org_risk_policy,
     get_organization_by_id,
     get_scan_for_org,
+    list_contract_set_scans,
     list_decision_notes_for_scan,
     list_org_policy_audits,
+    list_outcome_events_for_scan,
     list_scans_for_org,
     month_start_utc,
     prior_outcome_hint_for_families,
+    record_outcome_event,
     serialize_scan_detail,
     serialize_scan_summary,
     touch_api_key_last_used,
@@ -361,6 +369,9 @@ class AnalyzeRequest(BaseModel):
     counterparty_tier: str | None = None
     data_sensitivity: str | None = None
     insurance_coverage: str | None = None
+    counterparty_name: str | None = None
+    contract_set_id: str | None = None
+    document_relationship_type: str | None = None
 
     @field_validator("text")
     @classmethod
@@ -461,6 +472,24 @@ class AnalyzeRequest(BaseModel):
     @classmethod
     def validate_insurance_coverage(cls, value: str | None) -> str | None:
         return _validate_optional_choice(value, ALLOWED_INSURANCE_COVERAGE, "unsupported insurance_coverage")
+
+    @field_validator("counterparty_name", "contract_set_id")
+    @classmethod
+    def validate_relationship_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:120] if stripped else None
+
+    @field_validator("document_relationship_type")
+    @classmethod
+    def validate_document_relationship_type(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        if normalized not in DOCUMENT_RELATIONSHIP_TYPES:
+            raise ValueError("unsupported document_relationship_type")
+        return normalized
 
 
 class AnalyzeResponse(BaseModel):
@@ -705,6 +734,27 @@ class DecisionNoteRequest(BaseModel):
         if normalized not in DECISION_REASON_CODES:
             raise ValueError("unsupported reason_code")
         return normalized
+
+
+class OutcomeEventRequest(BaseModel):
+    event_category: str = Field(...)
+    note: str | None = None
+
+    @field_validator("event_category")
+    @classmethod
+    def validate_event_category(cls, value: str) -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized not in OUTCOME_EVENT_CATEGORIES:
+            raise ValueError("unsupported outcome event category")
+        return normalized
+
+    @field_validator("note")
+    @classmethod
+    def validate_outcome_note(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        stripped = value.strip()
+        return stripped[:4000] if stripped else None
 
 
 class InternalWorkflowReasonRequest(BaseModel):
@@ -1094,6 +1144,33 @@ def _context_from_request(request: AnalyzeRequest) -> dict[str, Any]:
         "counterparty_tier": request.counterparty_tier,
         "data_sensitivity": request.data_sensitivity,
         "insurance_coverage": request.insurance_coverage,
+        "counterparty_name": request.counterparty_name,
+        "contract_set_id": request.contract_set_id,
+        "document_relationship_type": request.document_relationship_type,
+        "source_title": request.source_title,
+    }
+
+
+def _score_context_from_request(request: AnalyzeRequest) -> dict[str, Any]:
+    context = _context_from_request(request)
+    return {
+        key: context.get(key)
+        for key in (
+            "user_role",
+            "contract_type",
+            "counterparty_profile",
+            "value_criticality",
+            "document_position",
+            "criticality_level",
+            "risk_posture",
+            "deal_value",
+            "industry",
+            "jurisdiction",
+            "negotiation_leverage",
+            "counterparty_tier",
+            "data_sensitivity",
+            "insurance_coverage",
+        )
     }
 
 
@@ -1171,7 +1248,14 @@ def _apply_org_decision_context(db: Session, org_id: uuid.UUID, payload: dict[st
     policy = get_org_risk_policy(db, org_id, create_defaults=True)
     families = _derive_clause_families(payload.get("findings", []) or [])
     prior_hint = prior_outcome_hint_for_families(db, org_id=org_id, families=families)
-    return apply_policy_to_payload(payload, policy, prior_outcome_hint=prior_hint)
+    enriched = apply_policy_to_payload(payload, policy, prior_outcome_hint=prior_hint)
+    memory_signals = build_contract_memory_signals(db, org_id, enriched)
+    linked_document_signals = build_linked_document_signals(db, org_id, enriched)
+    return apply_memory_and_linked_intelligence(
+        enriched,
+        memory_signals=memory_signals,
+        linked_document_signals=linked_document_signals,
+    )
 
 
 def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -1273,6 +1357,12 @@ def _build_detailed_payload(text: str, context: dict[str, Any] | None = None) ->
         "recommended_next_step": raw_meta.get("recommended_next_step"),
         "escalation_reason": raw_meta.get("escalation_reason"),
         "policy_trace": raw_meta.get("policy_trace", []),
+        "linked_document_context": {
+            "counterparty_name": context.get("counterparty_name"),
+            "contract_set_id": context.get("contract_set_id"),
+            "document_relationship_type": context.get("document_relationship_type") or "other",
+            "source_title": context.get("source_title"),
+        },
     }
 
     return {
@@ -2304,7 +2394,17 @@ def account_scan_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found")
     detail = serialize_scan_detail(scan)
     detail["decision_notes"] = list_decision_notes_for_scan(db, account_ctx.organization.id, scan_id)
+    detail["outcome_events"] = list_outcome_events_for_scan(db, account_ctx.organization.id, scan_id)
     return detail
+
+
+@app.get("/account/contract-sets/{contract_set_id}")
+def account_contract_set_detail(
+    contract_set_id: str,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    return list_contract_set_scans(db, account_ctx.organization.id, contract_set_id)
 
 
 @app.patch("/account/scans/{scan_id}/decision")
@@ -2329,6 +2429,39 @@ def account_scan_decision_update(
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     return {"decision_state": {"state": decision.state, "reason_code": decision.reason_code, "note": decision.note}}
+
+
+@app.get("/account/scans/{scan_id}/outcomes")
+def account_scan_outcomes(
+    scan_id: uuid.UUID,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        return {"outcome_events": list_outcome_events_for_scan(db, account_ctx.organization.id, scan_id)}
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+
+
+@app.post("/account/scans/{scan_id}/outcomes")
+def account_scan_outcome_create(
+    scan_id: uuid.UUID,
+    request: OutcomeEventRequest,
+    account_ctx=Depends(get_account_ctx),
+    db: Session = Depends(get_db),
+):
+    try:
+        event = record_outcome_event(
+            db,
+            org_id=account_ctx.organization.id,
+            scan_id=scan_id,
+            user_id=account_ctx.user.id,
+            event_category=request.event_category,
+            note=request.note,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Scan not found") from exc
+    return {"outcome_event": event, "outcome_events": list_outcome_events_for_scan(db, account_ctx.organization.id, scan_id)}
 
 
 @app.patch("/account/scans/{scan_id}/findings/{finding_id}/decision")
@@ -2587,7 +2720,7 @@ def analyze(
     enforce_org_plan_quota(db=db, api_key_ctx=api_key_ctx)
     enforce_rate_limit(http_request)
 
-    result = score_contract(request.text, **_context_from_request(request))
+    result = score_contract(request.text, **_score_context_from_request(request))
     result_meta = result.get("meta", {}) or {}
     risk_score = int(result.get("risk_score", 0))
     req_id = getattr(http_request.state, "request_id", "unknown")

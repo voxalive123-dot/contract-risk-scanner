@@ -14,8 +14,10 @@ from decision_intelligence import (
     DEFAULT_ORG_POLICY,
     DECISION_REASON_CODES,
     FINDING_DECISION_STATUSES,
+    OUTCOME_EVENT_CATEGORIES,
     SCAN_DECISION_STATES,
     SECTOR_INTELLIGENCE_PACKS,
+    apply_memory_and_linked_intelligence,
     context_bucket_from_scan,
     validate_policy_values,
 )
@@ -685,6 +687,283 @@ def prior_outcome_hint_for_families(
     return {"family": family, "state": state, "count": count}
 
 
+def _scan_relationship_context(scan: Scan) -> dict[str, Any]:
+    snapshot = _json_load(scan.decision_intelligence_snapshot, {}) or {}
+    linked = snapshot.get("linked_document_context") if isinstance(snapshot, dict) else {}
+    if not linked and isinstance(snapshot, dict):
+        linked_block = snapshot.get("linked_document_intelligence")
+        if isinstance(linked_block, dict):
+            linked = linked_block.get("linked_document_context")
+    return linked if isinstance(linked, dict) else {}
+
+
+def _payload_relationship_context(payload: dict[str, Any]) -> dict[str, Any]:
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    linked = meta.get("linked_document_context") or meta.get("relationship_context") or {}
+    return linked if isinstance(linked, dict) else {}
+
+
+def _counterparty_key_from_values(*values: Any) -> str:
+    for value in values:
+        text = str(value or "").strip().lower()
+        if text:
+            return " ".join(text.replace("_", " ").split())[:120]
+    return "unknown"
+
+
+def _counterparty_key_for_scan(scan: Scan) -> str:
+    linked = _scan_relationship_context(scan)
+    return _counterparty_key_from_values(
+        linked.get("counterparty_name"),
+        scan.context_counterparty_tier,
+        scan.source_title,
+    )
+
+
+def _counterparty_key_for_payload(payload: dict[str, Any]) -> str:
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    context = (meta.get("context_profile_used") or {}).get("context", {}) if isinstance(meta.get("context_profile_used"), dict) else {}
+    linked = _payload_relationship_context(payload)
+    return _counterparty_key_from_values(
+        linked.get("counterparty_name"),
+        context.get("counterparty_tier"),
+        linked.get("source_title"),
+    )
+
+
+def _families_for_scan(scan: Scan) -> set[str]:
+    return {str(item).lower() for item in _json_load(scan.clause_families_detected, []) if item}
+
+
+def _families_for_payload(payload: dict[str, Any]) -> set[str]:
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    families = {str(item).lower() for item in meta.get("rule_families_detected", []) if item}
+    for finding in payload.get("findings", []) or []:
+        if isinstance(finding, dict):
+            category = str(finding.get("category") or "").lower()
+            title = str(finding.get("title") or "").lower()
+            rule_id = str(finding.get("rule_id") or "").lower()
+            haystack = f"{category} {title} {rule_id}"
+            if "liability" in haystack:
+                families.add("liability")
+            if "indemn" in haystack:
+                families.add("indemnity")
+            if "renewal" in haystack:
+                families.add("auto-renewal")
+            if "data" in haystack:
+                families.add("data use")
+            if "jurisdiction" in haystack or "venue" in haystack or "forum" in haystack:
+                families.add("jurisdiction")
+            if "suspension" in haystack or "service" in haystack:
+                families.add("operational dependency")
+            if "payment" in haystack or "price" in haystack or "fee" in haystack:
+                families.add("payment")
+            if "termination" in haystack:
+                families.add("termination")
+    return families
+
+
+def record_outcome_event(
+    db: Session,
+    *,
+    org_id: uuid.UUID,
+    scan_id: uuid.UUID,
+    user_id: Optional[uuid.UUID],
+    event_category: str,
+    note: Optional[str] = None,
+) -> dict[str, Any]:
+    scan = get_scan_for_org(db, org_id, scan_id)
+    if scan is None:
+        raise ValueError("scan_not_found")
+    normalized = str(event_category or "").strip().lower()
+    if normalized not in OUTCOME_EVENT_CATEGORIES:
+        raise ValueError("unsupported_outcome_event")
+    row = DecisionAuditLog(
+        org_id=org_id,
+        scan_id=scan_id,
+        user_id=user_id,
+        event_type="outcome_event",
+        previous_state=None,
+        new_state=normalized,
+        reason_code=normalized,
+        note=note.strip()[:4000] if isinstance(note, str) and note.strip() else None,
+        created_at=utcnow(),
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {
+        "id": str(row.id),
+        "scan_id": str(row.scan_id),
+        "event_category": row.new_state,
+        "note": row.note,
+        "created_by": str(row.user_id) if row.user_id else None,
+        "created_at": row.created_at.isoformat() if row.created_at else None,
+    }
+
+
+def list_outcome_events_for_scan(db: Session, org_id: uuid.UUID, scan_id: uuid.UUID) -> list[dict[str, Any]]:
+    if get_scan_for_org(db, org_id, scan_id) is None:
+        raise ValueError("scan_not_found")
+    rows = list(
+        db.execute(
+            select(DecisionAuditLog)
+            .where(
+                DecisionAuditLog.org_id == org_id,
+                DecisionAuditLog.scan_id == scan_id,
+                DecisionAuditLog.event_type == "outcome_event",
+            )
+            .order_by(DecisionAuditLog.created_at.asc())
+        ).scalars().all()
+    )
+    return [
+        {
+            "id": str(row.id),
+            "scan_id": str(row.scan_id),
+            "event_category": row.new_state,
+            "note": row.note,
+            "created_by": str(row.user_id) if row.user_id else None,
+            "created_at": row.created_at.isoformat() if row.created_at else None,
+        }
+        for row in rows
+    ]
+
+
+def build_contract_memory_signals(db: Session, org_id: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any]:
+    current_families = _families_for_payload(payload)
+    current_counterparty = _counterparty_key_for_payload(payload)
+    scans = list(
+        db.execute(select(Scan).where(Scan.org_id == org_id).order_by(Scan.created_at.desc()).limit(100)).scalars().all()
+    )
+    recurring_counterparty_count = 0
+    recurring_family_counts: Counter[str] = Counter()
+    accepted_deviations: Counter[str] = Counter()
+    escalation_history: Counter[str] = Counter()
+    outcome_events: Counter[str] = Counter()
+    trend_counts: Counter[str] = Counter()
+
+    for scan in scans:
+        families = _families_for_scan(scan)
+        overlap = current_families & families
+        if overlap:
+            recurring_family_counts.update(overlap)
+        trend_counts.update(families)
+        if _counterparty_key_for_scan(scan) == current_counterparty and current_counterparty != "unknown":
+            recurring_counterparty_count += 1
+        state = scan.scan_decision.state if scan.scan_decision else "pending"
+        if state in {"accepted", "negotiated"}:
+            accepted_deviations.update(overlap)
+        if state in {"escalated", "rejected", "sent_for_legal_review"}:
+            escalation_history.update(overlap)
+    audit_rows = list(
+        db.execute(
+            select(DecisionAuditLog)
+            .where(DecisionAuditLog.org_id == org_id, DecisionAuditLog.event_type == "outcome_event")
+            .order_by(DecisionAuditLog.created_at.desc())
+            .limit(100)
+        ).scalars().all()
+    )
+    for row in audit_rows:
+        outcome_events[str(row.new_state or "unknown")] += 1
+
+    return {
+        "recurring_counterparty": {
+            "counterparty_key": current_counterparty,
+            "prior_scan_count": recurring_counterparty_count,
+            "detected": recurring_counterparty_count > 0,
+        },
+        "recurring_risky_clauses": [
+            {"family": family, "prior_count": count} for family, count in recurring_family_counts.most_common(10)
+        ],
+        "historical_clause_comparison": {
+            "current_families": sorted(current_families),
+            "prior_overlap_count": sum(recurring_family_counts.values()),
+            "note": "Comparison is based on org-scoped stored scan families and does not rewrite current findings.",
+        },
+        "accepted_deviations": [
+            {"family": family, "count": count} for family, count in accepted_deviations.most_common(10)
+        ],
+        "escalation_history": [
+            {"family": family, "count": count} for family, count in escalation_history.most_common(10)
+        ],
+        "outcome_event_history": [
+            {"event_category": category, "count": count} for category, count in outcome_events.most_common(10)
+        ],
+        "repeated_exposure_trends": [
+            {"family": family, "count": count} for family, count in trend_counts.most_common(10)
+        ],
+        "boundary": "Contract memory is organisation-scoped decision support and does not alter deterministic findings or evidence.",
+    }
+
+
+def build_linked_document_signals(db: Session, org_id: uuid.UUID, payload: dict[str, Any]) -> dict[str, Any]:
+    relationship = _payload_relationship_context(payload)
+    contract_set_id = str(relationship.get("contract_set_id") or "").strip()
+    document_type = str(relationship.get("document_relationship_type") or "other").strip().lower()
+    current_families = _families_for_payload(payload)
+    if not contract_set_id:
+        return {
+            "linked_document_context": relationship,
+            "contract_set_detected": False,
+            "related_scan_count": 0,
+            "conflict_signals": [],
+            "boundary": "No linked-document group was supplied; single-document scan behavior is unchanged.",
+        }
+
+    related: list[Scan] = []
+    for scan in db.execute(select(Scan).where(Scan.org_id == org_id).order_by(Scan.created_at.desc()).limit(200)).scalars().all():
+        if str(_scan_relationship_context(scan).get("contract_set_id") or "") == contract_set_id:
+            related.append(scan)
+
+    conflict_signals: list[dict[str, Any]] = []
+    for scan in related:
+        prior_context = _scan_relationship_context(scan)
+        prior_type = str(prior_context.get("document_relationship_type") or "other").lower()
+        prior_families = _families_for_scan(scan)
+        prior_findings = _json_load(scan.top_findings_snapshot, [])
+        evidence = [
+            {
+                "scan_id": str(scan.id),
+                "source_title": scan.source_title,
+                "rule_id": finding.get("rule_id"),
+                "evidence_excerpt": finding.get("matched_text"),
+            }
+            for finding in prior_findings[:3]
+            if isinstance(finding, dict)
+        ]
+        if document_type == "sla" and "liability" in prior_families and current_families & {"operational dependency", "service", "suspension"}:
+            conflict_signals.append({"type": "sla_liability_tension", "note": "SLA or service obligations may need checking against liability cap or exclusion signals in the related document.", "evidence": evidence})
+        if document_type == "dpa" and "data use" in current_families and "data use" in prior_families:
+            conflict_signals.append({"type": "dpa_data_use_tension", "note": "DPA obligations should be checked against broad data-use rights detected in the linked set.", "evidence": evidence})
+        if document_type == "sow" and prior_type == "msa" and current_families & {"operational dependency", "payment", "termination"}:
+            conflict_signals.append({"type": "sow_msa_protection_gap", "note": "SOW obligations may exceed or stress master agreement protections; review the linked evidence before acceptance.", "evidence": evidence})
+        if document_type == "amendment" and scan.severity and payload.get("severity") and str(payload.get("severity")) != str(scan.severity):
+            conflict_signals.append({"type": "amendment_posture_change", "note": "Amendment appears to change the stored risk posture for the linked set; confirm the intended commercial effect.", "evidence": evidence})
+        if document_type == "purchase_order" and prior_type == "msa" and current_families & {"payment", "termination", "price variation"}:
+            conflict_signals.append({"type": "purchase_order_master_terms_tension", "note": "Purchase-order economics or exit terms may need checking against master terms.", "evidence": evidence})
+
+    return {
+        "linked_document_context": relationship,
+        "contract_set_detected": True,
+        "contract_set_id": contract_set_id,
+        "document_relationship_type": document_type,
+        "related_scan_count": len(related),
+        "conflict_signals": conflict_signals[:8],
+        "boundary": "Linked-document intelligence is evidence-based assistance and is not complete legal due diligence.",
+    }
+
+
+def list_contract_set_scans(db: Session, org_id: uuid.UUID, contract_set_id: str) -> dict[str, Any]:
+    clean_id = str(contract_set_id or "").strip()[:120]
+    scans = []
+    for scan in db.execute(select(Scan).where(Scan.org_id == org_id).order_by(Scan.created_at.desc())).scalars().all():
+        if str(_scan_relationship_context(scan).get("contract_set_id") or "") == clean_id:
+            item = serialize_scan_summary(scan)
+            item["linked_document_context"] = _scan_relationship_context(scan)
+            scans.append(item)
+    return {"contract_set_id": clean_id, "scans": scans, "scan_count": len(scans)}
+
+
 def build_decision_intelligence_dashboard(db: Session, org_id: uuid.UUID) -> dict[str, Any]:
     scans = list(
         db.execute(select(Scan).where(Scan.org_id == org_id).order_by(Scan.created_at.desc())).scalars().all()
@@ -694,6 +973,11 @@ def build_decision_intelligence_dashboard(db: Session, org_id: uuid.UUID) -> dic
     unresolved_count = 0
     high_by_contract: Counter[str] = Counter()
     high_by_counterparty: Counter[str] = Counter()
+    jurisdiction_concentration: Counter[str] = Counter()
+    renewal_cliffs: Counter[str] = Counter()
+    operational_dependency: Counter[str] = Counter()
+    high_risk_clusters: Counter[str] = Counter()
+    negotiation_bottlenecks: Counter[str] = Counter()
     open_scans: list[dict[str, Any]] = []
     decision_counts: Counter[str] = Counter({"accepted": 0, "escalated": 0, "rejected": 0, "pending": 0, "negotiated": 0, "sent_for_legal_review": 0})
 
@@ -712,13 +996,28 @@ def build_decision_intelligence_dashboard(db: Session, org_id: uuid.UUID) -> dic
                 for driver in detail.get("top_drivers", []):
                     if driver.get("policy_category"):
                         policy_breaches[driver["policy_category"]] += 1
+        if scan.severity in {"HIGH", "MEDIUM"}:
+            high_by_counterparty[_counterparty_key_for_scan(scan)] += 1
         if scan.severity == "HIGH":
             context = _json_load(scan.context_profile_snapshot, None)
             high_by_contract[context_bucket_from_scan(context, "contract_type")] += 1
-            high_by_counterparty[context_bucket_from_scan(context, "counterparty_profile")] += 1
+            high_risk_clusters[f"{context_bucket_from_scan(context, 'contract_type')} / {context_bucket_from_scan(context, 'industry')}"] += 1
+        context = _json_load(scan.context_profile_snapshot, None)
+        jurisdiction_concentration[context_bucket_from_scan(context, "jurisdiction")] += 1
+        if "auto-renewal" in {str(family).lower() for family in families}:
+            renewal_cliffs[scan.source_title or str(scan.id)] += 1
+        if {str(family).lower() for family in families} & {"suspension", "service", "operational dependency", "termination"}:
+            operational_dependency[scan.source_title or str(scan.id)] += 1
+        if decision_state in {"pending", "escalated", "sent_for_legal_review"}:
+            negotiation_bottlenecks[decision_state] += 1
 
     total_decisions = max(sum(decision_counts.values()), 1)
     ratios = {key: round(value / total_decisions, 4) for key, value in decision_counts.items()}
+    dataset_note = (
+        "Early intelligence: portfolio signals are directional until more scans and recorded outcomes accumulate."
+        if len(scans) < 5
+        else "Portfolio intelligence is based only on this organisation's stored scans and recorded decisions."
+    )
     return {
         "exposure_trends": [
             {
@@ -740,6 +1039,39 @@ def build_decision_intelligence_dashboard(db: Session, org_id: uuid.UUID) -> dic
         "high_risk_findings_by_counterparty_type": [
             {"counterparty_profile": key, "count": value} for key, value in high_by_counterparty.most_common()
         ],
+        "portfolio_governance": {
+            "dataset_note": dataset_note,
+            "risk_concentration": [
+                {"family": family, "count": count} for family, count in family_counts.most_common(10)
+            ],
+            "risky_counterparties": [
+                {"counterparty": key, "high_risk_count": value} for key, value in high_by_counterparty.most_common(10)
+            ],
+            "renewal_cliffs": [
+                {"source_title": key, "count": value} for key, value in renewal_cliffs.most_common(10)
+            ],
+            "jurisdiction_concentration": [
+                {"jurisdiction": key, "count": value} for key, value in jurisdiction_concentration.most_common(10)
+            ],
+            "operational_dependency": [
+                {"source_title": key, "count": value} for key, value in operational_dependency.most_common(10)
+            ],
+            "high_risk_contract_clusters": [
+                {"cluster": key, "count": value} for key, value in high_risk_clusters.most_common(10)
+            ],
+            "negotiation_bottlenecks": [
+                {"state": key, "count": value} for key, value in negotiation_bottlenecks.most_common(10)
+            ],
+            "trend_evolution": [
+                {
+                    "scan_id": str(scan.id),
+                    "created_at": scan.created_at.isoformat() if scan.created_at else None,
+                    "severity": scan.severity,
+                    "risk_score": scan.risk_score,
+                }
+                for scan in list(reversed(scans[:12]))
+            ],
+        },
         "scans_with_open_decisions": open_scans[:10],
         "most_common_policy_breaches": [
             {"policy_category": key, "count": value} for key, value in policy_breaches.most_common(10)

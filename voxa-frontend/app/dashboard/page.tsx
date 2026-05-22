@@ -35,6 +35,10 @@ type DecisionIntelligenceSnapshot = {
   recommended_next_step?: string;
   escalation_reason?: string | null;
   policy_status_summary?: Record<string, number>;
+  contract_memory?: ContractMemorySignal | null;
+  linked_document_intelligence?: LinkedDocumentSignal | null;
+  negotiation_intelligence?: NegotiationIntelligence | null;
+  sector_jurisdiction_intelligence?: SectorJurisdictionSignal | null;
 };
 
 type DecisionPostureDisplay = {
@@ -42,6 +46,32 @@ type DecisionPostureDisplay = {
   detail: string;
   nextStep: string;
   escalationReason?: string | null;
+};
+
+type ContractMemorySignal = {
+  recurring_counterparty?: { detected?: boolean; counterparty_key?: string; prior_scan_count?: number };
+  recurring_risky_clauses?: Array<{ family?: string; prior_count?: number }>;
+  escalation_history?: Array<{ family?: string; count?: number }>;
+  boundary?: string;
+};
+
+type NegotiationIntelligence = {
+  priorities?: Array<{ title?: string; priority?: string; clause_revision_objectives?: string[] }>;
+  fallback_positions?: string[];
+  minimum_acceptable_controls?: string[];
+  boundary?: string;
+};
+
+type SectorJurisdictionSignal = {
+  notes?: Array<{ type?: string; signal?: string; note?: string }>;
+  boundary?: string;
+};
+
+type LinkedDocumentSignal = {
+  contract_set_detected?: boolean;
+  related_scan_count?: number;
+  conflict_signals?: Array<{ type?: string; note?: string }>;
+  boundary?: string;
 };
 
 type Finding = {
@@ -112,6 +142,10 @@ type AnalyzeResult = {
     escalation_reason?: string | null;
     policy_trace?: PolicyTraceItem[];
     decision_intelligence?: DecisionIntelligenceSnapshot | null;
+    contract_memory?: ContractMemorySignal | null;
+    negotiation_intelligence?: NegotiationIntelligence | null;
+    sector_jurisdiction_intelligence?: SectorJurisdictionSignal | null;
+    linked_document_intelligence?: LinkedDocumentSignal | null;
   };
   decision_posture?: string | null;
   decision_posture_code?: string | null;
@@ -1737,6 +1771,13 @@ export default function DashboardPage() {
     );
   }, [result, topRisks.length, findings.length, summaryCategories, primaryCategory]);
   const policyTrace = useMemo(() => result?.meta?.policy_trace ?? [], [result?.meta?.policy_trace]);
+  const intelligenceSnapshot = result?.meta?.decision_intelligence ?? null;
+  const contractMemory = result?.meta?.contract_memory ?? intelligenceSnapshot?.contract_memory ?? null;
+  const negotiationIntel = result?.meta?.negotiation_intelligence ?? intelligenceSnapshot?.negotiation_intelligence ?? null;
+  const sectorJurisdictionIntel =
+    result?.meta?.sector_jurisdiction_intelligence ?? intelligenceSnapshot?.sector_jurisdiction_intelligence ?? null;
+  const linkedDocumentIntel =
+    result?.meta?.linked_document_intelligence ?? intelligenceSnapshot?.linked_document_intelligence ?? null;
   const primarySummary = useMemo(() => {
     if (!result) return "";
     return executiveSummary(
@@ -2273,6 +2314,59 @@ export default function DashboardPage() {
                             posture?.escalationReason ||
                             "Configured tolerance has been considered in the deterministic posture."}
                         </p>
+                      </div>
+                    )}
+
+                    {(contractMemory || negotiationIntel || sectorJurisdictionIntel || linkedDocumentIntel) && (
+                      <div className="mt-3 grid gap-3">
+                        {contractMemory && (
+                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                              Contract memory
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-neutral-700">
+                              {contractMemory.recurring_counterparty?.detected
+                                ? `Recurring counterparty pattern detected across ${contractMemory.recurring_counterparty.prior_scan_count ?? 0} prior scan${contractMemory.recurring_counterparty.prior_scan_count === 1 ? "" : "s"}.`
+                                : "No recurring counterparty pattern is currently elevated for this organisation."}
+                            </p>
+                          </div>
+                        )}
+
+                        {negotiationIntel?.priorities?.length ? (
+                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                              Negotiation preparation
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-neutral-700">
+                              {negotiationIntel.priorities[0]?.clause_revision_objectives?.[0] ??
+                                negotiationIntel.minimum_acceptable_controls?.[0] ??
+                                "Review deterministic negotiation priorities before acceptance."}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {sectorJurisdictionIntel?.notes?.length ? (
+                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                              Sector / jurisdiction signal
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-neutral-700">
+                              {sectorJurisdictionIntel.notes[0]?.note}
+                            </p>
+                          </div>
+                        ) : null}
+
+                        {linkedDocumentIntel?.contract_set_detected && (
+                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
+                              Linked documents
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-neutral-700">
+                              {linkedDocumentIntel.conflict_signals?.[0]?.note ??
+                                `Linked set detected with ${linkedDocumentIntel.related_scan_count ?? 0} related scan${linkedDocumentIntel.related_scan_count === 1 ? "" : "s"}.`}
+                            </p>
+                          </div>
+                        )}
                       </div>
                     )}
 

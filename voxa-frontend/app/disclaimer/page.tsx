@@ -18,6 +18,8 @@ export default function DisclaimerPage() {
           title: "2. Automated analysis limits",
           body: [
             "VoxaRisk may miss risks, misclassify wording, overstate issues, understate issues, fail to recognise context, or produce outputs affected by extraction quality, OCR quality, document formatting, unusual drafting, missing schedules, jurisdictional differences, or incomplete inputs.",
+            "Organisation policy and tolerance features assist governance, but they do not replace professional review or make binding legal determinations. Negotiation intelligence is preparation support, not legal drafting advice. Industry and jurisdiction signals are operational risk indicators, not legal opinions. Multi-document conflict detection is evidence-based assistance, not complete legal due diligence.",
+            "AI explanations are secondary summaries of deterministic findings. They do not decide scores, severity, posture, escalation, policy outcomes, recommendations, or user decisions.",
             "Users must inspect the underlying clause evidence and consider the full agreement, negotiation history, commercial context, governing law, sector, transaction value, operational dependencies, and risk appetite."
           ]
         },

@@ -18,9 +18,33 @@ DECISION_METADATA = {
 }
 
 INTELLIGENCE_METADATA = {
-    "version": "2026.05.phase5",
+    "version": "2026.05.phase10",
     "last_updated": "2026-05-01",
-    "change_note": "Initial organisation-scoped decision intelligence foundation without aggregate market claims.",
+    "change_note": "Organisation-scoped memory, governance, negotiation, sector, jurisdiction, and linked-document intelligence foundation without legal-outcome claims.",
+}
+
+OUTCOME_EVENT_CATEGORIES = {
+    "accepted",
+    "negotiated",
+    "escalated",
+    "rejected",
+    "dispute",
+    "payment_issue",
+    "termination_event",
+    "operational_incident",
+    "renewal_issue",
+    "compliance_issue",
+}
+
+DOCUMENT_RELATIONSHIP_TYPES = {
+    "msa",
+    "sow",
+    "sla",
+    "dpa",
+    "amendment",
+    "annexure",
+    "purchase_order",
+    "other",
 }
 
 ALLOWED_POLICY_VALUES: dict[str, set[str]] = {
@@ -73,10 +97,16 @@ DECISION_REASON_CODES = {
 }
 
 SECTOR_INTELLIGENCE_PACKS: dict[str, dict[str, Any]] = {
-    "SaaS": {
+    "saas": {
         "label": "SaaS",
         "supported_risk_families": ["data use", "liability", "termination", "suspension", "auto-renewal"],
         "caution_note": "Foundation only; sector pack does not make legal-outcome claims.",
+        "release_ready": False,
+    },
+    "fintech": {
+        "label": "Fintech",
+        "supported_risk_families": ["data use", "confidentiality", "liability", "audit", "jurisdiction"],
+        "caution_note": "Operational and compliance attention signal only; not regulatory advice.",
         "release_ready": False,
     },
     "agencies": {
@@ -113,6 +143,36 @@ SECTOR_INTELLIGENCE_PACKS: dict[str, dict[str, Any]] = {
         "label": "Data processing",
         "supported_risk_families": ["data use", "confidentiality", "subcontracting", "jurisdiction"],
         "caution_note": "Foundation only; sector pack does not make legal-outcome claims.",
+        "release_ready": False,
+    },
+    "ai_vendors": {
+        "label": "AI vendors",
+        "supported_risk_families": ["data use", "confidentiality", "intellectual property", "liability", "audit"],
+        "caution_note": "Operational AI-vendor review signal only; not regulatory or legal advice.",
+        "release_ready": False,
+    },
+    "government": {
+        "label": "Government",
+        "supported_risk_families": ["termination", "step-in", "audit", "data use", "jurisdiction"],
+        "caution_note": "Public-sector style attention signal only; not procurement law advice.",
+        "release_ready": False,
+    },
+    "manufacturing": {
+        "label": "Manufacturing",
+        "supported_risk_families": ["delivery", "liability", "indemnity", "payment", "termination"],
+        "caution_note": "Operational supply-chain attention signal only.",
+        "release_ready": False,
+    },
+    "logistics": {
+        "label": "Logistics",
+        "supported_risk_families": ["delivery", "service", "liability", "suspension", "termination"],
+        "caution_note": "Operational continuity attention signal only.",
+        "release_ready": False,
+    },
+    "real_estate": {
+        "label": "Real estate",
+        "supported_risk_families": ["lease", "termination", "payment", "liability", "jurisdiction"],
+        "caution_note": "Lease and property review attention signal only; not real-estate legal advice.",
         "release_ready": False,
     },
 }
@@ -619,6 +679,216 @@ def decision_guidance_for_finding(finding: dict[str, Any]) -> list[str]:
     return sorted(dict.fromkeys(guidance))
 
 
+def _finding_evidence(finding: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "rule_id": finding.get("rule_id"),
+        "title": finding.get("title"),
+        "evidence_excerpt": finding.get("matched_text") or finding.get("excerpt"),
+    }
+
+
+def _families_from_payload(payload: dict[str, Any]) -> set[str]:
+    meta = payload.get("meta", {}) if isinstance(payload.get("meta"), dict) else {}
+    families = {str(item).lower() for item in meta.get("rule_families_detected", []) if item}
+    for finding in payload.get("findings", []) or []:
+        if not isinstance(finding, dict):
+            continue
+        category = str(finding.get("category") or "").lower()
+        rule_id = str(finding.get("rule_id") or "").lower()
+        title = str(finding.get("title") or "").lower()
+        text = f"{category} {rule_id} {title}"
+        if "indemn" in text:
+            families.add("indemnity")
+        if "liability" in text:
+            families.add("liability")
+        if "renewal" in text or "auto_renew" in text:
+            families.add("auto-renewal")
+        if "jurisdiction" in text or "forum" in text or "venue" in text:
+            families.add("jurisdiction")
+        if "data" in text:
+            families.add("data use")
+        if "termination" in text:
+            families.add("termination")
+        if "payment" in text or "fee" in text or "price" in text:
+            families.add("payment")
+        if "suspension" in text or "suspend" in text or category == "service":
+            families.add("operational dependency")
+    return families
+
+
+def build_negotiation_intelligence(payload: dict[str, Any]) -> dict[str, Any]:
+    findings = [finding for finding in payload.get("findings", []) if isinstance(finding, dict)]
+    context = _context_from_payload(payload)
+    posture = str(payload.get("decision_posture") or "monitor only")
+    priorities: list[dict[str, Any]] = []
+    minimum_controls: list[str] = []
+    fallback_positions: list[str] = []
+    safer_structures: list[str] = []
+    leverage_indicators: list[str] = []
+
+    for finding in findings:
+        guidance = decision_guidance_for_finding(finding)
+        severity = int(finding.get("severity") or 0)
+        if not guidance or severity < 3:
+            continue
+        text = _finding_text(finding)
+        objectives: list[str] = []
+        if "liability" in text or "cap" in text:
+            objectives.extend(["Ask for a mutual liability cap.", "Confirm insurance alignment before acceptance."])
+            fallback_positions.append("If a full cap is resisted, seek a narrower uncapped carve-out and documented approval.")
+            minimum_controls.append("Liability exposure must be reviewed against insurance and approval thresholds.")
+        if "indemn" in text:
+            objectives.append("Narrow indemnity to direct third-party claims and proportionate losses.")
+            fallback_positions.append("If indemnity cannot be removed, require mutuality, exclusions, and a clear cap.")
+        if "suspension" in text or "suspend" in text:
+            objectives.append("Require notice and cure before suspension except for urgent security or legal-risk events.")
+            minimum_controls.append("Suspension should include notice, cure period, and continuity controls where practical.")
+        if "renewal" in text:
+            objectives.append("Reduce auto-renewal friction and require usable non-renewal notice.")
+            safer_structures.append("Use renewal notice windows that give the business practical time to exit or renegotiate.")
+        if "data" in text or "ai training" in text:
+            objectives.append("Require a DPA or equivalent data-use controls where personal or sensitive data is involved.")
+            safer_structures.append("Separate service-use data rights from analytics, training, onward sharing, and transfers.")
+        if "jurisdiction" in text or "forum" in text:
+            objectives.append("Confirm forum, law, and escalation route are commercially workable.")
+        if "refund" in text or "prepaid" in text:
+            objectives.append("Add refund, credit, or service-continuity protection for prepaid amounts.")
+
+        if objectives:
+            priorities.append(
+                {
+                    "rule_id": finding.get("rule_id"),
+                    "title": finding.get("title"),
+                    "priority": "high" if severity >= 4 or posture in {"escalate internally", "reject"} else "medium",
+                    "clause_revision_objectives": sorted(dict.fromkeys(objectives)),
+                    "evidence": _finding_evidence(finding),
+                }
+            )
+
+    leverage = str(context.get("negotiation_leverage") or "unknown")
+    if leverage in {"low", "limited"}:
+        leverage_indicators.append("Negotiation leverage appears limited; focus on minimum controls and approval record.")
+    elif leverage in {"high", "strong"}:
+        leverage_indicators.append("Negotiation leverage appears stronger; prioritize structural fixes before fallback positions.")
+    if str(context.get("risk_posture") or "") == "conservative":
+        minimum_controls.append("Conservative posture supports stronger escalation before accepting unresolved high-risk wording.")
+    if not priorities:
+        return {
+            "priorities": [],
+            "fallback_positions": [],
+            "safer_alternative_structures": [],
+            "leverage_indicators": leverage_indicators,
+            "minimum_acceptable_controls": [],
+            "boundary": "Negotiation intelligence is preparation support only and is not legal drafting advice.",
+        }
+    return {
+        "priorities": priorities[:8],
+        "fallback_positions": sorted(dict.fromkeys(fallback_positions))[:8],
+        "safer_alternative_structures": sorted(dict.fromkeys(safer_structures))[:8],
+        "leverage_indicators": leverage_indicators,
+        "minimum_acceptable_controls": sorted(dict.fromkeys(minimum_controls))[:8],
+        "boundary": "Negotiation intelligence is preparation support only and is not legal drafting advice.",
+    }
+
+
+def build_sector_jurisdiction_intelligence(payload: dict[str, Any]) -> dict[str, Any]:
+    context = _context_from_payload(payload)
+    findings = [finding for finding in payload.get("findings", []) if isinstance(finding, dict)]
+    families = _families_from_payload(payload)
+    industry = str(context.get("industry") or context.get("contract_type") or "").lower()
+    contract_type = str(context.get("contract_type") or "").lower()
+    jurisdiction = str(context.get("jurisdiction") or "").lower()
+    data_sensitivity = str(context.get("data_sensitivity") or "").lower()
+    notes: list[dict[str, Any]] = []
+
+    if (industry in {"saas", "ai_vendors"} or contract_type == "saas") and ("data use" in families or data_sensitivity in {"high", "special_category"}):
+        notes.append(
+            {
+                "type": "sector",
+                "signal": "SaaS/data-sensitive review attention",
+                "note": "Data-use, training, transfer, confidentiality, and service-continuity terms deserve focused operational review.",
+            }
+        )
+    if industry in {"healthcare", "fintech"} and ("data use" in families or data_sensitivity in {"high", "special_category"}):
+        notes.append(
+            {
+                "type": "sector",
+                "signal": f"{industry} data/compliance attention",
+                "note": "Sensitive or regulated operating context increases the need to check data, confidentiality, audit, and operational controls.",
+            }
+        )
+    if industry == "real_estate" or contract_type == "lease":
+        notes.append(
+            {
+                "type": "sector",
+                "signal": "Real-estate/lease relevance",
+                "note": "Lease, payment, exit, repair, liability, and possession-related terms should be interpreted against the property use case.",
+            }
+        )
+
+    jurisdiction_findings = [
+        finding for finding in findings
+        if str(finding.get("category") or "").lower() == "jurisdiction"
+        or "jurisdiction" in str(finding.get("rule_id") or "").lower()
+        or "venue" in str(finding.get("rule_id") or "").lower()
+    ]
+    if jurisdiction_findings:
+        locations = {
+            str(finding.get("matched_location") or "").strip().lower()
+            for finding in jurisdiction_findings
+            if finding.get("matched_location")
+        }
+        if jurisdiction and locations and jurisdiction not in locations:
+            notes.append(
+                {
+                    "type": "jurisdiction",
+                    "signal": "Potential forum burden",
+                    "note": "Detected forum or venue wording may differ from the supplied jurisdiction context; treat this as an operational legal-review signal, not a legal opinion.",
+                    "evidence": [_finding_evidence(finding) for finding in jurisdiction_findings[:3]],
+                }
+            )
+        elif jurisdiction:
+            notes.append(
+                {
+                    "type": "jurisdiction",
+                    "signal": "Jurisdiction review signal",
+                    "note": "Jurisdiction or forum wording was detected and should be checked for enforceability, cost, and operational practicality.",
+                    "evidence": [_finding_evidence(finding) for finding in jurisdiction_findings[:3]],
+                }
+            )
+
+    return {
+        "sector": industry or contract_type or "unknown",
+        "jurisdiction": jurisdiction or None,
+        "notes": notes,
+        "available_sector_pack": SECTOR_INTELLIGENCE_PACKS.get(industry) or SECTOR_INTELLIGENCE_PACKS.get(contract_type),
+        "boundary": "Industry and jurisdiction signals are operational risk indicators, not legal opinions.",
+    }
+
+
+def apply_memory_and_linked_intelligence(
+    payload: dict[str, Any],
+    *,
+    memory_signals: dict[str, Any] | None = None,
+    linked_document_signals: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    meta = payload.setdefault("meta", {})
+    if memory_signals is not None:
+        meta["contract_memory"] = memory_signals
+    if linked_document_signals is not None:
+        meta["linked_document_intelligence"] = linked_document_signals
+    snapshot = meta.get("decision_intelligence")
+    if isinstance(snapshot, dict):
+        if memory_signals is not None:
+            snapshot["contract_memory"] = memory_signals
+        if linked_document_signals is not None:
+            snapshot["linked_document_intelligence"] = linked_document_signals
+            snapshot["linked_document_context"] = linked_document_signals.get("linked_document_context")
+        snapshot["negotiation_intelligence"] = meta.get("negotiation_intelligence")
+        snapshot["sector_jurisdiction_intelligence"] = meta.get("sector_jurisdiction_intelligence")
+    return payload
+
+
 def apply_policy_to_payload(
     payload: dict[str, Any],
     policy: dict[str, Any] | None,
@@ -669,6 +939,8 @@ def apply_policy_to_payload(
     meta["posture_rationale"] = posture["posture_rationale"]
     meta["recommended_next_step"] = posture["recommended_next_step"]
     meta["escalation_reason"] = posture["escalation_reason"]
+    meta["negotiation_intelligence"] = build_negotiation_intelligence(payload)
+    meta["sector_jurisdiction_intelligence"] = build_sector_jurisdiction_intelligence(payload)
     meta["decision_intelligence"] = build_decision_intelligence_snapshot(
         payload,
         prior_outcome_hint=prior_outcome_hint,
@@ -742,9 +1014,11 @@ def build_decision_intelligence_snapshot(
             for finding in open_findings[:10]
         ],
         "decision_log_summary": decision_summary or {"scan_state": "pending", "finding_status_default": "unresolved"},
+        "negotiation_intelligence": payload.get("meta", {}).get("negotiation_intelligence"),
+        "sector_jurisdiction_intelligence": payload.get("meta", {}).get("sector_jurisdiction_intelligence"),
         "policy_status_summary": policy_summary,
         "metadata": INTELLIGENCE_METADATA,
-        "boundary_notice": "Decision intelligence supports management review only and is not legal advice or a legal-outcome engine.",
+        "boundary_notice": "Decision intelligence, negotiation preparation, industry/jurisdiction signals, memory, and linked-document checks support management review only. They are not legal advice, legal drafting, complete due diligence, or legal-outcome engines.",
     }
 
 

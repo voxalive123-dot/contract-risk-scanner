@@ -39,6 +39,8 @@ export default function TermsPage() {
           title: "5. Outputs and reliance",
           body: [
             "VoxaRisk outputs are generated from automated rules, heuristics, extraction logic, and system analysis. Outputs may be incomplete, inaccurate, context-limited, or unsuitable for a particular transaction, jurisdiction, sector, contract type, or legal question.",
+            "Decision posture, organisation tolerance, contract memory, negotiation preparation, industry or jurisdiction signals, and linked-document conflict indicators are decision-support signals only. They do not replace qualified legal counsel, professional review, user judgement, or organisation approval processes.",
+            "AI explanations, where available, are supporting summaries only. They do not control final scores, severities, deterministic findings, decision posture, escalation, policy outcomes, recommendations, or legal conclusions.",
             "You must review outputs critically, inspect the clause evidence, consider missing context, and seek professional advice where appropriate. You must not treat VoxaRisk output as final legal clearance or as a guarantee of contract safety."
           ]
         },
