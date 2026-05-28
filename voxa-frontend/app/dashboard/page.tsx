@@ -2208,7 +2208,7 @@ export default function DashboardPage() {
                       disabled={loading || !hasInput}
                       className="rounded-2xl bg-[#d5bd88] px-5 py-3 text-sm font-semibold text-[#1E1712] shadow-[0_10px_20px_rgba(0,0,0,0.13)] transition hover:bg-[#e1c998] disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      {loading ? "Reviewing..." : "Run Executive Review"}
+                      {loading ? "Reviewing..." : "Generate Executive Decision"}
                     </button>
                   </div>
                 </section>
@@ -2217,7 +2217,7 @@ export default function DashboardPage() {
                   <section className="rounded-2xl border border-[rgba(180,150,90,0.18)] bg-[#2A211B] p-3">
                     <div className="flex items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.2)] pb-3">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
-                        Detected Signals
+                        Priority Risk Signals
                       </div>
                       <div className="text-xs text-[#a98c5a]">
                         {result ? `${matchedRuleCount} findings` : "Awaiting scan"}
@@ -2241,7 +2241,7 @@ export default function DashboardPage() {
 
                   <section className="rounded-2xl border border-[rgba(180,150,90,0.18)] bg-[#2A211B] p-3">
                     <div className="border-b border-[rgba(180,150,90,0.2)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
-                      Risk Score
+                      Exposure Score
                     </div>
                     <div className="mt-4 flex items-end justify-between gap-4">
                       <div>
@@ -2261,7 +2261,7 @@ export default function DashboardPage() {
 
                   <section className="rounded-2xl border border-[#d5bd88]/35 bg-[#2A211B] p-3 shadow-[0_0_18px_rgba(176,141,87,0.08)]">
                     <div className="border-b border-[rgba(180,150,90,0.24)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
-                      Decision Output
+                      Executive Decision
                     </div>
                     <div className="mt-3 text-xl font-semibold uppercase leading-tight text-[#EDE7DF] md:text-2xl">
                       {posture?.label ?? "Awaiting Review"}
@@ -2277,7 +2277,7 @@ export default function DashboardPage() {
             <aside className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4 text-[#EDE7DF] shadow-[0_18px_42px_rgba(36,28,22,0.14)] lg:sticky lg:top-6 lg:self-start">
               <div className="border-b border-[rgba(180,150,90,0.2)] pb-3">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
-                  Workspace Context
+                  Session Context
                 </div>
                 <div className="mt-1 text-xs leading-5 text-[#bfb3a7]">
                   Account and entitlement state for this review session.
@@ -3327,9 +3327,9 @@ export default function DashboardPage() {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#8f7245]">
-                  Previous Reviews
+                  Historical Intelligence
                 </div>
-                <h2 className="mt-1 text-lg font-semibold text-[#1E1712]">Recent workspace history</h2>
+                <h2 className="mt-1 text-lg font-semibold text-[#1E1712]">Historical Review Activity</h2>
               </div>
               <div className="flex flex-wrap gap-2">
                 <button
