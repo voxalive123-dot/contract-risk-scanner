@@ -359,9 +359,58 @@ const REVIEW_PURPOSE_OPTIONS = [
 ] as const;
 
 function severityTone(severity?: number) {
+  if ((severity ?? 0) >= 5) return "Critical";
   if ((severity ?? 0) >= 4) return "High";
   if ((severity ?? 0) >= 3) return "Moderate";
   return "Low";
+}
+
+function findingImpactGroup(finding: Finding): "Critical" | "High" | "Moderate" | "Low" {
+  const severity = finding.severity ?? 0;
+  if (severity >= 5) return "Critical";
+  if (severity >= 4) return "High";
+  if (severity >= 3) return "Moderate";
+  return "Low";
+}
+
+function groupFindingTone(group: "Critical" | "High" | "Moderate" | "Low") {
+  switch (group) {
+    case "Critical":
+      return {
+        wrapper: "border-red-200 bg-red-50/70",
+        badge: "border-red-200 bg-red-50 text-red-700",
+        dot: "bg-red-500",
+      };
+    case "High":
+      return {
+        wrapper: "border-[#d8b36f] bg-[#fff6e4]",
+        badge: "border-[#d8b36f] bg-[#fff4dc] text-[#7a4d12]",
+        dot: "bg-[#b7791f]",
+      };
+    case "Moderate":
+      return {
+        wrapper: "border-[#dccaa8] bg-[#fffaf0]",
+        badge: "border-[#dccaa8] bg-[#fcf2df] text-[#6f552d]",
+        dot: "bg-[#b08d57]",
+      };
+    default:
+      return {
+        wrapper: "border-[#e8ddca] bg-[#fffdf8]",
+        badge: "border-[#e8ddca] bg-[#fffdf8] text-neutral-500",
+        dot: "bg-[#c8bca7]",
+      };
+  }
+}
+
+function synthesisLabel(value: string) {
+  const text = value.replace(/^cross_/, "").replace(/^derived_cross_clause_/, "").replace(/_/g, " ");
+  if (text.includes("renewal") || text.includes("auto renewal")) return "Renewal pressure pattern";
+  if (text.includes("suspension") || text.includes("operational") || text.includes("lock")) return "Operational lock-in pattern";
+  if (text.includes("jurisdiction") || text.includes("venue") || text.includes("forum")) return "Dispute burden stack";
+  if (text.includes("data") || text.includes("confidentiality")) return "Data control tension";
+  if (text.includes("liability") || text.includes("indemnity") || text.includes("cap")) return "Economic leverage cluster";
+  if (text.includes("termination") || text.includes("refund")) return "Control asymmetry";
+  return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
 function severityBadgeClass(severity: "LOW" | "MEDIUM" | "HIGH") {
@@ -1778,6 +1827,42 @@ export default function DashboardPage() {
     result?.meta?.sector_jurisdiction_intelligence ?? intelligenceSnapshot?.sector_jurisdiction_intelligence ?? null;
   const linkedDocumentIntel =
     result?.meta?.linked_document_intelligence ?? intelligenceSnapshot?.linked_document_intelligence ?? null;
+  const findingGroups = useMemo(() => {
+    const groups: Record<"Critical" | "High" | "Moderate" | "Low", Finding[]> = {
+      Critical: [],
+      High: [],
+      Moderate: [],
+      Low: [],
+    };
+    findings.forEach((finding) => {
+      groups[findingImpactGroup(finding)].push(finding);
+    });
+    return groups;
+  }, [findings]);
+  const elevatedFindings = useMemo(
+    () => [...findingGroups.Critical, ...findingGroups.High, ...findingGroups.Moderate],
+    [findingGroups],
+  );
+  const policyUnknownCount = useMemo(
+    () => findings.filter((finding) => finding.policy_status === "policy_unknown").length,
+    [findings],
+  );
+  const unresolvedFindingCount = useMemo(
+    () =>
+      findings.filter((finding, index) => {
+        const decision = findingDecisions[findingDecisionId(finding, index)];
+        return !decision || !decision.status || decision.status === "unresolved";
+      }).length,
+    [findings, findingDecisions],
+  );
+  const synthesisSignals = useMemo(() => {
+    const raw = [
+      ...(result?.meta?.synthesis_patterns_triggered ?? []),
+      ...(linkedDocumentIntel?.conflict_signals?.map((item) => item.type ?? "linked_document_conflict") ?? []),
+      ...(sectorJurisdictionIntel?.notes?.map((item) => item.signal ?? "") ?? []),
+    ].filter(Boolean);
+    return Array.from(new Set(raw.map((item) => synthesisLabel(String(item))))).slice(0, 6);
+  }, [result?.meta?.synthesis_patterns_triggered, linkedDocumentIntel?.conflict_signals, sectorJurisdictionIntel?.notes]);
   const primarySummary = useMemo(() => {
     if (!result) return "";
     return executiveSummary(
@@ -1817,6 +1902,7 @@ export default function DashboardPage() {
     : "Structural clause-level exposure";
   const reportGeneratedLabel = formatReportTimestamp(reportGeneratedAt);
   const reportPriorityItems = (topRisks.length ? topRisks : findings).slice(0, 3);
+  const negotiationPriorityCount = negotiationIntel?.priorities?.length ?? reportPriorityItems.length;
   const duplicatedSummaryDetail =
     !isLowSignalResult &&
     primarySummary.trim().length > 0 &&
@@ -1943,20 +2029,55 @@ export default function DashboardPage() {
       <main className="min-h-screen bg-[#F5F1EB] text-neutral-950">
         <SiteHeader className="report-print-hidden" activeItem="dashboard" authMode="authenticated" />
 
-        <div className="mx-auto max-w-7xl px-6 py-8 md:px-8">
-          <div className="report-print-hidden mb-6 grid gap-5 lg:grid-cols-[minmax(0,1fr)_300px] xl:grid-cols-[minmax(0,1fr)_320px]">
-            <section className="overflow-hidden border border-[rgba(180,150,90,0.2)] bg-[#241C16] text-[#EDE7DF] shadow-[0_22px_52px_rgba(36,28,22,0.18)]">
-              <div className="border-b border-[rgba(180,150,90,0.2)] bg-[#1E1712] px-5 py-4 md:px-6">
+        <div className="mx-auto max-w-[1500px] px-5 py-6 md:px-8">
+          {result && (
+            <section className="report-print-hidden mb-5 rounded-[30px] border border-[#d2bd96] bg-[#1E1712] p-5 text-[#EDE7DF] shadow-[0_20px_48px_rgba(30,23,18,0.18)] md:p-6">
+              <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_220px_260px] xl:items-center">
+                <div className="min-w-0">
+                  <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#c8a96d]">
+                    Executive decision signal
+                  </div>
+                  <h1 className="mt-2 text-2xl font-semibold tracking-tight text-[#F5F1EB] md:text-4xl">
+                    {posture?.label ?? "Review required"}
+                  </h1>
+                  <p className="mt-3 max-w-4xl text-sm leading-6 text-[#d8cec2]">
+                    {posture?.nextStep ?? primarySummary}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-[rgba(216,190,142,0.28)] bg-[#2A211B] p-4">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#c8a96d]">Exposure</div>
+                  <div className="mt-1 flex items-end gap-2">
+                    <span className="text-5xl font-semibold leading-none">{normalizedScore}</span>
+                    <span className="pb-1 text-xs uppercase tracking-[0.14em] text-[#c8a96d]">{result.severity}</span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#c8a96d]">Top drivers</div>
+                    <div className="mt-1 text-2xl font-semibold">{elevatedFindings.length || findings.length}</div>
+                  </div>
+                  <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-3">
+                    <div className="text-[10px] uppercase tracking-[0.16em] text-[#c8a96d]">Negotiation</div>
+                    <div className="mt-1 text-2xl font-semibold">{negotiationPriorityCount}</div>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          <div className="report-print-hidden mb-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_260px] xl:grid-cols-[minmax(0,1fr)_280px]">
+            <section className="overflow-hidden rounded-[28px] border border-[rgba(180,150,90,0.22)] bg-[#241C16] text-[#EDE7DF] shadow-[0_16px_34px_rgba(36,28,22,0.14)]">
+              <div className="border-b border-[rgba(180,150,90,0.18)] bg-[#1E1712] px-4 py-3 md:px-5">
                 <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#d5bd88]">
                   Decision Workspace
                 </div>
-                <div className="mt-2 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+                <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
                   <div>
-                    <h1 className="text-2xl font-semibold tracking-tight text-[#EDE7DF] md:text-3xl">
+                    <h1 className="text-xl font-semibold tracking-tight text-[#EDE7DF] md:text-2xl">
                       Contract risk decision console
                     </h1>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-[#cfc4b8]">
-                      Intake contract text, surface governed signals, read exposure score, and record the commercial decision path.
+                      Paste or upload the contract. The decision signal appears above the workspace after review.
                     </p>
                   </div>
                   <div className="text-xs font-medium uppercase tracking-[0.18em] text-[#a98c5a]">
@@ -1965,15 +2086,15 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              <div className="grid gap-4 p-4 md:p-5 xl:grid-cols-[1.2fr_0.8fr]">
-                <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+              <div className="grid gap-3 p-3 md:p-4 xl:grid-cols-[1.05fr_0.95fr]">
+                <section className="rounded-2xl border border-[rgba(180,150,90,0.18)] bg-[#2A211B] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.2)] pb-3">
                     <div>
                       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
                         Contract Input
                       </div>
                       <p className="mt-1 text-xs leading-5 text-[#bfb3a7]">
-                        Paste text, upload a PDF/image, or use camera capture for OCR-supported review.
+                        Paste text or upload a file for governed review.
                       </p>
                     </div>
                     <div className="text-xs text-[#a98c5a]">
@@ -2069,7 +2190,7 @@ export default function DashboardPage() {
                       }
                     }}
                     placeholder="Paste key clauses or full contract text here..."
-                    className="mt-4 min-h-[190px] w-full border border-[rgba(180,150,90,0.2)] bg-[#1E1712] px-4 py-4 text-sm leading-6 text-[#EDE7DF] outline-none transition placeholder:text-[#8f8174] focus:border-[#b08d57]"
+                    className="mt-3 min-h-[118px] w-full rounded-2xl border border-[rgba(180,150,90,0.2)] bg-[#1E1712] px-4 py-3 text-sm leading-6 text-[#EDE7DF] outline-none transition placeholder:text-[#8f8174] focus:border-[#b08d57]"
                   />
 
                   {errorMessage && (
@@ -2078,14 +2199,14 @@ export default function DashboardPage() {
                     </div>
                   )}
 
-                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-xs leading-5 text-[#a98c5a]">
                       Core scoring is rules-first. AI notes are secondary explanation only.
                     </div>
                     <button
                       onClick={runReview}
                       disabled={loading || !hasInput}
-                      className="bg-[#d5bd88] px-5 py-3 text-sm font-semibold text-[#1E1712] shadow-[0_12px_24px_rgba(0,0,0,0.16)] transition hover:bg-[#e1c998] disabled:cursor-not-allowed disabled:opacity-50"
+                      className="rounded-2xl bg-[#d5bd88] px-5 py-3 text-sm font-semibold text-[#1E1712] shadow-[0_10px_20px_rgba(0,0,0,0.13)] transition hover:bg-[#e1c998] disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {loading ? "Reviewing..." : "Run Executive Review"}
                     </button>
@@ -2093,7 +2214,7 @@ export default function DashboardPage() {
                 </section>
 
                 <div className="grid gap-4">
-                  <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+                  <section className="rounded-2xl border border-[rgba(180,150,90,0.18)] bg-[#2A211B] p-3">
                     <div className="flex items-center justify-between gap-3 border-b border-[rgba(180,150,90,0.2)] pb-3">
                       <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
                         Detected Signals
@@ -2118,7 +2239,7 @@ export default function DashboardPage() {
                     </div>
                   </section>
 
-                  <section className="border border-[rgba(180,150,90,0.2)] bg-[#2A211B] p-4">
+                  <section className="rounded-2xl border border-[rgba(180,150,90,0.18)] bg-[#2A211B] p-3">
                     <div className="border-b border-[rgba(180,150,90,0.2)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
                       Risk Score
                     </div>
@@ -2138,11 +2259,11 @@ export default function DashboardPage() {
                     </div>
                   </section>
 
-                  <section className="border border-[#d5bd88]/55 bg-[#322720] p-4 shadow-[0_0_34px_rgba(176,141,87,0.12)]">
+                  <section className="rounded-2xl border border-[#d5bd88]/35 bg-[#2A211B] p-3 shadow-[0_0_18px_rgba(176,141,87,0.08)]">
                     <div className="border-b border-[rgba(180,150,90,0.24)] pb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#d5bd88]">
                       Decision Output
                     </div>
-                    <div className="mt-4 text-2xl font-semibold uppercase leading-tight text-[#EDE7DF] md:text-3xl">
+                    <div className="mt-3 text-xl font-semibold uppercase leading-tight text-[#EDE7DF] md:text-2xl">
                       {posture?.label ?? "Awaiting Review"}
                     </div>
                     <p className="mt-3 text-sm leading-6 text-[#cfc4b8]">
@@ -2185,575 +2306,370 @@ export default function DashboardPage() {
 
           {result && (
             <>
-              <div className="report-print-hidden space-y-8">
-                <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr] xl:items-stretch">
-                  <div className="flex h-full flex-col rounded-3xl border border-[#d2bd96] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div>
-                        <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                          Risk Intelligence Report Ready
-                        </div>
-                        <h2 className="mt-2 text-2xl font-semibold text-neutral-950">
-                          {scoreBand(normalizedScore, result.severity)} exposure
-                        </h2>
-                        <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
-                          {primarySummary}
-                        </p>
-                      </div>
-
-                      <div
-                        className={`rounded-full border px-4 py-2 text-sm font-medium ${severityBadgeClass(
-                          result.severity,
-                        )}`}
-                      >
-                        {result.severity}
-                      </div>
-                    </div>
-
-                    <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:mt-auto xl:grid-cols-4">
-                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
-                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Normalized exposure score
-                        </div>
-                        <div className="mt-2 text-2xl font-semibold text-neutral-950">
-                          {normalizedScore}
-                        </div>
-                      </div>
-                      <div
-                        className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4"
-                        title={reliabilityAssessment.helper}
-                      >
-                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Reliability
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-neutral-950">
-                          {reliabilityAssessment.label}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
-                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Detected findings
-                        </div>
-                        <div className="mt-2 text-2xl font-semibold text-neutral-950">
-                          {matchedRuleCount}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
-                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Generated
-                        </div>
-                        <div className="mt-2 text-base font-semibold text-neutral-950">
-                          {reportGeneratedLabel}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-4 grid gap-3 md:grid-cols-2">
-                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                          Primary Risk Type
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-neutral-950">
-                          {decisionPrimaryRiskType}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                          Impact Area
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-neutral-950">
-                          {decisionImpactArea}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                          Confidence Driver
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-neutral-950">
-                          {decisionConfidenceDriver}
-                        </div>
-                      </div>
-                      <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
-                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
-                          Signal Type
-                        </div>
-                        <div className="mt-2 text-sm font-semibold text-neutral-950">
-                          {decisionSignalType}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="flex h-full flex-col rounded-3xl border border-[#d2bd96] bg-[#fffdf8] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-                    <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                      Decision Posture
-                    </div>
-                    <div className="mt-3 text-2xl font-semibold text-neutral-950">
-                      {posture?.label}
-                    </div>
-                    <p className="mt-3 text-sm leading-6 text-neutral-700">
-                      {posture?.detail}
-                    </p>
-
-                    <div className="mt-5 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
-                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                        Recommended next step
-                      </div>
-                      <p className="mt-2 text-sm leading-6 text-neutral-700">
-                        {posture?.nextStep}
-                      </p>
-                    </div>
-
-                    {(posture?.escalationReason || policyTrace.length > 0) && (
-                      <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                        <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                          Policy / Tolerance signal
-                        </div>
-                        <p className="mt-2 text-sm leading-6 text-neutral-700">
-                          {policyTrace[0]?.reason ||
-                            posture?.escalationReason ||
-                            "Configured tolerance has been considered in the deterministic posture."}
-                        </p>
-                      </div>
-                    )}
-
-                    {(contractMemory || negotiationIntel || sectorJurisdictionIntel || linkedDocumentIntel) && (
-                      <div className="mt-3 grid gap-3">
-                        {contractMemory && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                              Contract memory
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-neutral-700">
-                              {contractMemory.recurring_counterparty?.detected
-                                ? `Recurring counterparty pattern detected across ${contractMemory.recurring_counterparty.prior_scan_count ?? 0} prior scan${contractMemory.recurring_counterparty.prior_scan_count === 1 ? "" : "s"}.`
-                                : "No recurring counterparty pattern is currently elevated for this organisation."}
-                            </p>
+              <div className="report-print-hidden">
+                <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px] xl:items-start">
+                  <div className="min-w-0 space-y-6">
+                    <section className="rounded-[26px] border border-[#d2bd96] bg-[#fffdf8] p-5 shadow-[0_10px_22px_rgba(80,60,30,0.05)] md:p-6">
+                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="min-w-0">
+                          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f7245]">
+                            Executive Summary
                           </div>
-                        )}
-
-                        {negotiationIntel?.priorities?.length ? (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                              Negotiation preparation
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-neutral-700">
-                              {negotiationIntel.priorities[0]?.clause_revision_objectives?.[0] ??
-                                negotiationIntel.minimum_acceptable_controls?.[0] ??
-                                "Review deterministic negotiation priorities before acceptance."}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        {sectorJurisdictionIntel?.notes?.length ? (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                              Sector / jurisdiction signal
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-neutral-700">
-                              {sectorJurisdictionIntel.notes[0]?.note}
-                            </p>
-                          </div>
-                        ) : null}
-
-                        {linkedDocumentIntel?.contract_set_detected && (
-                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                            <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                              Linked documents
-                            </div>
-                            <p className="mt-2 text-sm leading-6 text-neutral-700">
-                              {linkedDocumentIntel.conflict_signals?.[0]?.note ??
-                                `Linked set detected with ${linkedDocumentIntel.related_scan_count ?? 0} related scan${linkedDocumentIntel.related_scan_count === 1 ? "" : "s"}.`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                            Scan decision
-                          </div>
-                          <div className="mt-1 text-sm font-semibold text-neutral-950">
-                            {scanDecisionLabel(scanDecision.state)}
-                          </div>
+                          <h2 className="mt-2 max-w-4xl text-2xl font-semibold tracking-tight text-neutral-950 md:text-3xl">
+                            {scoreBand(normalizedScore, result.severity)} exposure · {posture?.label ?? "Review required"}
+                          </h2>
+                          <p className="mt-3 max-w-4xl text-sm leading-6 text-neutral-700 md:text-[0.95rem]">
+                            {primarySummary}
+                          </p>
                         </div>
-                        <select
-                          value={(scanDecision.state as ScanDecisionValue) || "pending"}
-                          onChange={(event) => void updateScanDecision(event.target.value as ScanDecisionValue)}
-                          disabled={!activeScanId || decisionSavingKey === "scan"}
-                          className="rounded-xl border border-[#dccaa8] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 disabled:opacity-60"
-                        >
-                          {SCAN_DECISION_OPTIONS.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                        <div className={`shrink-0 rounded-full border px-4 py-2 text-sm font-semibold ${severityBadgeClass(result.severity)}`}>
+                          {result.severity}
+                        </div>
                       </div>
 
-                      <div className="mt-3 flex flex-wrap gap-2">
+                      <div className="mt-4 grid gap-3 md:grid-cols-4">
                         {[
-                          { label: "Accept scan", value: "accepted" as ScanDecisionValue },
-                          { label: "Escalate scan", value: "escalated" as ScanDecisionValue },
-                          { label: "Send for legal review", value: "sent_for_legal_review" as ScanDecisionValue },
-                        ].map((action) => (
-                          <button
-                            key={action.value}
-                            type="button"
-                            onClick={() => void updateScanDecision(action.value)}
-                            disabled={!activeScanId || decisionSavingKey === "scan"}
-                            className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {action.label}
-                          </button>
+                          { label: "Exposure", value: normalizedScore },
+                          { label: "Top drivers", value: elevatedFindings.length || findings.length },
+                          { label: "Negotiation", value: negotiationPriorityCount },
+                          { label: "Reliability", value: reliabilityAssessment.label },
+                        ].map((item) => (
+                          <div key={item.label} className="min-h-[76px] rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-3">
+                            <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">{item.label}</div>
+                            <div className="mt-2 truncate text-2xl font-semibold text-neutral-950" title={String(item.value)}>
+                              {item.value}
+                            </div>
+                          </div>
                         ))}
                       </div>
 
-                      <div className="mt-3 text-xs leading-5 text-[#8f7245]">
-                        {scanDecision.updated_at
-                          ? `Last action: ${formatReportTimestamp(scanDecision.updated_at)}`
-                          : activeScanId
-                            ? "No scan-level decision recorded yet."
-                            : "Decision controls activate once the review is saved."}
+                      <div className="mt-5 grid gap-3 md:grid-cols-3">
+                        <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Primary risk</div>
+                          <div className="mt-2 text-sm font-semibold leading-5 text-neutral-950">{decisionPrimaryRiskType}</div>
+                        </div>
+                        <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Impact area</div>
+                          <div className="mt-2 text-sm font-semibold leading-5 text-neutral-950">{decisionImpactArea}</div>
+                        </div>
+                        <div className="rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                          <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Signal</div>
+                          <div className="mt-2 text-sm font-semibold leading-5 text-neutral-950">{decisionSignalType}</div>
+                        </div>
                       </div>
-                    </div>
-
-                    {decisionMessage && (
-                      <div className="mt-3 rounded-2xl border border-[#dccaa8] bg-[#fffcf6] p-3 text-xs leading-5 text-neutral-700">
-                        {decisionMessage}
+                      <div className="mt-3 rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-4">
+                        <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Confidence driver</div>
+                        <div className="mt-2 text-sm leading-6 text-neutral-700">{decisionConfidenceDriver}</div>
                       </div>
-                    )}
+                    </section>
 
-                    <div className="mt-3 rounded-2xl border border-[#ead9bc] bg-[#fffcf6] p-3 xl:mt-auto">
-                      <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                        Product boundary
-                      </div>
-                      <p className="mt-1.5 text-xs leading-5 text-neutral-600">
-                        {reportBoundaryNotice}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                        Negotiation Priorities
-                      </div>
-                      <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
-                        Primary risk drivers
-                      </h3>
-                    </div>
-                  </div>
-
-                  {reportPriorityItems.length ? (
-                    reportPriorityItems.length === 1 ? (
-                      reportPriorityItems.map((item, index) => {
-                        const category = item.category ?? "";
-                        return (
-                          <div
-                            key={`negotiation-${item.title ?? "risk"}-${index}`}
-                            className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
-                          >
-                            <div className="grid gap-5 md:grid-cols-[1.15fr_0.85fr] md:items-start">
-                              <div>
-                                <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                                  Priority {index + 1}
-                                </div>
-                                <h4 className="mt-2 text-base font-semibold text-neutral-950">
-                                  {item.title ?? "Unlabeled risk"}
-                                </h4>
-                                <p className="mt-3 text-sm leading-6 text-neutral-700">
-                                  {negotiationPriority(category)}
-                                </p>
-                              </div>
-                              <div className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                  Why first
-                                </div>
-                                <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                  {priorityReason(category)}
-                                </p>
-                              </div>
+                    <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.72fr)]">
+                      <div className="rounded-[28px] border border-[#dccaa8] bg-[#fffaf0] p-5 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f7245]">
+                              Top Risk Drivers
                             </div>
-                          </div>
-                        );
-                      })
-                    ) : (
-                      <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
-                        {reportPriorityItems.map((item, index) => {
-                          const category = item.category ?? "";
-                          return (
-                            <div
-                              key={`negotiation-${item.title ?? "risk"}-${index}`}
-                              className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-6"
-                            >
-                              <div className="text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                                Priority {index + 1}
-                              </div>
-                              <h4 className="mt-2 text-base font-semibold text-neutral-950">
-                                {item.title ?? "Unlabeled risk"}
-                              </h4>
-                              <p className="mt-3 text-sm leading-6 text-neutral-700">
-                                {negotiationPriority(category)}
-                              </p>
-                              <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                  Why first
-                                </div>
-                                <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                  {priorityReason(category)}
-                                </p>
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
-                  ) : (
-                    <div className="mt-6 rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
-                      No material automated risk signals were elevated into negotiation priorities for this review. This remains a low-signal result, not a contract clearance outcome.
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)]">
-                  <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
-                    Clause Evidence
-                  </div>
-                  <div className="mt-4 space-y-4">
-                    {findings.length ? (
-                      findings.map((finding, index) => {
-                        const findingId = findingDecisionId(finding, index);
-                        const decision = findingDecisions[findingId] ?? { finding_id: findingId, status: "unresolved" };
-                        const policy = policyIndicator(finding);
-                        const noteOpen = Boolean(decisionNotesOpen[findingId]);
-                        const noteDraft = findingDecisionNotes[findingId] ?? decision.note ?? "";
-                        const isTopRisk = index < 3;
-                        const roleAwareSections = [
-                          {
-                            label: "Structural Risk",
-                            value: finding.structural_risk ?? finding.role_aware_interpretation?.["Structural Risk"],
-                          },
-                          {
-                            label: "Contextual Impact",
-                            value: finding.contextual_impact ?? finding.role_aware_interpretation?.["Contextual Impact"],
-                          },
-                          {
-                            label: "Operational Exposure",
-                            value: finding.operational_exposure ?? finding.role_aware_interpretation?.["Operational Exposure"],
-                          },
-                          {
-                            label: "Recommended Attention",
-                            value: finding.recommended_attention ?? finding.role_aware_interpretation?.["Recommended Attention"],
-                          },
-                        ].filter((section) => section.value);
-
-                        return (
-                        <div
-                          key={`${findingId}-${index}`}
-                          className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5"
-                        >
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div>
-                              <h4 className="text-lg font-semibold text-neutral-950">
-                                {finding.title ?? "Unlabeled finding"}
-                              </h4>
-                              <div className="mt-1 text-xs uppercase tracking-[0.2em] text-[#8f7245]">
-                                {finding.category ?? "uncategorized"}
-                              </div>
-                            </div>
-
-                            <div className="rounded-full border border-[#dccaa8] bg-[#fffaf0] px-3 py-1 text-xs font-medium text-neutral-700">
-                              {severityTone(finding.severity)} impact
-                            </div>
-                          </div>
-
-                          {policy && (
-                            <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                              <div className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold ${policy.className}`}>
-                                {policy.label}
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                {policy.detail}
-                              </p>
-                            </div>
-                          )}
-
-                          {roleAwareSections.length > 0 && (
-                            <div className="mt-4 grid gap-3 md:grid-cols-2">
-                              {roleAwareSections.map((section) => (
-                                <div key={section.label} className="rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
-                                  <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                    {section.label}
-                                  </div>
-                                  <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                    {section.value}
-                                  </p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="mt-4 grid gap-4 md:grid-cols-2">
-                            <div>
-                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                Why it matters
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                {finding.rationale ?? consequenceSummary(finding.category)}
-                              </p>
-                            </div>
-                            <div>
-                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                Recommended focus
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                {recommendedFocus(finding.category)}
-                              </p>
-                            </div>
-                          </div>
-
-                          {finding.matched_text && (
-                            <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                              <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                Clause evidence
-                              </div>
-                              <p className="mt-2 text-sm leading-6 text-neutral-700">
-                                {finding.matched_text}
-                              </p>
-                            </div>
-                          )}
-
-                          {isTopRisk && (
-                            <details className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
-                              <summary className="cursor-pointer text-sm font-semibold text-neutral-950">
-                                What would make this acceptable
-                              </summary>
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {acceptableGuidance(finding).map((item) => (
-                                  <span key={item} className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-3 py-1.5 text-xs font-medium text-[#6f552d]">
-                                    {item}
-                                  </span>
-                                ))}
-                              </div>
-                            </details>
-                          )}
-
-                          <div className="mt-4 rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
-                            <div className="flex flex-wrap items-center justify-between gap-3">
-                              <div>
-                                <div className="text-xs uppercase tracking-wide text-[#8f7245]">
-                                  Decision status
-                                </div>
-                                <div className="mt-1 text-sm font-semibold text-neutral-950">
-                                  {findingDecisionLabel(decision.status)}
-                                </div>
-                              </div>
-                              <select
-                                value={(decision.status as FindingDecisionValue) || "unresolved"}
-                                onChange={(event) => void updateFindingDecision(findingId, event.target.value as FindingDecisionValue, noteDraft)}
-                                disabled={!activeScanId || decisionSavingKey === findingId}
-                                className="rounded-xl border border-[#dccaa8] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 disabled:opacity-60"
-                              >
-                                {FINDING_DECISION_OPTIONS.map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
-
-                            <div className="mt-3 flex flex-wrap gap-2">
-                              {[
-                                { label: "Accept", value: "accepted" as FindingDecisionValue },
-                                { label: "Redline", value: "redlined" as FindingDecisionValue },
-                                { label: "Escalate", value: "escalated" as FindingDecisionValue },
-                                { label: "Waive", value: "waived" as FindingDecisionValue },
-                              ].map((action) => (
-                                <button
-                                  key={action.value}
-                                  type="button"
-                                  onClick={() => void updateFindingDecision(findingId, action.value, noteDraft)}
-                                  disabled={!activeScanId || decisionSavingKey === findingId}
-                                  className="rounded-full border border-[#d3bd8f] bg-[#fff4dc] px-3 py-1.5 text-xs font-semibold text-neutral-800 transition hover:bg-[#f3e4c6] disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                  {action.label}
-                                </button>
-                              ))}
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={() => setDecisionNotesOpen((current) => ({ ...current, [findingId]: !noteOpen }))}
-                              className="mt-3 text-xs font-semibold text-[#765a2b] underline-offset-4 hover:underline"
-                            >
-                              {noteOpen ? "Hide decision note" : decision.note ? "Edit decision note" : "Add optional note"}
-                            </button>
-
-                            {noteOpen && (
-                              <div className="mt-3">
-                                <textarea
-                                  value={noteDraft}
-                                  onChange={(event) =>
-                                    setFindingDecisionNotes((current) => ({ ...current, [findingId]: event.target.value }))
-                                  }
-                                  rows={3}
-                                  placeholder="Add a short commercial rationale or exception note."
-                                  className="w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-3 text-sm leading-6 text-neutral-800 outline-none focus:border-[#b08d57]"
-                                />
-                                <div className="mt-2 flex justify-end">
-                                  <button
-                                    type="button"
-                                    onClick={() =>
-                                      void updateFindingDecision(
-                                        findingId,
-                                        (decision.status as FindingDecisionValue) || "unresolved",
-                                        noteDraft,
-                                      )
-                                    }
-                                    disabled={!activeScanId || decisionSavingKey === findingId}
-                                    className="rounded-full bg-[#1E1712] px-4 py-2 text-xs font-semibold text-[#EDE7DF] transition hover:bg-[#241C16] disabled:cursor-not-allowed disabled:opacity-60"
-                                  >
-                                    Save note
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-
-                            <div className="mt-3 text-xs leading-5 text-[#8f7245]">
-                              {decision.updated_at
-                                ? `Last action: ${formatReportTimestamp(decision.updated_at)}`
-                                : activeScanId
-                                  ? "No finding-level outcome recorded yet."
-                                  : "Decision controls activate once the review is saved."}
-                            </div>
+                            <h3 className="mt-2 text-xl font-semibold text-neutral-950">What deserves attention first</h3>
                           </div>
                         </div>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm text-[#8f7245]">
-                        No material automated risk signals were elevated into detailed findings for this review. This is a low-signal result, not a substitute for commercial or legal review.
+                        <div className="mt-3 grid gap-3">
+                          {reportPriorityItems.length ? (
+                            reportPriorityItems.map((item, index) => {
+                              const category = item.category ?? "";
+                              return (
+                                <article key={`priority-${item.title ?? "risk"}-${index}`} className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4">
+                                  <div className="flex gap-3">
+                                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-[#b08d57] bg-[#fffaf0] text-sm font-semibold text-[#6f552d]">
+                                      {index + 1}
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="text-sm font-semibold leading-5 text-neutral-950">{item.title ?? "Unlabeled risk"}</h4>
+                                      <p className="mt-1 max-h-12 overflow-hidden text-sm leading-6 text-neutral-700">
+                                        {priorityReason(category)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                </article>
+                              );
+                            })
+                          ) : (
+                            <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-4 text-sm leading-6 text-[#8f7245]">
+                              No elevated driver was detected by the governed rules. Continue normal review for off-text dependencies.
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                <div className="rounded-3xl border border-[#d7c3a0] bg-[#fcf7ee] p-6 shadow-[0_10px_22px_rgba(80,60,30,0.05)]">
+                      <div className="rounded-[28px] border border-[#dccaa8] bg-[#fffdf8] p-5 shadow-[0_12px_28px_rgba(80,60,30,0.05)]">
+                        <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f7245]">
+                          Negotiation Priorities
+                        </div>
+                        <h3 className="mt-2 text-xl font-semibold text-neutral-950">Bounded preparation</h3>
+                        <div className="mt-4 space-y-3">
+                          {(negotiationIntel?.priorities?.length ? negotiationIntel.priorities.slice(0, 3) : []).map((item, index) => (
+                            <div key={`${item.title ?? "negotiation"}-${index}`} className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4">
+                              <div className="text-xs font-semibold uppercase tracking-[0.18em] text-[#8f7245]">{item.priority ?? "Priority"}</div>
+                              <div className="mt-1 text-sm font-semibold leading-5 text-neutral-950">{item.title ?? "Negotiation issue"}</div>
+                              <p className="mt-2 max-h-12 overflow-hidden text-sm leading-6 text-neutral-700">
+                                {item.clause_revision_objectives?.[0] ?? negotiationIntel?.minimum_acceptable_controls?.[0] ?? "Review the deterministic priority before acceptance."}
+                              </p>
+                            </div>
+                          ))}
+                          {!negotiationIntel?.priorities?.length && (
+                            <p className="rounded-2xl border border-[#dccaa8] bg-[#fffaf0] p-4 text-sm leading-6 text-neutral-700">
+                              No negotiation demand is elevated from the current deterministic result.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="rounded-[28px] border border-[#dccaa8] bg-[#fffaf0] p-5 shadow-[0_12px_28px_rgba(80,60,30,0.05)]">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f7245]">
+                            Cross-Signal Intelligence
+                          </div>
+                          <h3 className="mt-2 text-xl font-semibold text-neutral-950">Combined patterns, not repeated findings</h3>
+                        </div>
+                        <div className="text-xs leading-5 text-[#8f7245]">Deterministic synthesis only</div>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {(synthesisSignals.length ? synthesisSignals : ["No compound pattern elevated"]).map((signal) => (
+                          <div key={signal} className="rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
+                            <div className="text-sm font-semibold text-neutral-950">{signal}</div>
+                            <p className="mt-2 max-h-12 overflow-hidden text-xs leading-5 text-neutral-600">
+                              {signal === "No compound pattern elevated"
+                                ? "Current findings do not create a separately elevated synthesis pattern."
+                                : "Review the linked top drivers and evidence before deciding whether to accept, negotiate, or escalate."}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                      {(policyUnknownCount > 0 || unresolvedFindingCount > 0) && (
+                        <div className="mt-4 rounded-2xl border border-[#e6d8bd] bg-[#fffcf6] p-3 text-xs leading-5 text-[#8f7245]">
+                          Governance note: {policyUnknownCount} finding{policyUnknownCount === 1 ? "" : "s"} without configured policy and {unresolvedFindingCount} unresolved finding-level decision{unresolvedFindingCount === 1 ? "" : "s"}. Shown once here to avoid repeated metadata noise.
+                        </div>
+                      )}
+                      {(contractMemory?.recurring_counterparty?.detected || contractMemory?.recurring_risky_clauses?.length || policyTrace.length > 0) && (
+                        <div className="mt-3 grid gap-3 md:grid-cols-2">
+                          {contractMemory?.recurring_counterparty?.detected && (
+                            <div className="rounded-2xl border border-[#e6d8bd] bg-[#fffcf6] p-3">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Contract memory</div>
+                              <p className="mt-1 text-xs leading-5 text-neutral-700">
+                                Recurring counterparty signal across {contractMemory.recurring_counterparty.prior_scan_count ?? 0} prior review{contractMemory.recurring_counterparty.prior_scan_count === 1 ? "" : "s"} in this workspace.
+                              </p>
+                            </div>
+                          )}
+                          {Boolean(contractMemory?.recurring_risky_clauses?.length) && (
+                            <div className="rounded-2xl border border-[#e6d8bd] bg-[#fffcf6] p-3">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Repeated exposure</div>
+                              <p className="mt-1 text-xs leading-5 text-neutral-700">
+                                {contractMemory?.recurring_risky_clauses?.slice(0, 2).map((item) => item.family).filter(Boolean).join(", ")} recurring clause family signal{(contractMemory?.recurring_risky_clauses?.length ?? 0) === 1 ? "" : "s"}.
+                              </p>
+                            </div>
+                          )}
+                          {policyTrace.length > 0 && (
+                            <div className="rounded-2xl border border-[#e6d8bd] bg-[#fffcf6] p-3 md:col-span-2">
+                              <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Policy signal</div>
+                              <p className="mt-1 text-xs leading-5 text-neutral-700">
+                                {policyTrace.length} policy tolerance check{policyTrace.length === 1 ? "" : "s"} evaluated for this review. Material conflicts remain attached to the relevant finding.
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </section>
+
+                    <section className="rounded-[26px] border border-[#dccaa8] bg-[#fffaf0] p-5 shadow-[0_10px_22px_rgba(80,60,30,0.05)] md:p-6">
+                      <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#8f7245]">
+                            Condensed Findings
+                          </div>
+                          <h3 className="mt-2 text-xl font-semibold text-neutral-950">Grouped by impact</h3>
+                        </div>
+                        <div className="text-xs leading-5 text-[#8f7245]">Open a finding for evidence and decision controls.</div>
+                      </div>
+
+                      <div className="mt-5 space-y-4">
+                        {(["Critical", "High", "Moderate", "Low"] as const).map((groupName) => {
+                          const group = findingGroups[groupName];
+                          if (!group.length) return null;
+                          const tone = groupFindingTone(groupName);
+                          const visible = groupName === "Low" ? group.slice(0, 3) : group.slice(0, 6);
+                          const hidden = group.slice(visible.length);
+
+                          const renderFinding = (finding: Finding, index: number) => {
+                            const originalIndex = findings.indexOf(finding);
+                            const findingId = findingDecisionId(finding, originalIndex >= 0 ? originalIndex : index);
+                            const decision = findingDecisions[findingId] ?? { finding_id: findingId, status: "unresolved" };
+                            const policy = policyIndicator(finding);
+                            const noteOpen = Boolean(decisionNotesOpen[findingId]);
+                            const noteDraft = findingDecisionNotes[findingId] ?? decision.note ?? "";
+                            const showPolicy = policy && finding.policy_status !== "policy_unknown";
+                            const roleAwareSections = [
+                              { label: "Structural", value: finding.structural_risk ?? finding.role_aware_interpretation?.["Structural Risk"] },
+                              { label: "Context", value: finding.contextual_impact ?? finding.role_aware_interpretation?.["Contextual Impact"] },
+                              { label: "Operational", value: finding.operational_exposure ?? finding.role_aware_interpretation?.["Operational Exposure"] },
+                              { label: "Attention", value: finding.recommended_attention ?? finding.role_aware_interpretation?.["Recommended Attention"] },
+                            ].filter((section) => section.value);
+
+                            return (
+                              <article key={`${findingId}-${index}`} className={`rounded-2xl border p-3 ${tone.wrapper}`}>
+                                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
+                                      <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">
+                                        {finding.category ?? "uncategorized"}
+                                      </span>
+                                    </div>
+                                    <h4 className="mt-2 text-base font-semibold leading-6 text-neutral-950">{finding.title ?? "Unlabeled finding"}</h4>
+                                    <p className="mt-2 max-h-[3.2rem] overflow-hidden text-sm leading-5 text-neutral-700">
+                                      {finding.rationale ?? consequenceSummary(finding.category)}
+                                    </p>
+                                  </div>
+                                  <span className={`shrink-0 rounded-full border px-3 py-1 text-xs font-semibold ${tone.badge}`}>
+                                    {severityTone(finding.severity)}
+                                  </span>
+                                </div>
+
+                                {finding.matched_text && (
+                                  <div className="mt-2 rounded-xl border border-[#e3d4bb] bg-[#fffdf8] p-3">
+                                    <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8f7245]">Evidence preview</div>
+                                    <p className="mt-1 max-h-16 overflow-hidden break-words text-xs leading-5 text-neutral-600">
+                                      {finding.matched_text}
+                                    </p>
+                                  </div>
+                                )}
+
+                                <details className="mt-2 rounded-xl border border-[#e3d4bb] bg-[#fffdf8] p-3">
+                                  <summary className="cursor-pointer text-sm font-semibold text-neutral-950">Evidence, controls, and decision record</summary>
+                                  <div className="mt-3 space-y-3">
+                                    {showPolicy && (
+                                      <div className={`rounded-xl border p-3 text-xs leading-5 ${policy.className}`}>
+                                        <span className="font-semibold">{policy.label}:</span> {policy.detail}
+                                      </div>
+                                    )}
+                                    {roleAwareSections.length > 0 && (
+                                      <div className="grid gap-2 md:grid-cols-2">
+                                        {roleAwareSections.map((section) => (
+                                          <div key={section.label} className="rounded-xl border border-[#e3d4bb] bg-[#fffcf6] p-3">
+                                            <div className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[#8f7245]">{section.label}</div>
+                                            <p className="mt-1 text-xs leading-5 text-neutral-700">{section.value}</p>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {finding.matched_text && (
+                                      <div className="max-h-56 overflow-y-auto rounded-xl border border-[#dccaa8] bg-[#fffaf0] p-3 text-sm leading-6 text-neutral-700">
+                                        {finding.matched_text}
+                                      </div>
+                                    )}
+                                    <div>
+                                      <div className="mb-2 flex flex-wrap gap-2">
+                                        {acceptableGuidance(finding).slice(0, 4).map((item) => (
+                                          <span key={item} className="rounded-full border border-[#dccaa8] bg-[#fcf2df] px-3 py-1 text-xs font-medium text-[#6f552d]">
+                                            {item}
+                                          </span>
+                                        ))}
+                                      </div>
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="rounded-full border border-[#e3d4bb] bg-[#fffcf6] px-3 py-1 text-xs font-semibold text-[#765a2b]">
+                                          {findingDecisionLabel(decision.status)}
+                                        </span>
+                                        <select
+                                          value={(decision.status as FindingDecisionValue) || "unresolved"}
+                                          onChange={(event) => void updateFindingDecision(findingId, event.target.value as FindingDecisionValue, noteDraft)}
+                                          disabled={!activeScanId || decisionSavingKey === findingId}
+                                          className="rounded-xl border border-[#dccaa8] bg-[#fffdf8] px-3 py-2 text-sm text-neutral-800 disabled:opacity-60"
+                                        >
+                                          {FINDING_DECISION_OPTIONS.map((option) => (
+                                            <option key={option.value} value={option.value}>{option.label}</option>
+                                          ))}
+                                        </select>
+                                        <button
+                                          type="button"
+                                          onClick={() => setDecisionNotesOpen((current) => ({ ...current, [findingId]: !noteOpen }))}
+                                          className="text-xs font-semibold text-[#765a2b] underline-offset-4 hover:underline"
+                                        >
+                                          {noteOpen ? "Hide note" : decision.note ? "Edit note" : "Add note"}
+                                        </button>
+                                      </div>
+                                      {noteOpen && (
+                                        <div className="mt-2">
+                                          <textarea
+                                            value={noteDraft}
+                                            onChange={(event) => setFindingDecisionNotes((current) => ({ ...current, [findingId]: event.target.value }))}
+                                            rows={3}
+                                            placeholder="Add a short commercial rationale or exception note."
+                                            className="w-full rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-3 text-sm leading-6 text-neutral-800 outline-none focus:border-[#b08d57]"
+                                          />
+                                          <button
+                                            type="button"
+                                            onClick={() => void updateFindingDecision(findingId, (decision.status as FindingDecisionValue) || "unresolved", noteDraft)}
+                                            disabled={!activeScanId || decisionSavingKey === findingId}
+                                            className="mt-2 rounded-full bg-[#1E1712] px-4 py-2 text-xs font-semibold text-[#EDE7DF] transition hover:bg-[#241C16] disabled:cursor-not-allowed disabled:opacity-60"
+                                          >
+                                            Save note
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </div>
+                                </details>
+                              </article>
+                            );
+                          };
+
+                          return (
+                            <details key={groupName} open={groupName !== "Low"} className="rounded-2xl border border-[#dccaa8] bg-[#fffdf8] p-4">
+                              <summary className="cursor-pointer list-none">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                  <div className="flex items-center gap-3">
+                                    <span className={`h-2.5 w-2.5 rounded-full ${tone.dot}`} />
+                                    <div>
+                                      <div className="text-sm font-semibold text-neutral-950">{groupName} findings</div>
+                                      <div className="text-xs text-[#8f7245]">{group.length} item{group.length === 1 ? "" : "s"}</div>
+                                    </div>
+                                  </div>
+                                  <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${tone.badge}`}>Open / close</span>
+                                </div>
+                              </summary>
+                              <div className="mt-4 space-y-3">
+                                {visible.map(renderFinding)}
+                                {hidden.length > 0 && (
+                                  <details className="rounded-2xl border border-[#e3d4bb] bg-[#fffcf6] p-3">
+                                    <summary className="cursor-pointer text-sm font-semibold text-neutral-950">
+                                      Show {hidden.length} more {groupName.toLowerCase()} finding{hidden.length === 1 ? "" : "s"}
+                                    </summary>
+                                    <div className="mt-3 space-y-3">{hidden.map(renderFinding)}</div>
+                                  </details>
+                                )}
+                              </div>
+                            </details>
+                          );
+                        })}
+                        {!findings.length && (
+                          <div className="rounded-2xl border border-[#dccaa8] bg-[#fcf2df] p-5 text-sm leading-6 text-[#8f7245]">
+                            No detailed clause-level findings were elevated. This remains a low-signal automated result, not contract approval.
+                          </div>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="rounded-[24px] border border-[#e0cfad] bg-[#fbf6ed] p-4 shadow-[0_8px_18px_rgba(80,60,30,0.035)] md:p-5">
                     <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                       <div>
                         <div className="text-xs font-medium uppercase tracking-[0.24em] text-[#8f7245]">
                           AI Review Notes
                         </div>
-                        <h3 className="mt-2 text-2xl font-semibold text-neutral-950">
+                        <h3 className="mt-2 text-xl font-semibold text-neutral-950">
                           Secondary explanation layer
                         </h3>
-                        <p className="mt-3 max-w-3xl text-sm leading-6 text-neutral-700">
+                        <p className="mt-2 max-w-3xl text-sm leading-6 text-neutral-700">
                           Generated from deterministic findings and clause evidence. AI does not change the score, severity, findings, or decision posture.
                         </p>
                       </div>
@@ -2843,7 +2759,85 @@ export default function DashboardPage() {
                           ))}
                       </div>
                     )}
+                    </section>
                   </div>
+
+                  <aside className="top-5 rounded-[26px] border border-[#d2bd96] bg-[#1E1712] p-4 text-[#EDE7DF] shadow-[0_14px_32px_rgba(30,23,18,0.16)] xl:sticky">
+                    <div className="text-xs font-semibold uppercase tracking-[0.24em] text-[#c8a96d]">Executive Rail</div>
+                    <div className="mt-3 grid gap-3">
+                      <div className="rounded-2xl border border-[rgba(216,190,142,0.24)] bg-[#2a211a] p-3">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#c8a96d]">Exposure score</div>
+                        <div className="mt-1 text-4xl font-semibold">{normalizedScore}</div>
+                        <div className="mt-1 text-xs text-[#bfb3a7]">{result.severity} · {reliabilityAssessment.label}</div>
+                      </div>
+                      <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-4">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#c8a96d]">Posture</div>
+                        <div className="mt-2 text-lg font-semibold leading-6">{posture?.label ?? "Review required"}</div>
+                      </div>
+                      <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-4">
+                        <div className="text-[11px] uppercase tracking-[0.18em] text-[#c8a96d]">Next action</div>
+                        <p className="mt-2 max-h-24 overflow-hidden text-sm leading-6 text-[#d8cec2]">{posture?.nextStep ?? "Review the top drivers before recording the commercial decision."}</p>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-3">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-[#c8a96d]">Priorities</div>
+                          <div className="mt-1 text-2xl font-semibold">{negotiationPriorityCount}</div>
+                        </div>
+                        <div className="rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-3">
+                          <div className="text-[10px] uppercase tracking-[0.16em] text-[#c8a96d]">Unresolved</div>
+                          <div className="mt-1 text-2xl font-semibold">{unresolvedFindingCount}</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl border border-[rgba(216,190,142,0.22)] bg-[#241C16] p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-[11px] uppercase tracking-[0.18em] text-[#c8a96d]">Scan decision</div>
+                          <div className="mt-1 text-sm font-semibold">{scanDecisionLabel(scanDecision.state)}</div>
+                        </div>
+                      </div>
+                      <select
+                        value={(scanDecision.state as ScanDecisionValue) || "pending"}
+                        onChange={(event) => void updateScanDecision(event.target.value as ScanDecisionValue)}
+                        disabled={!activeScanId || decisionSavingKey === "scan"}
+                        className="mt-3 w-full rounded-xl border border-[rgba(216,190,142,0.32)] bg-[#1E1712] px-3 py-2 text-sm text-[#EDE7DF] disabled:opacity-60"
+                      >
+                        {SCAN_DECISION_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>{option.label}</option>
+                        ))}
+                      </select>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {[
+                          { label: "Accept", value: "accepted" as ScanDecisionValue },
+                          { label: "Escalate", value: "escalated" as ScanDecisionValue },
+                          { label: "Legal", value: "sent_for_legal_review" as ScanDecisionValue },
+                        ].map((action) => (
+                          <button
+                            key={action.value}
+                            type="button"
+                            onClick={() => void updateScanDecision(action.value)}
+                            disabled={!activeScanId || decisionSavingKey === "scan"}
+                            className="rounded-full border border-[rgba(216,190,142,0.38)] bg-[#332820] px-3 py-1.5 text-xs font-semibold text-[#EDE7DF] transition hover:bg-[#3c3027] disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {action.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {decisionMessage && (
+                      <div className="mt-3 rounded-2xl border border-[rgba(216,190,142,0.24)] bg-[#241C16] p-3 text-xs leading-5 text-[#d8cec2]">
+                        {decisionMessage}
+                      </div>
+                    )}
+
+                    <details className="mt-4 rounded-2xl border border-[rgba(216,190,142,0.18)] bg-[#241C16] p-3">
+                      <summary className="cursor-pointer text-xs font-semibold uppercase tracking-[0.18em] text-[#c8a96d]">Boundary</summary>
+                      <p className="mt-2 text-xs leading-5 text-[#bfb3a7]">{reportBoundaryNotice}</p>
+                    </details>
+                  </aside>
+                </div>
               </div>
 
               <section className="rounded-3xl border border-[#dccaa8] bg-[#fffaf0] p-6 shadow-[0_12px_28px_rgba(80,60,30,0.06)] md:p-8">
