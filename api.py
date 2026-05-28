@@ -1,7 +1,8 @@
 from __future__ import annotations
+import os
+from datetime import datetime, timezone
 
 from contextlib import asynccontextmanager
-import os
 import logging
 import time
 import uuid
@@ -2951,3 +2952,330 @@ async def stripe_webhook(
         "event_id": event_id,
         "matched_org_id": str(result.org.id) if result.org else None,
     }
+
+
+# ============================================================
+# Operational Maturity Spine — Phase 1 + Phase 2
+# Added to make governance, safety, and runtime failures visible.
+# This block is intentionally bounded: it does not alter analyzer,
+# billing, Stripe, auth, entitlement, or scoring behavior.
+# ============================================================
+
+OPERATIONAL_MATURITY_STARTED_AT = datetime.now(timezone.utc).isoformat()
+
+DESTRUCTIVE_ACTION_REGISTRY = {
+    "user_suspend": {
+        "label": "Suspend user",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "user_reactivate",
+        "risk": "blocks user access while preserving records",
+    },
+    "user_disable": {
+        "label": "Disable user",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "user_reactivate",
+        "risk": "prevents account use until manually restored",
+    },
+    "user_soft_delete": {
+        "label": "Soft-delete user",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "manual_owner_review",
+        "risk": "removes user from normal operations while preserving audit trail",
+    },
+    "invite_revoke": {
+        "label": "Revoke invite",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "issue_new_invite",
+        "risk": "invalidates pending invite/token",
+    },
+    "org_restrict": {
+        "label": "Restrict organization",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "org_reactivate",
+        "risk": "limits organization access or usage",
+    },
+    "org_downgrade": {
+        "label": "Downgrade organization",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "manual_plan_override",
+        "risk": "may reduce entitlement/usage limits",
+    },
+    "access_grant_revoke": {
+        "label": "Revoke access grant",
+        "requires_confirmation": True,
+        "requires_reason": True,
+        "rollback_action": "create_access_grant",
+        "risk": "removes manual access override",
+    },
+}
+
+OPERATIONAL_STARTUP_CHECKS = {
+    "auth_runtime": "account login, setup, reset, logout routes must remain callable",
+    "owner_recovery": "bootstrap_platform_owner.py must remain available for controlled local recovery",
+    "database": "database connectivity and user/membership lookup must be observable",
+    "frontend_proxy": "Next.js proxy must reach VOXA_API_BASE_URL",
+    "internal_ops": "owner-only routes must remain protected and visible",
+    "destructive_actions": "destructive actions require reason, confirmation, audit, and rollback doctrine where possible",
+}
+
+
+def _utc_now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _safe_bool_env(name: str) -> dict:
+    raw = os.getenv(name)
+    return {
+        "name": name,
+        "configured": raw is not None,
+        "truthy": str(raw).lower() in {"1", "true", "yes", "on"},
+    }
+
+
+def _operational_db_probe() -> dict:
+    """Best-effort DB health probe. Must never crash the app."""
+    try:
+        engine_url = None
+        database_url = os.getenv("DATABASE_URL")
+        if database_url:
+            engine_url = database_url.split("@")[-1] if "@" in database_url else database_url.split("://")[0]
+        return {
+            "status": "observable",
+            "database_url_configured": bool(database_url),
+            "database_hint": engine_url,
+        }
+    except Exception as exc:
+        return {
+            "status": "degraded",
+            "error": type(exc).__name__,
+        }
+
+
+@app.get("/health")
+def operational_health():
+    return {
+        "status": "ok",
+        "service": "VoxaRisk_INTELLIGENCE",
+        "timestamp": _utc_now_iso(),
+        "started_at": OPERATIONAL_MATURITY_STARTED_AT,
+        "checks": {
+            "api_runtime": "ok",
+            "database": _operational_db_probe(),
+            "environment": {
+                "enable_docs": _safe_bool_env("ENABLE_DOCS"),
+                "rate_limit_enabled": _safe_bool_env("RATE_LIMIT_ENABLED"),
+                "account_session_secret_configured": bool(os.getenv("ACCOUNT_SESSION_SECRET")),
+                "database_url_configured": bool(os.getenv("DATABASE_URL")),
+            },
+        },
+    }
+
+
+@app.get("/internal/ops/service-state")
+def internal_ops_service_state():
+    return {
+        "status": "observable",
+        "generated_at": _utc_now_iso(),
+        "runtime": {
+            "api": "running",
+            "started_at": OPERATIONAL_MATURITY_STARTED_AT,
+        },
+        "startup_checks": OPERATIONAL_STARTUP_CHECKS,
+        "health_endpoints": {
+            "api_health": "/health",
+            "openapi": "/openapi.json",
+        },
+        "failure_discipline": {
+            "frontend_backend_connectivity": "verify VOXA_API_BASE_URL and /health before auth debugging",
+            "retry_safe_flows": [
+                "password setup tokens are one-time lifecycle artifacts",
+                "destructive actions require reason and confirmation",
+                "operator must verify state after restart",
+            ],
+            "graceful_degradation": [
+                "show service unavailable when backend cannot be reached",
+                "do not confuse 401 auth rejection with backend outage",
+                "do not treat 400 token rejection as network failure",
+            ],
+        },
+        "environment": {
+            "database_url_configured": bool(os.getenv("DATABASE_URL")),
+            "account_session_secret_configured": bool(os.getenv("ACCOUNT_SESSION_SECRET")),
+            "enable_docs": _safe_bool_env("ENABLE_DOCS"),
+            "rate_limit_enabled": _safe_bool_env("RATE_LIMIT_ENABLED"),
+        },
+    }
+
+
+@app.get("/internal/ops/governance-spine")
+def internal_ops_governance_spine():
+    return {
+        "status": "defined",
+        "generated_at": _utc_now_iso(),
+        "objective": "centralize owner governance, lifecycle control, recovery visibility, destructive-action safety, and rollback doctrine",
+        "control_plane": {
+            "user_lifecycle": [
+                "lookup user",
+                "suspend user",
+                "disable user",
+                "reactivate user",
+                "soft-delete user",
+                "issue reset/setup link",
+            ],
+            "organization_lifecycle": [
+                "view organization",
+                "restrict organization",
+                "reactivate organization",
+                "manual entitlement override",
+                "downgrade organization",
+            ],
+            "invite_control": [
+                "view pending invites",
+                "cancel/revoke invite",
+                "issue replacement invite through approved flow",
+            ],
+            "access_grants": [
+                "create controlled access grant",
+                "revoke access grant",
+                "audit manual override",
+            ],
+            "recovery_control": [
+                "owner bootstrap recovery",
+                "password setup lifecycle",
+                "reset-link issuance",
+                "membership repair visibility",
+            ],
+        },
+        "destructive_action_registry": DESTRUCTIVE_ACTION_REGISTRY,
+        "operator_safety_rules": [
+            "every destructive action must require a reason",
+            "every destructive action must be auditable",
+            "every destructive action should have a rollback doctrine where possible",
+            "soft deletion is preferred over permanent deletion",
+            "owner override must not hide normal-user permission defects",
+            "never treat production and local SQLite as equivalent without explicit validation",
+        ],
+        "rollback_doctrine": {
+            key: {
+                "action": value["label"],
+                "rollback": value["rollback_action"],
+                "risk": value["risk"],
+            }
+            for key, value in DESTRUCTIVE_ACTION_REGISTRY.items()
+        },
+    }
+
+
+# In-memory operational audit trail for local/early operational control.
+# Production follow-up should persist this to DB with immutable actor/reason metadata.
+OPERATIONAL_AUDIT_EVENTS = []
+
+
+def _record_operational_event(action: str, actor: str = "platform_owner", target: str = "system", reason: str = "operational-control") -> dict:
+    event = {
+        "id": f"op_{len(OPERATIONAL_AUDIT_EVENTS) + 1}",
+        "timestamp": _utc_now_iso(),
+        "actor": actor,
+        "action": action,
+        "target": target,
+        "reason": reason,
+        "rollback_available": action in DESTRUCTIVE_ACTION_REGISTRY,
+        "rollback_action": DESTRUCTIVE_ACTION_REGISTRY.get(action, {}).get("rollback_action"),
+        "status": "recorded",
+    }
+    OPERATIONAL_AUDIT_EVENTS.append(event)
+    return event
+
+
+@app.get("/internal/ops/audit-events")
+def internal_ops_audit_events():
+    return {
+        "status": "observable",
+        "generated_at": _utc_now_iso(),
+        "event_count": len(OPERATIONAL_AUDIT_EVENTS),
+        "events": list(reversed(OPERATIONAL_AUDIT_EVENTS[-50:])),
+    }
+
+
+@app.post("/internal/ops/simulate-action")
+def internal_ops_simulate_action(payload: dict):
+    action = str(payload.get("action", "")).strip()
+    reason = str(payload.get("reason", "")).strip()
+    target = str(payload.get("target", "system")).strip()
+    confirmation = str(payload.get("confirmation", "")).strip()
+
+    if action not in DESTRUCTIVE_ACTION_REGISTRY:
+        return {
+            "status": "rejected",
+            "error": "unknown_action",
+            "allowed_actions": sorted(DESTRUCTIVE_ACTION_REGISTRY.keys()),
+        }
+
+    if not reason:
+        return {
+            "status": "rejected",
+            "error": "reason_required",
+            "action": action,
+        }
+
+    if confirmation != "CONFIRM":
+        return {
+            "status": "rejected",
+            "error": "confirmation_required",
+            "required_confirmation": "CONFIRM",
+            "action": action,
+        }
+
+    event = _record_operational_event(
+        action=action,
+        actor="platform_owner",
+        target=target or "system",
+        reason=reason,
+    )
+
+    return {
+        "status": "accepted_for_audit",
+        "mode": "simulation_only_no_destructive_mutation",
+        "event": event,
+        "safety_notice": "This endpoint records the governed action decision only. Actual destructive mutation remains intentionally unwired until DB-backed audit persistence is added.",
+    }
+
+
+@app.get("/internal/ops/warnings")
+def internal_ops_warnings():
+    warnings = []
+
+    if not os.getenv("ACCOUNT_SESSION_SECRET"):
+        warnings.append({
+            "severity": "high",
+            "code": "missing_account_session_secret",
+            "message": "Account session secret is not configured.",
+        })
+
+    if not os.getenv("DATABASE_URL"):
+        warnings.append({
+            "severity": "high",
+            "code": "missing_database_url",
+            "message": "DATABASE_URL is not configured.",
+        })
+
+    if not os.getenv("RATE_LIMIT_ENABLED"):
+        warnings.append({
+            "severity": "medium",
+            "code": "rate_limit_not_explicitly_enabled",
+            "message": "RATE_LIMIT_ENABLED is not explicitly configured.",
+        })
+
+    return {
+        "status": "warnings_detected" if warnings else "clear",
+        "generated_at": _utc_now_iso(),
+        "warning_count": len(warnings),
+        "warnings": warnings,
+    }
+
