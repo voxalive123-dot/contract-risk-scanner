@@ -1016,11 +1016,31 @@ def get_internal_admin_ctx(account_ctx=Depends(get_account_ctx)):
     try:
         require_internal_admin(account_ctx)
     except InternalOpsConfigError as exc:
+        logger.error(
+            "internal_authorization_failed",
+            extra={
+                "event": "internal_authorization_failed",
+                "reason": "internal_access_not_configured",
+                "user_id": str(account_ctx.user.id),
+                "org_id": str(account_ctx.organization.id),
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Internal operations access is not configured",
         ) from exc
     except InternalOpsForbiddenError as exc:
+        logger.warning(
+            "internal_authorization_failed",
+            extra={
+                "event": "internal_authorization_failed",
+                "reason": "internal_role_not_granted",
+                "user_id": str(account_ctx.user.id),
+                "org_id": str(account_ctx.organization.id),
+                "membership_role": account_ctx.membership.role,
+                "membership_status": account_ctx.membership.status,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Internal operations access denied: signed-in email is not configured as platform owner or internal admin",
@@ -1729,6 +1749,24 @@ def account_password_reset_complete(
         "token_type": "bearer",
         "account": serialize_account_context(context),
     }
+
+@app.get("/internal/ops/permissions")
+def internal_ops_permissions(account_ctx=Depends(get_account_ctx)):
+    snapshot = internal_staff_snapshot(account_ctx)
+    if not snapshot["allowed"]:
+        logger.warning(
+            "internal_permission_check_denied",
+            extra={
+                "event": "internal_permission_check_denied",
+                "reason": "internal_role_not_granted",
+                "user_id": str(account_ctx.user.id),
+                "org_id": str(account_ctx.organization.id),
+                "membership_role": account_ctx.membership.role,
+                "membership_status": account_ctx.membership.status,
+            },
+        )
+    return snapshot
+
 
 @app.get("/internal/ops/summary")
 def internal_ops_summary(
@@ -3278,4 +3316,3 @@ def internal_ops_warnings():
         "warning_count": len(warnings),
         "warnings": warnings,
     }
-

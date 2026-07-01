@@ -88,8 +88,14 @@ def internal_admin_emails() -> set[str]:
 
 def internal_staff_role_for_context(context: AccountContext) -> str | None:
     email = context.user.email.strip().lower()
+    membership_role = (context.membership.role or "").strip().lower()
+    membership_status = (context.membership.status or "").strip().lower()
     roles = internal_staff_roles()
-    if is_platform_owner_email(email) or email in roles["owner"]:
+    if is_platform_owner_email(email):
+        if membership_role == "owner" and membership_status == "active":
+            return "owner"
+        return None
+    if email in roles["owner"]:
         return "owner"
     if email in roles["manager"]:
         return "manager"
@@ -1001,10 +1007,14 @@ def list_internal_audit(db: Session, *, limit: int = 100) -> dict[str, Any]:
 
 def internal_staff_snapshot(context: AccountContext) -> dict[str, Any]:
     role = internal_staff_role_for_context(context)
+    is_platform_owner = role == "owner" and is_platform_owner_email(context.user.email)
     return {
         "user_id": str(context.user.id),
         "email": context.user.email,
+        "organization_id": str(context.organization.id),
+        "allowed": role is not None,
         "role": role,
+        "is_platform_owner": is_platform_owner,
         "permissions": {
             "read": role in {"owner", "manager", "assistant"},
             "manage_users": role in {"owner", "manager"},

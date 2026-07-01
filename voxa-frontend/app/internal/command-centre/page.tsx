@@ -20,6 +20,15 @@ import {
   type TableColumn,
 } from "../internal-ui";
 
+type InternalPermissions = {
+  allowed: boolean;
+  role: "owner" | "manager" | "assistant" | null;
+  is_platform_owner: boolean;
+  permissions: {
+    read: boolean;
+  };
+};
+
 type InternalUser = {
   id: string;
   email: string;
@@ -61,7 +70,13 @@ export default function CommandCentrePage() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([loadJson<Summary>("/api/internal/ops/summary"), loadJson<GrantPayload>("/api/internal/ops/access-grants").catch(() => ({ grants: [] }))])
+    loadJson<InternalPermissions>("/api/internal/ops/permissions")
+      .then((permission) => {
+        if (!permission.allowed || !permission.permissions.read) {
+          throw new Error("restricted");
+        }
+        return Promise.all([loadJson<Summary>("/api/internal/ops/summary"), loadJson<GrantPayload>("/api/internal/ops/access-grants").catch(() => ({ grants: [] }))]);
+      })
       .then(([summaryData, grantData]) => {
         if (cancelled) return;
         setSummary(summaryData);
@@ -71,7 +86,7 @@ export default function CommandCentrePage() {
       })
       .catch((error: Error) => {
         if (cancelled) return;
-        setBlockedReason(error.message === "restricted" ? "restricted" : "signin");
+        setBlockedReason(error.message === "restricted" || error.message === "unavailable" ? error.message : "signin");
         setMessage("");
       });
     return () => { cancelled = true; };

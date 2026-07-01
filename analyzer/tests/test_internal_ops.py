@@ -158,6 +158,76 @@ def add_activity(session_factory, *, org_id, user_id):
         db.commit()
 
 
+def test_internal_permissions_require_authentication(internal_ops_client):
+    client, _session_factory, _monkeypatch = internal_ops_client
+
+    response = client.get("/internal/ops/permissions")
+
+    assert response.status_code == 401
+    assert response.json()["detail"] == "Missing account session"
+
+
+def test_internal_permissions_deny_signed_in_non_owner(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    customer = create_user_org(session_factory, email="customer@example.test", role="owner")
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+
+    permissions = client.get(
+        "/internal/ops/permissions",
+        headers={"Authorization": f"Bearer {customer['token']}"},
+    )
+    command_centre = client.get(
+        "/internal/ops/summary",
+        headers={"Authorization": f"Bearer {customer['token']}"},
+    )
+
+    assert permissions.status_code == 200
+    assert permissions.json()["allowed"] is False
+    assert permissions.json()["role"] is None
+    assert command_centre.status_code == 403
+
+
+def test_internal_permissions_allow_seeded_platform_owner(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+        role="owner",
+    )
+    monkeypatch.delenv("PLATFORM_OWNER_EMAIL", raising=False)
+    monkeypatch.delenv("INTERNAL_ADMIN_EMAILS", raising=False)
+
+    response = client.get(
+        "/internal/ops/permissions",
+        headers={"Authorization": f"Bearer {owner['token']}"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["allowed"] is True
+    assert response.json()["role"] == "owner"
+    assert response.json()["is_platform_owner"] is True
+    assert response.json()["permissions"]["read"] is True
+
+
+def test_platform_owner_email_requires_active_owner_membership(internal_ops_client):
+    client, session_factory, monkeypatch = internal_ops_client
+    owner_email_member = create_user_org(
+        session_factory,
+        email="admin.dashboard@voxarisk.com",
+        org_name="VoxaRisk Platform",
+        role="member",
+    )
+    monkeypatch.delenv("PLATFORM_OWNER_EMAIL", raising=False)
+
+    response = client.get(
+        "/internal/ops/summary",
+        headers={"Authorization": f"Bearer {owner_email_member['token']}"},
+    )
+
+    assert response.status_code == 403
+
+
 def test_internal_admin_access_allowed(internal_ops_client):
     client, session_factory, monkeypatch = internal_ops_client
     admin = create_user_org(session_factory, email="internal@example.test")

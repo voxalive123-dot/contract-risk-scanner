@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import SiteFooter from "../site-footer";
 
-export type BlockedReason = "signin" | "restricted" | null;
+export type BlockedReason = "signin" | "restricted" | "unavailable" | null;
 
 export type TableColumn<T> = {
   key: string;
@@ -32,7 +32,7 @@ export const PLATFORM_OWNER_EMAIL = "admin.dashboard@voxarisk.com";
 export function blockedReasonFromStatus(status: number): BlockedReason {
   if (status === 401) return "signin";
   if (status === 403) return "restricted";
-  return "signin";
+  return "unavailable";
 }
 
 export function formatDate(value?: string | null) {
@@ -136,18 +136,22 @@ export function LoadingNotice({ label = "Loading command data..." }: { label?: s
   return <div className="mt-6 rounded-xl border border-[#d8c49e] bg-[#fbf3e5] p-5 text-sm text-neutral-700">{label}</div>;
 }
 
-export function InternalBlockedState({ reason }: { reason: "signin" | "restricted" }) {
+export function InternalBlockedState({ reason }: { reason: "signin" | "restricted" | "unavailable" }) {
   const message = reason === "restricted"
-    ? "This area is restricted to VoxaRisk owner/internal staff."
-    : "Sign in with a VoxaRisk owner/internal account to open the command centre.";
+    ? "This account is signed in but does not have VoxaRisk owner/internal access."
+    : reason === "unavailable"
+      ? "The owner permission service is temporarily unavailable. Your session has not been treated as signed out."
+      : "Sign in with a VoxaRisk owner/internal account to open the command centre.";
 
   return (
     <section className="mt-6 rounded-[1.25rem] border border-[#d8c49e] bg-[#fbf3e5] p-6">
       <div className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#8a6a34]">Access required</div>
       <p className="mt-4 max-w-2xl text-sm leading-7 text-neutral-700">{message}</p>
-      <Link href={OWNER_SIGNIN_HREF} className="mt-5 inline-flex rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
-        Sign in as owner
-      </Link>
+      {reason !== "unavailable" && (
+        <Link href={OWNER_SIGNIN_HREF} className="mt-5 inline-flex rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17]">
+          Sign in as owner
+        </Link>
+      )}
     </section>
   );
 }
