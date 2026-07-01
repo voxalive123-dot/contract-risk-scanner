@@ -22,6 +22,7 @@ from stripe_billing import (
     bind_billing_identity,
     extract_event_context,
     map_lookup_key_to_plan,
+    resolve_org_by_billing_email,
     resolve_org_match,
 )
 
@@ -81,10 +82,14 @@ def _resolve_org(
     if org:
         return org
 
-    return _lookup_billing_customer_reference(
+    org = _lookup_billing_customer_reference(
         db,
         stripe_customer_id=context.get("customer_id"),
     )
+    if org:
+        return org
+
+    return resolve_org_by_billing_email(db, context.get("billing_email"))
 
 
 def _upsert_billing_customer_reference(

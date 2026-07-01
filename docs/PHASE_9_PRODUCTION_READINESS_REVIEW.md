@@ -22,6 +22,31 @@ Why:
 - Secret-hygiene review shows no real secrets in tracked repository files
 
 ### Phase 9B
+Status: Partially validated (original blocked status superseded — see history below)
+
+Confirmed as of 2026-07-01:
+- voxarisk.com is live and resolves over HTTPS
+- Homepage renders correctly with the required non-legal-advice doctrine language
+- /pricing page renders correctly over HTTPS
+
+Still requires a real browser session to confirm:
+- Actual scan flow (contract paste → analysis → findings render)
+- Actual Stripe checkout completion end-to-end
+- Browser console errors / any client-side failures
+- No browser-visible API key or secret leakage in production
+
+Billing fix applied 2026-07-01:
+- Added resolve_org_by_billing_email() fallback in stripe_billing.py and wired it
+  as the final fallback in stripe_reconciliation._resolve_org(). This closes the
+  highest-severity billing bug: first-contact checkout.session.completed events
+  from static Stripe Payment Links carried no org_id metadata and no known
+  customer id, so new paying customers were never entitled to their plan. The
+  fix matches by user email (case-insensitive, unambiguous-only), then the
+  existing _upsert_billing_customer_reference + bind_billing_identity calls bind
+  the Stripe customer id so all subsequent events resolve via customer id without
+  needing the email fallback again.
+
+--- Historical (superseded) ---
 Status: Blocked
 
 Blocking condition:
@@ -29,6 +54,7 @@ Blocking condition:
 
 Required statement:
 - Phase 9B live production validation is blocked because Phase 8B live deployment has not been executed.
+--- End historical ---
 
 ## Tests and Builds Performed
 

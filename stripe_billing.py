@@ -4,10 +4,10 @@ import uuid
 from datetime import datetime, timezone
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from models import Organization, Plan
+from models import Organization, Plan, User
 
 
 DEFAULT_PLAN_NAME = "starter"
@@ -218,6 +218,30 @@ def resolve_org_match(
         return db.execute(stmt).scalars().first()
 
     return None
+
+
+def resolve_org_by_billing_email(db: Session, billing_email: str | None) -> Organization | None:
+    if not billing_email:
+        return None
+
+    normalized = billing_email.strip().lower()
+    if not normalized:
+        return None
+
+    stmt = select(User).where(func.lower(User.email) == normalized)
+    users = db.execute(stmt).scalars().all()
+
+    if not users:
+        return None
+
+    active_users = [u for u in users if u.is_active]
+    candidates = active_users if active_users else users
+
+    org_ids = {u.org_id for u in candidates}
+    if len(org_ids) != 1:
+        return None
+
+    return db.get(Organization, next(iter(org_ids)))
 
 
 def bind_billing_identity(org: Organization, context: dict[str, Any]) -> None:

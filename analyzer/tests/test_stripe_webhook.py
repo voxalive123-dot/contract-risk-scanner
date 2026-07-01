@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 
 import api
 from db import Base
-from models import BillingCustomerReference, Organization, StripeWebhookEvent, Subscription
+from models import BillingCustomerReference, Organization, StripeWebhookEvent, Subscription, User
 from stripe_billing import map_lookup_key_to_plan
 
 
@@ -515,3 +515,163 @@ def test_analyzer_endpoint_still_works_when_entitlement_allows(
     assert "risk_score" in data
     assert "severity" in data
     assert "flags" in data
+
+
+def test_checkout_completed_links_org_by_billing_email_when_first_seen(
+    stripe_test_client,
+    monkeypatch,
+):
+    client, session_factory = stripe_test_client
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    org_id = create_org(session_factory, name="email-matched-org")
+
+    with session_factory() as db:
+        db.add(User(
+            org_id=org_id,
+            email="Founder@ExampleCo.test",
+            password_hash="hashed",
+            is_active=True,
+        ))
+        db.commit()
+
+    monkeypatch.setattr(
+        api.stripe.Webhook,
+        "construct_event",
+        lambda *args, **kwargs: {
+            "id": "evt_checkout_email_match",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "customer": "cus_email_match",
+                    "subscription": "sub_email_match",
+                    "customer_details": {"email": "founder@exampleco.test"},
+                    "metadata": {},
+                }
+            },
+        },
+    )
+
+    response = client.post(
+        "/stripe/webhook",
+        data=b"{}",
+        headers={"Stripe-Signature": "sig"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "checkout_started"
+    assert response.json()["matched_org_id"] == str(org_id)
+
+    with session_factory() as db:
+        org = db.get(Organization, org_id)
+        assert org is not None
+        assert org.stripe_customer_id == "cus_email_match"
+
+        reference = db.execute(select(BillingCustomerReference)).scalars().first()
+        assert reference is not None
+        assert reference.org_id == org_id
+        assert reference.external_customer_id == "cus_email_match"
+
+    # Second event: customer.subscription.created using only the bound customer id, no email
+    monkeypatch.setattr(
+        api.stripe.Webhook,
+        "construct_event",
+        lambda *args, **kwargs: {
+            "id": "evt_subscription_after_email_match",
+            "type": "customer.subscription.created",
+            "data": {
+                "object": {
+                    "id": "sub_email_match",
+                    "customer": "cus_email_match",
+                    "status": "active",
+                    "current_period_end": 1_800_000_000,
+                    "metadata": {},
+                    "items": {
+                        "data": [
+                            {
+                                "price": {
+                                    "id": "price_business_monthly",
+                                    "lookup_key": "business_monthly_gbp",
+                                }
+                            }
+                        ]
+                    },
+                }
+            },
+        },
+    )
+
+    response = client.post(
+        "/stripe/webhook",
+        data=b"{}",
+        headers={"Stripe-Signature": "sig"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "processed"
+
+    with session_factory() as db:
+        org = db.get(Organization, org_id)
+        assert org is not None
+        assert org.plan_type == "business"
+        assert org.plan_status == "active"
+
+
+def test_checkout_completed_email_match_stays_unmatched_when_ambiguous(
+    stripe_test_client,
+    monkeypatch,
+):
+    client, session_factory = stripe_test_client
+    monkeypatch.setenv("STRIPE_WEBHOOK_SECRET", "whsec_test")
+
+    org_id_1 = create_org(session_factory, name="ambiguous-org-1")
+    org_id_2 = create_org(session_factory, name="ambiguous-org-2")
+
+    shared_email = "shared@example.test"
+    with session_factory() as db:
+        db.add(User(
+            org_id=org_id_1,
+            email=shared_email,
+            password_hash="hashed",
+            is_active=True,
+        ))
+        db.add(User(
+            org_id=org_id_2,
+            email=shared_email,
+            password_hash="hashed",
+            is_active=True,
+        ))
+        db.commit()
+
+    monkeypatch.setattr(
+        api.stripe.Webhook,
+        "construct_event",
+        lambda *args, **kwargs: {
+            "id": "evt_checkout_ambiguous_email",
+            "type": "checkout.session.completed",
+            "data": {
+                "object": {
+                    "customer": "cus_ambiguous",
+                    "subscription": "sub_ambiguous",
+                    "customer_details": {"email": shared_email},
+                    "metadata": {},
+                }
+            },
+        },
+    )
+
+    response = client.post(
+        "/stripe/webhook",
+        data=b"{}",
+        headers={"Stripe-Signature": "sig"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "unmatched"
+    assert response.json()["matched_org_id"] is None
+
+    with session_factory() as db:
+        org1 = db.get(Organization, org_id_1)
+        org2 = db.get(Organization, org_id_2)
+        assert org1.stripe_customer_id is None
+        assert org2.stripe_customer_id is None
