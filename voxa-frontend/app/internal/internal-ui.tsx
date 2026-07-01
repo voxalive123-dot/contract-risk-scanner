@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useCallback, useState, type ReactNode } from "react";
 import SiteFooter from "../site-footer";
 
 export type BlockedReason = "signin" | "restricted" | "unavailable" | null;
@@ -220,13 +220,25 @@ export function DataTable<T>({ columns, rows, emptyLabel }: { columns: TableColu
   );
 }
 
-export function ActionButton({ children, onClick, disabled, tone = "neutral", title }: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone?: "neutral" | "danger" | "primary"; title?: string }) {
+export function ActionButton({ children, onClick, disabled, tone = "neutral", title, loading }: { children: ReactNode; onClick?: () => void; disabled?: boolean; tone?: "neutral" | "danger" | "primary"; title?: string; loading?: boolean }) {
   const classes = tone === "primary"
     ? "border-[#11110f] bg-[#11110f] text-stone-100 hover:bg-[#1b1a17]"
     : tone === "danger"
       ? "border-rose-300 bg-rose-50 text-rose-800 hover:bg-rose-100"
       : "border-[#d2bd96] bg-[#fffdf8] text-[#6f5328] hover:bg-[#f7ecd8]";
-  return <button type="button" title={title} disabled={disabled} onClick={onClick} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${classes}`}>{children}</button>;
+  return (
+    <button type="button" title={title} disabled={disabled || loading} onClick={onClick} className={`rounded-lg border px-3 py-2 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45 ${classes}`}>
+      {loading ? (
+        <span className="flex items-center gap-1.5">
+          <svg className="h-3 w-3 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          {children}
+        </span>
+      ) : children}
+    </button>
+  );
 }
 
 export function EmptyState({ title, children }: { title: string; children: ReactNode }) {
@@ -234,6 +246,69 @@ export function EmptyState({ title, children }: { title: string; children: React
     <div className="mt-5 rounded-xl border border-dashed border-[#d2bd96] bg-[#fffdf8] p-6">
       <div className="font-semibold text-neutral-950">{title}</div>
       <div className="mt-2 text-sm leading-6 text-neutral-600">{children}</div>
+    </div>
+  );
+}
+
+export type ToastItem = { id: number; message: string; type: "success" | "error" };
+let _toastCounter = 0;
+
+export function useToast() {
+  const [toasts, setToasts] = useState<ToastItem[]>([]);
+  const showToast = useCallback((message: string, type: "success" | "error" = "success") => {
+    const id = ++_toastCounter;
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => setToasts((prev) => prev.filter((t) => t.id !== id)), 4000);
+  }, []);
+  const dismissToast = useCallback((id: number) => setToasts((prev) => prev.filter((t) => t.id !== id)), []);
+  return { toasts, showToast, dismissToast };
+}
+
+export function Toast({ toasts, onDismiss }: { toasts: ToastItem[]; onDismiss: (id: number) => void }) {
+  if (toasts.length === 0) return null;
+  return (
+    <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2">
+      {toasts.map((toast) => (
+        <div key={toast.id} className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm font-semibold shadow-lg ${toast.type === "success" ? "border-emerald-300 bg-emerald-50 text-emerald-800" : "border-rose-300 bg-rose-50 text-rose-800"}`}>
+          <span className="flex-1">{toast.message}</span>
+          <button type="button" onClick={() => onDismiss(toast.id)} className="ml-1 text-xs opacity-60 hover:opacity-100" aria-label="Dismiss">✕</button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+export function ConfirmDialog({ open, title, description, requireReason = false, onConfirm, onCancel }: { open: boolean; title: string; description: string; requireReason?: boolean; onConfirm: (reason: string | null) => void; onCancel: () => void }) {
+  const [reason, setReason] = useState("");
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-md rounded-xl border border-[#d8c49e] bg-[#fffaf0] p-6 shadow-[0_22px_60px_rgba(75,55,25,0.22)]">
+        <h2 className="text-base font-semibold text-neutral-950">{title}</h2>
+        <p className="mt-3 text-sm leading-6 text-neutral-700">{description}</p>
+        {requireReason && (
+          <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason for this audited action" className="mt-4 min-h-24 w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
+        )}
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" onClick={onCancel} className="rounded-lg border border-[#d2bd96] bg-[#fffdf8] px-4 py-2 text-sm font-semibold text-[#6f5328] transition hover:bg-[#f7ecd8]">Cancel</button>
+          <button type="button" onClick={() => onConfirm(requireReason ? reason : null)} disabled={requireReason && !reason.trim()} className="rounded-lg border border-[#11110f] bg-[#11110f] px-4 py-2 text-sm font-semibold text-stone-100 transition hover:bg-[#1b1a17] disabled:opacity-45">Confirm</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function Modal({ open, title, onClose, children }: { open: boolean; title: string; onClose: () => void; children: ReactNode }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+      <div className="w-full max-w-2xl rounded-xl border border-[#d8c49e] bg-[#fffaf0] p-6 shadow-[0_22px_60px_rgba(75,55,25,0.22)]">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-base font-semibold text-neutral-950">{title}</h2>
+          <button type="button" onClick={onClose} className="rounded-lg border border-[#d2bd96] bg-[#fffdf8] px-3 py-1.5 text-xs font-semibold text-[#6f5328] transition hover:bg-[#f7ecd8]">Close</button>
+        </div>
+        <div className="mt-5">{children}</div>
+      </div>
     </div>
   );
 }

@@ -4,16 +4,20 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import {
   ActionButton,
   blockedReasonFromStatus,
+  ConfirmDialog,
   DataTable,
   EmptyState,
   formatDate,
   InternalBlockedState,
   InternalShell,
   LoadingNotice,
+  Modal,
   Panel,
   PLATFORM_OWNER_EMAIL,
   RawDataDisclosure,
   StatusBadge,
+  Toast,
+  useToast,
   type BlockedReason,
   type TableColumn,
 } from "../internal-ui";
@@ -39,6 +43,13 @@ type User = {
 type AccessGrant = { id: string; email: string | null; granted_plan: string; grant_type: string; scan_quota_override: number | null; status: string; effective_active: boolean; expires_at: string | null; organization_name: string | null };
 type UsersPayload = { users?: User[] };
 type GrantsPayload = { grants?: AccessGrant[] };
+
+type PendingConfirm = {
+  title: string;
+  description: string;
+  requireReason: boolean;
+  onConfirm: (reason: string | null) => Promise<void>;
+};
 
 const filters = ["all", "active", "suspended", "disabled", "closure_requested", "tester", "owner"] as const;
 type Filter = (typeof filters)[number];
@@ -66,6 +77,17 @@ export default function InternalUsersPage() {
   const [testerPlan, setTesterPlan] = useState("executive");
   const [testerDays, setTesterDays] = useState("14");
   const [testerLimit, setTesterLimit] = useState("");
+  const [pendingConfirm, setPendingConfirm] = useState<PendingConfirm | null>(null);
+  const [loadingActions, setLoadingActions] = useState<Set<string>>(new Set());
+  const { toasts, showToast, dismissToast } = useToast();
+
+  function setActionLoading(key: string, loading: boolean) {
+    setLoadingActions((prev) => {
+      const next = new Set(prev);
+      if (loading) next.add(key); else next.delete(key);
+      return next;
+    });
+  }
 
   async function loadUsers(q = search) {
     const suffix = q ? `?search=${encodeURIComponent(q)}` : "";
@@ -114,25 +136,42 @@ export default function InternalUsersPage() {
   async function runAction(user: User, action: string) {
     const ownerProtected = user.email === PLATFORM_OWNER_EMAIL && ["suspend", "disable", "soft-delete"].includes(action);
     if (ownerProtected) {
-      setMessage("Platform owner lockout actions are blocked in the console. Use the recovery runbook for owner access repair.");
+      showToast("Platform owner lockout actions are blocked in the console. Use the recovery runbook for owner access repair.", "error");
       return;
     }
     const destructive = ["suspend", "disable", "soft-delete"].includes(action);
-    if (destructive && !window.confirm(`Confirm ${action.replace("-", " ")} for ${user.email}? This audited action changes account access.`)) return;
-    const reason = window.prompt("Reason for this audited action");
-    if (!reason) return;
-    const response = await fetch(`/api/internal/ops/users/${user.id}/${action}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
+    const executeAction = async (reason: string | null) => {
+      setPendingConfirm(null);
+      const actionKey = `${user.id}_${action}`;
+      setActionLoading(actionKey, true);
+      try {
+        const response = await fetch(`/api/internal/ops/users/${user.id}/${action}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ reason }),
+        });
+        const payload = await response.json().catch(() => null) as { setup_url?: string; setup_token?: string } | null;
+        if (!response.ok) {
+          showToast("User action was rejected by backend permissions.", "error");
+          return;
+        }
+        showToast(
+          action === "reset-link"
+            ? `Reset/setup link generated${payload?.setup_url ? `: ${payload.setup_url}` : payload?.setup_token ? `: ${payload.setup_token}` : "."}`
+            : "User action recorded.",
+          "success"
+        );
+        await loadUsers(search);
+      } finally {
+        setActionLoading(actionKey, false);
+      }
+    };
+    setPendingConfirm({
+      title: `Confirm: ${action.replace(/-/g, " ")}`,
+      description: `${action.replace(/-/g, " ")} for ${user.email}?${destructive ? " This audited action changes account access." : ""}`,
+      requireReason: true,
+      onConfirm: executeAction,
     });
-    const payload = await response.json().catch(() => null) as { setup_url?: string; setup_token?: string } | null;
-    if (!response.ok) {
-      setMessage("User action was rejected by backend permissions.");
-      return;
-    }
-    setMessage(action === "reset-link" ? `Reset/setup link generated${payload?.setup_url ? `: ${payload.setup_url}` : payload?.setup_token ? `: ${payload.setup_token}` : "."}` : "User action recorded.");
-    await loadUsers(search);
   }
 
   async function createTester(event: FormEvent<HTMLFormElement>) {
@@ -150,30 +189,36 @@ export default function InternalUsersPage() {
     });
     const data = await response.json().catch(() => null) as { setup_token?: string; status?: string } | null;
     if (!response.ok) {
-      setMessage("Tester access could not be created.");
+      showToast("Tester access could not be created.", "error");
       return;
     }
     setTesterEmail("");
     setTesterLimit("");
-    setMessage(data?.setup_token ? `Tester created. Setup token: ${data.setup_token}` : "Tester access created for existing account.");
+    showToast(data?.setup_token ? `Tester created. Setup token: ${data.setup_token}` : "Tester access created for existing account.", "success");
     await loadUsers(search);
   }
 
   async function revokeGrant(grant: AccessGrant) {
-    if (!window.confirm(`Revoke tester/free access for ${grant.email ?? grant.organization_name ?? grant.id}?`)) return;
-    const reason = window.prompt("Reason for revoking tester/free access");
-    if (!reason) return;
-    const response = await fetch(`/api/internal/ops/access-grants/${grant.id}/revoke`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ reason }),
+    const executeRevoke = async (reason: string | null) => {
+      setPendingConfirm(null);
+      const response = await fetch(`/api/internal/ops/access-grants/${grant.id}/revoke`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      if (!response.ok) {
+        showToast("Grant revoke was rejected by backend permissions.", "error");
+        return;
+      }
+      showToast("Tester/free access revoked.", "success");
+      await loadUsers(search);
+    };
+    setPendingConfirm({
+      title: "Revoke tester/free access",
+      description: `Revoke access for ${grant.email ?? grant.organization_name ?? grant.id}?`,
+      requireReason: true,
+      onConfirm: executeRevoke,
     });
-    if (!response.ok) {
-      setMessage("Grant revoke was rejected by backend permissions.");
-      return;
-    }
-    setMessage("Tester/free access revoked.");
-    await loadUsers(search);
   }
 
   const columns: TableColumn<User>[] = [
@@ -183,51 +228,101 @@ export default function InternalUsersPage() {
     { key: "membership", label: "Membership", render: (user) => <StatusBadge value={user.is_active ? "active" : "inactive"} /> },
     { key: "account", label: "Account", render: (user) => <StatusBadge value={user.account_status} /> },
     { key: "created", label: "Created", render: (user) => formatDate(user.created_at) },
-    { key: "activity", label: "Last activity", render: (user) => <div>{user.usage.monthly_scans_used} scans this month<div className="text-neutral-500">Last activity not exposed</div></div> },
-    { key: "actions", label: "Actions", className: "min-w-[260px]", render: (user) => <div className="flex flex-wrap gap-2"><ActionButton onClick={() => setSelectedUser(user)}>View</ActionButton><ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} onClick={() => runAction(user, "suspend")}>Suspend</ActionButton><ActionButton onClick={() => runAction(user, "reactivate")}>Reactivate</ActionButton><ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} onClick={() => runAction(user, "disable")}>Disable</ActionButton><ActionButton onClick={() => runAction(user, "reset-link")}>Reset link</ActionButton><ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} tone="danger" onClick={() => runAction(user, "soft-delete")}>Soft delete</ActionButton></div> },
+    { key: "activity", label: "Last activity", render: (user) => (
+      <div>
+        {user.usage.monthly_scans_used} scans this month
+        <div className="mt-0.5">
+          <span className="inline-flex rounded-full border border-[#d2bd96] bg-[#fff8ea] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a6a34]">Not tracked</span>
+        </div>
+      </div>
+    )},
+    { key: "actions", label: "Actions", className: "min-w-[260px]", render: (user) => (
+      <div className="flex flex-wrap gap-2">
+        <ActionButton onClick={() => setSelectedUser(user)}>View</ActionButton>
+        <ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} loading={loadingActions.has(`${user.id}_suspend`)} onClick={() => runAction(user, "suspend")}>Suspend</ActionButton>
+        <ActionButton loading={loadingActions.has(`${user.id}_reactivate`)} onClick={() => runAction(user, "reactivate")}>Reactivate</ActionButton>
+        <ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} loading={loadingActions.has(`${user.id}_disable`)} onClick={() => runAction(user, "disable")}>Disable</ActionButton>
+        <ActionButton loading={loadingActions.has(`${user.id}_reset-link`)} onClick={() => runAction(user, "reset-link")}>Reset link</ActionButton>
+        <ActionButton disabled={user.email === PLATFORM_OWNER_EMAIL} tone="danger" loading={loadingActions.has(`${user.id}_soft-delete`)} onClick={() => runAction(user, "soft-delete")}>Soft delete</ActionButton>
+      </div>
+    )},
   ];
 
   return (
-    <InternalShell eyebrow="User management" title="User control board" subtitle="Search, classify, repair, suspend, reactivate, and provision tester access through audited backend actions.">
-      {message && <LoadingNotice label={message} />}
-      {blockedReason && <InternalBlockedState reason={blockedReason} />}
-      {!blockedReason && (
-        <div className="mt-6 space-y-6">
-          <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
-            <Panel title="Users" subtitle="Owner account lockout controls are visually blocked to prevent accidental platform loss.">
-              <div className="mt-5 flex flex-col gap-3 lg:flex-row">
-                <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email, name, or organisation" className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
-                <ActionButton tone="primary" onClick={() => loadUsers(search)}>Search</ActionButton>
-              </div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {filters.map((item) => <ActionButton key={item} tone={filter === item ? "primary" : "neutral"} onClick={() => setFilter(item)}>{item.replace("_", " ")}</ActionButton>)}
-              </div>
-              <DataTable columns={columns} rows={filteredUsers} emptyLabel="No users match the selected search and filter." />
-            </Panel>
-
-            <div className="space-y-6">
-              <Panel title="Create tester access" subtitle="Tester grants are non-revenue access and expire through backend entitlement checks.">
-                <form onSubmit={createTester} className="mt-5 space-y-3">
-                  <input type="email" required value={testerEmail} onChange={(event) => setTesterEmail(event.target.value)} placeholder="tester@example.com" className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
-                  <select value={testerPlan} onChange={(event) => setTesterPlan(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm"><option value="business">business access</option><option value="executive">executive access</option><option value="enterprise">enterprise access</option></select>
-                  <input type="number" min="1" value={testerDays} onChange={(event) => setTesterDays(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm" placeholder="Expiry days" />
-                  <input type="number" min="1" value={testerLimit} onChange={(event) => setTesterLimit(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm" placeholder="Optional scan limit" />
-                  <button className="w-full rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100">Create tester access</button>
-                </form>
-              </Panel>
-              <Panel title="Active tester/free grants">
-                <div className="mt-4 space-y-3">
-                  {grants.length === 0 && <EmptyState title="No active grants">Owner-granted tester or trial access will appear here.</EmptyState>}
-                  {grants.map((grant) => <div key={grant.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm"><div className="font-semibold text-neutral-950">{grant.email ?? grant.organization_name ?? grant.id}</div><div className="mt-1 text-neutral-600">{grant.granted_plan} / expires {formatDate(grant.expires_at)}</div><div className="mt-3 flex gap-2"><StatusBadge value={grant.status} /><ActionButton tone="danger" onClick={() => revokeGrant(grant)}>Revoke</ActionButton><ActionButton disabled title="Backend action not connected yet">Extend</ActionButton></div></div>)}
+    <>
+      <InternalShell eyebrow="User management" title="User control board" subtitle="Search, classify, repair, suspend, reactivate, and provision tester access through audited backend actions.">
+        {message && <LoadingNotice label={message} />}
+        {blockedReason && <InternalBlockedState reason={blockedReason} />}
+        {!blockedReason && (
+          <div className="mt-6 space-y-6">
+            <div className="grid gap-6 xl:grid-cols-[1fr_380px]">
+              <Panel title="Users" subtitle="Owner account lockout controls are visually blocked to prevent accidental platform loss.">
+                <div className="mt-5 flex flex-col gap-3 lg:flex-row">
+                  <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search email, name, or organisation" className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
+                  <ActionButton tone="primary" onClick={() => loadUsers(search)}>Search</ActionButton>
                 </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {filters.map((item) => <ActionButton key={item} tone={filter === item ? "primary" : "neutral"} onClick={() => setFilter(item)}>{item.replace("_", " ")}</ActionButton>)}
+                </div>
+                <DataTable columns={columns} rows={filteredUsers} emptyLabel="No users match the selected search and filter." />
               </Panel>
-            </div>
-          </div>
 
-          {selectedUser && <Panel title="User detail" action={<ActionButton onClick={() => setSelectedUser(null)}>Close</ActionButton>}><div className="mt-5 grid gap-4 md:grid-cols-3"><div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Identity</div><div className="mt-2 text-sm leading-6">{userName(selectedUser)}<br />{selectedUser.profile?.legal_identity?.business_name ?? "No business name stored"}</div></div><div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Entitlement</div><div className="mt-2 text-sm leading-6">{selectedUser.subscription.effective_plan ?? "-"}<br />{selectedUser.subscription.subscription_state ?? "-"}</div></div><div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Usage</div><div className="mt-2 text-sm leading-6">{selectedUser.usage.scan_count} total scans<br />{selectedUser.usage.monthly_scans_used} this month</div></div></div></Panel>}
-          <RawDataDisclosure data={{ users, grants }} />
-        </div>
-      )}
-    </InternalShell>
+              <div className="space-y-6">
+                <Panel title="Create tester access" subtitle="Tester grants are non-revenue access and expire through backend entitlement checks.">
+                  <form onSubmit={createTester} className="mt-5 space-y-3">
+                    <input type="email" required value={testerEmail} onChange={(event) => setTesterEmail(event.target.value)} placeholder="tester@example.com" className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm outline-none focus:border-[#8a6a34]" />
+                    <select value={testerPlan} onChange={(event) => setTesterPlan(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm"><option value="business">business access</option><option value="executive">executive access</option><option value="enterprise">enterprise access</option></select>
+                    <input type="number" min="1" value={testerDays} onChange={(event) => setTesterDays(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm" placeholder="Expiry days" />
+                    <input type="number" min="1" value={testerLimit} onChange={(event) => setTesterLimit(event.target.value)} className="w-full rounded-xl border border-[#d2bd96] bg-[#fffdf8] px-4 py-3 text-sm" placeholder="Optional scan limit" />
+                    <button className="w-full rounded-xl bg-[#11110f] px-5 py-3 text-sm font-semibold text-stone-100">Create tester access</button>
+                  </form>
+                </Panel>
+                <Panel title="Active tester/free grants">
+                  <div className="mt-4 space-y-3">
+                    {grants.length === 0 && <EmptyState title="No active grants">Owner-granted tester or trial access will appear here.</EmptyState>}
+                    {grants.map((grant) => (
+                      <div key={grant.id} className="rounded-xl border border-[#d2bd96] bg-[#fffdf8] p-3 text-sm">
+                        <div className="font-semibold text-neutral-950">{grant.email ?? grant.organization_name ?? grant.id}</div>
+                        <div className="mt-1 text-neutral-600">{grant.granted_plan} / expires {formatDate(grant.expires_at)}</div>
+                        <div className="mt-3 flex flex-wrap items-center gap-2">
+                          <StatusBadge value={grant.status} />
+                          <ActionButton tone="danger" onClick={() => revokeGrant(grant)}>Revoke</ActionButton>
+                          <span className="inline-flex items-center gap-1.5">
+                            <ActionButton disabled>Extend</ActionButton>
+                            <span className="rounded-full border border-[#d2bd96] bg-[#fff8ea] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a6a34]">Not available yet</span>
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Panel>
+              </div>
+            </div>
+            <RawDataDisclosure data={{ users, grants }} />
+          </div>
+        )}
+      </InternalShell>
+
+      <Modal open={selectedUser !== null} title="User detail" onClose={() => setSelectedUser(null)}>
+        {selectedUser && (
+          <div className="grid gap-4 md:grid-cols-3">
+            <div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Identity</div><div className="mt-2 text-sm leading-6">{userName(selectedUser)}<br />{selectedUser.profile?.legal_identity?.business_name ?? "No business name stored"}</div></div>
+            <div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Entitlement</div><div className="mt-2 text-sm leading-6">{selectedUser.subscription.effective_plan ?? "-"}<br />{selectedUser.subscription.subscription_state ?? "-"}</div></div>
+            <div><div className="text-xs uppercase tracking-[0.16em] text-[#8a6a34]">Usage</div><div className="mt-2 text-sm leading-6">{selectedUser.usage.scan_count} total scans<br />{selectedUser.usage.monthly_scans_used} this month</div></div>
+          </div>
+        )}
+      </Modal>
+
+      <ConfirmDialog
+        key={pendingConfirm !== null ? "dialog-open" : "dialog-closed"}
+        open={pendingConfirm !== null}
+        title={pendingConfirm?.title ?? ""}
+        description={pendingConfirm?.description ?? ""}
+        requireReason={pendingConfirm?.requireReason ?? false}
+        onConfirm={(reason) => { if (pendingConfirm) void pendingConfirm.onConfirm(reason); }}
+        onCancel={() => setPendingConfirm(null)}
+      />
+      <Toast toasts={toasts} onDismiss={dismissToast} />
+    </>
   );
 }

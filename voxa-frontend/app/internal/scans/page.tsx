@@ -33,8 +33,8 @@ export default function Page() {
   const highRisk = (summary?.recent_scans ?? []).filter((scan) => severityFor(scan.risk_score) === "high").length;
   const columns: TableColumn<Scan>[] = [
     { key: "date", label: "Date", render: (scan) => formatDate(scan.created_at) },
-    { key: "source", label: "Title/source", render: (scan) => <div><div className="font-semibold text-neutral-950">{scan.request_id}</div><div className="text-neutral-500">Source title not exposed by current endpoint</div></div> },
-    { key: "org", label: "User/org", render: () => "Not exposed by current endpoint" },
+    { key: "source", label: "Title/source", render: (scan) => <div><div className="font-semibold text-neutral-950">{scan.request_id}</div><div className="mt-0.5"><span className="inline-flex rounded-full border border-[#d2bd96] bg-[#fff8ea] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a6a34]">Not tracked</span></div></div> },
+    { key: "org", label: "User/org", render: () => <span className="inline-flex rounded-full border border-[#d2bd96] bg-[#fff8ea] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.1em] text-[#8a6a34]">Not tracked</span> },
     { key: "score", label: "Score", render: (scan) => scan.risk_score },
     { key: "severity", label: "Severity", render: (scan) => <StatusBadge value={severityFor(scan.risk_score)} tone={severityFor(scan.risk_score) === "high" ? "danger" : severityFor(scan.risk_score) === "medium" ? "warn" : "good"} /> },
     { key: "status", label: "Status", render: () => <StatusBadge value="stored" tone="good" /> },
